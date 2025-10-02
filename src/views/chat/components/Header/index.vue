@@ -1,7 +1,9 @@
 <script lang="ts" setup>
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useAppStore, useChatStore } from '@/store'
+import ModelSelector from '@/components/common/ModelSelector/index.vue'
+import ModelSelectors from './ModelSelector.vue'
 
 interface Props {
   usingContext: boolean
@@ -22,6 +24,9 @@ const chatStore = useChatStore()
 const collapsed = computed(() => appStore.siderCollapsed)
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
 
+const showModelSelector = ref(false)
+const showOldModelSelector = ref(false)
+
 function handleUpdateCollapsed() {
   appStore.setSiderCollapsed(!collapsed.value)
 }
@@ -38,6 +43,20 @@ function handleExport() {
 
 function handleClear() {
   emit('handleClear')
+}
+
+function openModelSelector() {
+  showModelSelector.value = true
+}
+
+function openOldModelSelector() {
+  showOldModelSelector.value = true
+}
+
+function handleModelSelect(modelId: string, provider: string) {
+  console.log('选择的模型:', modelId, provider)
+  // 这里可以保存到 store 或直接使用
+  // modelStore.setCurrentModel(modelId, provider)
 }
 </script>
 
@@ -62,6 +81,16 @@ function handleClear() {
         {{ currentChatHistory?.title ?? '' }}
       </h1>
       <div class="flex items-center space-x-2">
+        <HoverButton @click="openModelSelector" :tooltip="'新版模型选择器'">
+          <span class="text-xl text-[#4f555e] dark:text-white">
+            <SvgIcon icon="ri:robot-line" />
+          </span>
+        </HoverButton>
+        <HoverButton @click="openOldModelSelector" :tooltip="'旧版模型选择器(Drawer)'">
+          <span class="text-xl text-[#4f555e] dark:text-white">
+            <SvgIcon icon="ri:menu-line" />
+          </span>
+        </HoverButton>
         <HoverButton @click="handleExport">
           <span class="text-xl text-[#4f555e] dark:text-white">
             <SvgIcon icon="ri:download-2-line" />
@@ -74,5 +103,11 @@ function handleClear() {
         </HoverButton>
       </div>
     </div>
+
+    <!-- 新版模型选择器弹窗 -->
+    <ModelSelector v-model:visible="showModelSelector" @select="handleModelSelect" />
+    
+    <!-- 旧版模型选择器 (Drawer) -->
+    <ModelSelectors v-model:show="showOldModelSelector" />
   </header>
 </template>

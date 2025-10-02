@@ -24,13 +24,21 @@ const languageMap: { [key: string]: Language } = {
 
 export interface AppState {
   siderCollapsed: boolean
+  rightSiderCollapsed: boolean
+  rightSiderWidth: number
   theme: Theme
   language: Language
 }
 
 export function defaultSetting(): AppState {
   const language = languageMap[navigator.language]
-  return { siderCollapsed: false, theme: 'light', language }
+  return { 
+    siderCollapsed: false, 
+    rightSiderCollapsed: true, // 默认收起
+    rightSiderWidth: 30, // 默认30%
+    theme: 'light', 
+    language,
+  }
 }
 
 export function getLocalSetting(): AppState {

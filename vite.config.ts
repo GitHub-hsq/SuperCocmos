@@ -37,7 +37,7 @@ export default defineConfig((env) => {
       open: false,
       proxy: {
         '/api': {
-          target: viteEnv.VITE_APP_API_BASE_URL,
+          target: viteEnv.VITE_APP_API_BASE_URL || 'http://127.0.0.1:3002',
           changeOrigin: true, // 允许跨域
           rewrite: path => path.replace('/api/', '/'),
         },

@@ -1,37 +1,59 @@
-import fs from 'fs'
-import path from 'path'
-import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf'
+import { readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
+import { extname } from 'node:path'
 import type { WorkflowState } from './types'
 
 export async function loadFile(state: WorkflowState): Promise<WorkflowState> {
   const filePath = state.file_path
-  const ext = path.extname(filePath).toLowerCase()
+  const ext = extname(filePath).toLowerCase()
 
-  if (!fs.existsSync(filePath))
+  console.log('📄 [加载] 开始加载文件:', { filePath, ext })
+
+  if (!existsSync(filePath)) {
+    console.error('❌ [加载] 文件不存在:', filePath)
     throw new Error('File not found')
+  }
 
+  // PDF 文件
   if (ext === '.pdf') {
-    const loader = new PDFLoader(filePath)
-    const docs = await loader.load()
-    state.text = docs.map(d => d.pageContent).join('\n\n')
-    return state
+    try {
+      const pdfParse = await import('pdf-parse')
+      const dataBuffer = readFileSync(filePath)
+      const data = await pdfParse.default(dataBuffer)
+      state.text = data.text
+      return state
+    }
+    catch (error: any) {
+      throw new Error(`Failed to load PDF: ${error?.message || String(error)}`)
+    }
   }
 
+  // Word 文档
   if (ext === '.docx') {
-    const { DocxLoader } = await import('@langchain/community/document_loaders/fs/docx')
-    const loader = new DocxLoader(filePath)
-    const docs = await loader.load()
-    state.text = docs.map(d => d.pageContent).join('\n\n')
-    return state
+    try {
+      const mammoth = await import('mammoth')
+      const result = await mammoth.extractRawText({ path: filePath })
+      state.text = result.value
+      return state
+    }
+    catch (error: any) {
+      throw new Error(`Failed to load DOCX: ${error?.message || String(error)}`)
+    }
   }
 
+  // 纯文本文件（Markdown, TXT）
   if (ext === '.md' || ext === '.txt') {
-    const { TextLoader } = await import('@langchain/community/document_loaders/fs/text')
-    const loader = new TextLoader(filePath)
-    const docs = await loader.load()
-    state.text = docs[0].pageContent
-    return state
+    try {
+      state.text = readFileSync(filePath, 'utf-8')
+      console.log('✅ [加载] 文本文件加载成功，内容长度:', state.text.length)
+      return state
+    }
+    catch (error: any) {
+      console.error('❌ [加载] 加载文本文件失败:', error)
+      throw new Error(`Failed to load text file: ${error?.message || String(error)}`)
+    }
   }
 
-  throw new Error('Unsupported file format')
+  console.error('❌ [加载] 不支持的文件格式:', ext)
+  throw new Error(`Unsupported file format: ${ext}`)
 }

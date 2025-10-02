@@ -11,6 +11,7 @@ export function defaultState(): Chat.ChatState {
     history: [{ uuid, title: t('chat.newChatTitle'), isEdit: false, mode: 'normal' }],
     chat: [{ uuid, data: [] }],
     chatMode: 'normal',
+    workflowStates: [],
   }
 }
 

@@ -4,80 +4,156 @@ import { join } from 'node:path'
 import { ChatOpenAI } from '@langchain/openai'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
 import { END, StateGraph } from '@langchain/langgraph'
-import type { ClassificationLabel, HumanFeedbackInput, QuizItem, WorkflowState } from './types'
+import type { ClassificationLabel, HumanFeedbackInput, ModelConfig, ModelInfo, QuizItem, Subject, WorkflowNodeConfig, WorkflowNodeType, WorkflowState } from './types'
 import { loadFile } from './loader'
 
 // ---------- LLM ----------
-function makeLLM() {
+function makeLLM(modelInfo?: ModelInfo, config?: ModelConfig) {
+  // 如果没有提供模型信息，使用环境变量
+  const apiKey = modelInfo?.apiKey || process.env.OPENAI_API_KEY
+  const baseURL = modelInfo?.baseURL || process.env.OPENAI_API_BASE_URL
+  const model = modelInfo?.name || process.env.OPENAI_API_MODEL || 'gpt-4o-mini'
+  
+  console.log('🔑 [LLM配置]', {
+    model,
+    baseURL,
+    hasApiKey: !!apiKey,
+    provider: modelInfo?.provider || 'openai',
+    config,
+  })
+  
+  if (!apiKey) {
+    throw new Error('API_KEY 未配置！请在 service/.env 文件中配置或通过工作流配置传入')
+  }
+  
   return new ChatOpenAI({
-    model: process.env.OPENAI_API_MODEL || 'gpt-4o-mini',
-    temperature: 0,
-    apiKey: process.env.OPENAI_API_KEY,
+    model,
+    temperature: config?.temperature ?? 0,
+    topP: config?.top_p,
+    maxTokens: config?.max_tokens,
+    presencePenalty: config?.presence_penalty,
+    frequencyPenalty: config?.frequency_penalty,
+    openAIApiKey: apiKey,
     configuration: {
-      baseURL: process.env.OPENAI_API_BASE_URL,
+      // 模型调用需要加 /v1
+      baseURL: baseURL ? `${baseURL}/v1` : 'https://api.openai.com/v1',
     },
-    streaming: false,
+    streaming: true,
+    timeout: 60000,
   })
 }
 
-// ---------- 1. 分类器 ----------
+// 获取节点配置
+function getNodeConfig(state: WorkflowState, nodeType: WorkflowNodeType): { modelInfo: ModelInfo; config: ModelConfig } | null {
+  const nodeConfig = state.workflowConfig?.find(c => c.nodeType === nodeType)
+  if (!nodeConfig)
+    return null
+
+  // 如果有学科信息且该节点有学科专属配置，使用学科专属模型
+  if (state.subject && state.subject !== 'unknown' && nodeConfig.subjectSpecific?.[state.subject]) {
+    return {
+      modelInfo: nodeConfig.subjectSpecific[state.subject]!,
+      config: nodeConfig.config || {},
+    }
+  }
+
+  return {
+    modelInfo: nodeConfig.modelInfo,
+    config: nodeConfig.config || {},
+  }
+}
+
+// ---------- 1. 分类器（增强：同时识别学科） ----------
 const classifierPrompt = ChatPromptTemplate.fromMessages([
   [
     'system',
-    `你是一个分类器，判断输入文本的类型。
-规则：
-- 如果主要是知识点、概念、说明等内容，返回 'note'
-- 如果主要是题目（包含题干、选项、答案），返回 'question'
-- 如果同时包含大量笔记和题目，返回 'mixed'
-只输出: note 或 question 或 mixed`,
+    `你是一个分类器，判断输入文本的类型和学科门类。
+
+第一步：判断文本类型
+- 如果主要是知识点、概念、说明等内容，类型为 'note'
+- 如果主要是题目（包含题干、选项、答案），类型为 'question'
+- 如果同时包含大量笔记和题目，类型为 'mixed'
+
+第二步：判断学科门类（如果能判断）
+- math: 数学
+- physics: 物理
+- chemistry: 化学
+- biology: 生物
+- chinese: 语文
+- english: 英语
+- unknown: 无法判断或多学科混合
+
+请按以下格式输出（只输出这两行）：
+type: <note|question|mixed>
+subject: <math|physics|chemistry|biology|chinese|english|unknown>`,
   ],
   ['human', '{text}'],
 ])
 
 async function classify(state: WorkflowState): Promise<WorkflowState> {
-  const llm = makeLLM()
-  const chain = classifierPrompt.pipe(llm)
-  const result = await chain.invoke({ text: state.text.slice(0, 3000) }) // 只取前3000字符分类
-  const label = (result.content as string).trim().toLowerCase()
+  console.log('🤖 [分类器] 开始调用 LLM 进行分类...')
+  console.log('📝 [分类器] 文本预览 (前100字):', state.text.slice(0, 100))
+  
+  try {
+    const nodeConfig = getNodeConfig(state, 'classify')
+    const llm = nodeConfig 
+      ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
+      : makeLLM()
+    
+    const chain = classifierPrompt.pipe(llm)
+    const textSample = state.text.slice(0, 3000)
+    
+    console.log('🔄 [分类器] 发送文本给 LLM，长度:', textSample.length)
+    
+    const result = await chain.invoke({ text: textSample })
+    const response = (result.content as string).trim().toLowerCase()
+    
+    console.log('📊 [分类器] LLM 返回结果:', response)
 
-  if (label.includes('mixed')) {
-    state.classification = 'mixed'
-    state.error = '文件同时包含笔记和题目，请分开处理'
+    // 解析响应
+    const typeMatch = response.match(/type:\s*(note|question|mixed|unknown)/)
+    const subjectMatch = response.match(/subject:\s*(math|physics|chemistry|biology|chinese|english|unknown)/)
+    
+    const type = typeMatch?.[1] || 'unknown'
+    const subject = subjectMatch?.[1] || 'unknown'
+
+    state.classification = type as ClassificationLabel
+    state.subject = subject as Subject
+
+    console.log('✅ [分类器] 分类结果:', {
+      type: state.classification,
+      subject: state.subject,
+    })
+
+    if (state.classification === 'mixed') {
+      state.error = '文件同时包含笔记和题目，请分开处理'
+    }
   }
-  else if (label.includes('note')) {
+  catch (error: any) {
+    console.error('❌ [分类器] API 调用失败:', error)
+    console.error('错误详情:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      status: error?.status,
+      response: error?.response?.data,
+    })
+    
     state.classification = 'note'
-  }
-  else if (label.includes('question')) {
-    state.classification = 'question'
-  }
-  else {
-    state.classification = 'unknown'
+    state.subject = 'unknown'
+    state.error = `API 调用失败: ${error?.message || String(error)}`
+    
+    throw error
   }
 
   return state
 }
 
-// ---------- 2. 题目解析（切片） ----------
-// const parseQuestionsPrompt = ChatPromptTemplate.fromMessages([
-//   [
-//     'system',
-//     `你是题目解析助手。将原始题目文本解析为标准JSON格式。
-// 每道题必须包含：
-// - type: "single_choice" | "multiple_choice" | "true_false"
-// - question: 题目内容
-// - options: 选项数组 ["A. ...", "B. ..."]
-// - answer: 正确答案（如 ["A"] 或 ["A","B"]）
-// - explanation: 答案解析
-
-// ${state.revision_note ? `\n用户修改建议：${state.revision_note}\n请根据建议调整输出。` : ''}
-
-// 直接输出JSON数组，不要任何额外说明。`,
-//   ],
-//   ['human', '{text}'],
-// ])
-
 async function parseQuestions(state: WorkflowState): Promise<WorkflowState> {
-  const llm = makeLLM()
+  const nodeConfig = getNodeConfig(state, 'parse_questions')
+  const llm = nodeConfig 
+    ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
+    : makeLLM()
 
   // 动态拼接系统提示
   const systemPrompt = `你是题目解析助手。将原始题目文本解析为标准JSON格式。
@@ -111,7 +187,7 @@ async function parseQuestions(state: WorkflowState): Promise<WorkflowState> {
     state.questions = Array.isArray(parsed) ? parsed : [parsed]
     state.retry_count = (state.retry_count || 0) + 1
   }
-  catch (e) {
+  catch (e: any) {
     state.error = `题目解析失败: ${e.message}`
     state.questions = []
   }
@@ -119,27 +195,12 @@ async function parseQuestions(state: WorkflowState): Promise<WorkflowState> {
   return state
 }
 
-// ---------- 3. 笔记出题 ----------
-// const notePrompt = ChatPromptTemplate.fromMessages([
-//   [
-//     'system',
-//     `你是出题助手，根据笔记内容生成题目。
-// 每道题必须包含：
-// - type: "single_choice" | "multiple_choice" | "true_false"
-// - question: 题目内容
-// - options: 选项数组
-// - answer: 正确答案
-// - explanation: 答案解析
-
-// ${state.revision_note ? `\n用户修改建议：${state.revision_note}\n请根据建议调整输出。` : ''}
-
-// 直接输出JSON数组。`,
-//   ],
-//   ['human', '请根据以下笔记生成{num_questions}道题目:\n\n{text}'],
-// ])
 
 async function generateQuestions(state: WorkflowState): Promise<WorkflowState> {
-  const llm = makeLLM()
+  const nodeConfig = getNodeConfig(state, 'generate_questions')
+  const llm = nodeConfig 
+    ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
+    : makeLLM()
 
   const systemPrompt = `你是出题助手，根据笔记内容生成题目。
   每道题必须包含：
@@ -170,7 +231,7 @@ async function generateQuestions(state: WorkflowState): Promise<WorkflowState> {
     state.questions = Array.isArray(parsed) ? parsed : [parsed]
     state.retry_count = (state.retry_count || 0) + 1
   }
-  catch (e) {
+  catch (e: any) {
     state.error = `题目生成失败: ${e.message}`
     state.questions = []
   }
@@ -279,6 +340,7 @@ export function buildWorkflow() {
       file_path: { value: '' },
       text: { value: '' },
       classification: { value: 'note' as ClassificationLabel },
+      subject: { value: 'unknown' as Subject },
       questions: { value: [] as QuizItem[] },
       num_questions: { value: 15 },
       user_feedback: { value: undefined },
@@ -286,6 +348,7 @@ export function buildWorkflow() {
       error: { value: undefined },
       saved_path: { value: undefined },
       retry_count: { value: 0 },
+      workflowConfig: { value: undefined },
     },
   })
 
@@ -345,18 +408,211 @@ export function buildWorkflow() {
 export async function runWorkflow(
   filePath: string,
   numQuestions?: number,
+  workflowConfig?: WorkflowNodeConfig[],
 ): Promise<WorkflowState> {
   const app = buildWorkflow()
   const initState: WorkflowState = {
     file_path: filePath,
     text: '',
     classification: 'note',
+    subject: 'unknown',
     questions: [],
     num_questions: numQuestions ?? 15,
     retry_count: 0,
+    workflowConfig,
   }
 
   const finalState = await app.invoke(initState)
 
   return finalState
+}
+
+// ---------- 只执行分类 ----------
+export async function classifyFile(filePath: string): Promise<{
+  classification: string
+  error?: string
+}> {
+  console.log('🎯 [工作流] 开始分类文件:', filePath)
+  
+  try {
+    const state: WorkflowState = {
+      file_path: filePath,
+      text: '',
+      classification: 'note',
+      subject: 'unknown',
+      questions: [],
+      num_questions: 0,
+      retry_count: 0,
+    }
+
+    console.log('📂 [工作流] 步骤 1: 加载文件...')
+    // 加载文件
+    await loadFile(state)
+    console.log('✅ [工作流] 文件加载成功，文本长度:', state.text.length)
+    
+    console.log('🔍 [工作流] 步骤 2: 执行分类...')
+    // 执行分类
+    await classify(state)
+    console.log('✅ [工作流] 分类完成:', {
+      classification: state.classification,
+      error: state.error,
+    })
+
+    return {
+      classification: state.classification,
+      error: state.error,
+    }
+  }
+  catch (error: any) {
+    console.error('❌ [工作流] 分类失败:', error)
+    console.error('错误详情:', {
+      message: error?.message,
+      stack: error?.stack,
+      type: typeof error,
+    })
+    return {
+      classification: 'unknown',
+      error: error?.message || String(error),
+    }
+  }
+}
+
+// ---------- 从笔记生成题目（指定题型和数量） ----------
+export async function generateQuestionsFromNote(
+  filePath: string,
+  questionTypes: { single_choice: number; multiple_choice: number; true_false: number },
+): Promise<WorkflowState & { scoreDistribution?: any }> {
+  try {
+    const state: WorkflowState = {
+      file_path: filePath,
+      text: '',
+      classification: 'note',
+      subject: 'unknown',
+      questions: [],
+      num_questions: 0,
+      retry_count: 0,
+    }
+
+    // 加载文件
+    await loadFile(state)
+
+    // 构建提示词
+    const totalQuestions
+      = questionTypes.single_choice + questionTypes.multiple_choice + questionTypes.true_false
+
+    const llm = makeLLM()
+    const systemPrompt = `你是出题助手，根据笔记内容生成题目，并为每种题型分配分数。
+
+请严格按照以下要求生成：
+- 单选题：${questionTypes.single_choice}道
+- 多选题：${questionTypes.multiple_choice}道
+- 判断题：${questionTypes.true_false}道
+
+请根据题目难度合理分配分数，一般来说：
+- 单选题每题建议 3-5 分
+- 多选题每题建议 5-8 分（难度较高）
+- 判断题每题建议 2-3 分
+
+每道题必须包含：
+- type: "single_choice" | "multiple_choice" | "true_false"
+- question: 题目内容
+- options: 选项数组（判断题为 ["正确", "错误"]）
+- answer: 正确答案（数组形式，如 ["A"] 或 ["A","B"]）
+- explanation: 答案解析
+- score: 该题分数（整数）
+
+返回格式：
+{{
+  "questions": [...题目数组...],
+  "scoreDistribution": {{
+    "single_choice": {{ "perQuestion": 每题分数, "total": 单选题总分 }},
+    "multiple_choice": {{ "perQuestion": 每题分数, "total": 多选题总分 }},
+    "true_false": {{ "perQuestion": 每题分数, "total": 判断题总分 }}
+  }}
+}}
+
+直接输出JSON对象，不要任何额外说明。`
+
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', systemPrompt],
+      ['human', '请根据以下笔记生成题目:\n\n{text}'],
+    ])
+
+    const chain = prompt.pipe(llm)
+    const result = await chain.invoke({ text: state.text })
+
+    let content = (result.content as string).trim()
+    content = content.replace(/^```json\s*\n?/i, '').replace(/\n?```\s*$/i, '')
+    const parsed = JSON.parse(content)
+    
+    // 兼容旧格式（直接返回数组）和新格式（返回对象）
+    if (Array.isArray(parsed)) {
+      state.questions = parsed
+      state.num_questions = totalQuestions
+      return state
+    } else {
+      state.questions = parsed.questions || []
+      state.num_questions = totalQuestions
+      return {
+        ...state,
+        scoreDistribution: parsed.scoreDistribution,
+      }
+    }
+  }
+  catch (error: any) {
+    throw new Error(`生成题目失败: ${error?.message || String(error)}`)
+  }
+}
+
+// ---------- 测试 LLM 连接 ----------
+export async function testLLMConnection(): Promise<{
+  success: boolean
+  message: string
+  model?: string
+  response?: string
+}> {
+  console.log('🧪 [测试] 开始测试 LLM 连接...')
+  
+  try {
+    // 创建 LLM 实例
+    const llm = makeLLM()
+    console.log('✅ [测试] LLM 实例创建成功')
+    
+    // 发送一个简单的测试问题
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', '你是一个友好的助手。请用一句话回答问题。'],
+      ['human', '请说"你好，LLM 连接成功！"'],
+    ])
+    
+    const chain = prompt.pipe(llm)
+    console.log('🔄 [测试] 正在发送测试请求...')
+    
+    const result = await chain.invoke({ text: '测试' })
+    const response = (result.content as string).trim()
+    
+    console.log('✅ [测试] LLM 响应成功!')
+    console.log('📝 [测试] 响应内容:', response)
+    
+    return {
+      success: true,
+      message: 'LLM 连接测试成功！',
+      model: process.env.OPENAI_API_MODEL || 'gpt-4o-mini',
+      response,
+    }
+  }
+  catch (error: any) {
+    console.error('❌ [测试] LLM 连接失败:', error)
+    console.error('错误详情:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      status: error?.status,
+      response: error?.response?.data,
+    })
+    
+    return {
+      success: false,
+      message: `LLM 连接失败: ${error?.message || String(error)}`,
+    }
+  }
 }

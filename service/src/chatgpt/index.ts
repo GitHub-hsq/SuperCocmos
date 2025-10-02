@@ -26,6 +26,45 @@ const ErrorCodeMessage: Record<string, string> = {
 const timeoutMs: number = !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 100 * 1000
 const disableDebug: boolean = process.env.OPENAI_API_DISABLE_DEBUG === 'true'
 
+// 抑制 chatgpt 库的 token 计算错误日志
+// 这些错误通常是由于网络问题导致的 tiktoken 模型下载失败
+const originalConsoleWarn = console.warn
+const originalConsoleError = console.error
+
+// 记录最近的错误消息，防止重复打印
+const recentErrors = new Set<string>()
+const ERROR_CACHE_TIME = 5000 // 5秒内的重复错误不显示
+
+console.warn = (...args: any[]) => {
+  const msg = String(args[0] || '')
+  // 过滤掉 token 计算相关的警告
+  if (msg.includes('Failed to calculate number of tokens') || 
+      msg.includes('falling back to approximate count')) {
+    return
+  }
+  originalConsoleWarn.apply(console, args)
+}
+
+console.error = (...args: any[]) => {
+  const msg = String(args[0] || '')
+  
+  // 过滤掉 token 计算相关的 ECONNRESET 错误
+  if (msg.includes('Failed to calculate number of tokens')) {
+    return
+  }
+  
+  // 防止短时间内重复打印相同的错误
+  const errorKey = msg.substring(0, 100)
+  if (recentErrors.has(errorKey)) {
+    return
+  }
+  
+  recentErrors.add(errorKey)
+  setTimeout(() => recentErrors.delete(errorKey), ERROR_CACHE_TIME)
+  
+  originalConsoleError.apply(console, args)
+}
+
 let apiModel: ApiModel
 const model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
 
@@ -44,6 +83,9 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
       apiKey: process.env.OPENAI_API_KEY,
       completionParams: { model },
       debug: !disableDebug,
+      // 禁用 token 计数以避免网络错误
+      // chatgpt库会尝试从网络下载tiktoken模型，可能导致ECONNRESET错误
+      messageStore: undefined,
     }
 
     // increase max token limit if use gpt-4
@@ -75,11 +117,8 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
     }
 
     if (isNotEmptyString(OPENAI_API_BASE_URL)) {
-      // if find /v1 in OPENAI_API_BASE_URL then use it
-      if (OPENAI_API_BASE_URL.includes('/v1'))
-        options.apiBaseUrl = `${OPENAI_API_BASE_URL}`
-      else
-        options.apiBaseUrl = `${OPENAI_API_BASE_URL}/v1`
+      // 模型调用需要加 /v1
+      options.apiBaseUrl = `${OPENAI_API_BASE_URL}/v1`
     }
 
     setupProxy(options)
@@ -103,14 +142,16 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
 })()
 
 async function chatReplyProcess(options: RequestOptions) {
-  const { message, lastContext, process, systemMessage, temperature, top_p } = options
+  const { message, lastContext, process, systemMessage, temperature, top_p, model: requestModel } = options
   try {
     let options: SendMessageOptions = { timeoutMs }
 
     if (apiModel === 'ChatGPTAPI') {
       if (isNotEmptyString(systemMessage))
         options.systemMessage = systemMessage
-      options.completionParams = { model, temperature, top_p }
+      // 使用请求中的模型参数，如果没有则使用默认模型
+      const selectedModel = requestModel || model
+      options.completionParams = { model: selectedModel, temperature, top_p }
     }
 
     if (lastContext != null) {
@@ -120,11 +161,32 @@ async function chatReplyProcess(options: RequestOptions) {
         options = { ...lastContext }
     }
 
+    // 添加调试信息
+    console.log('🚀 [ChatGPT] 开始调用 API')
+    console.log('📝 [ChatGPT] 消息内容:', message)
+    console.log('⚙️ [ChatGPT] 请求选项:', {
+      model: options.completionParams?.model || '未指定',
+      systemMessage: options.systemMessage || '无',
+      temperature: options.completionParams?.temperature,
+      top_p: options.completionParams?.top_p,
+      parentMessageId: options.parentMessageId || '无上下文'
+    })
+    
+    const startTime = Date.now()
     const response = await api.sendMessage(message, {
       ...options,
       onProgress: (partialResponse) => {
         process?.(partialResponse)
       },
+    })
+    const endTime = Date.now()
+    
+    console.log('✅ [ChatGPT] API 调用完成')
+    console.log('⏱️ [ChatGPT] 耗时:', endTime - startTime, 'ms')
+    console.log('📊 [ChatGPT] 响应信息:', {
+      id: response.id,
+      model: response.detail?.model || '未知',
+      tokens: response.detail?.usage || '未知'
     })
 
     return sendResponse({ type: 'Success', data: response })
@@ -149,10 +211,8 @@ async function fetchUsage() {
     ? OPENAI_API_BASE_URL
     : 'https://api.openai.com'
 
-  const [startDate, endDate] = formatDate()
-
-  // 每月使用量
-  const urlUsage = `${API_BASE_URL}/v1/dashboard/billing/usage?start_date=${startDate}&end_date=${endDate}`
+  // 调用余额不需要加 /v1，使用 /api/usage/token
+  const urlUsage = `${API_BASE_URL}/api/usage/token`
 
   const headers = {
     'Authorization': `Bearer ${OPENAI_API_KEY}`,

@@ -17,17 +17,45 @@ declare namespace Chat {
 		mode: 'normal' | 'noteToQuestion' | 'noteToStory'
 	}
 
+	// 工作流状态
+	type WorkflowStage = 'idle' | 'config' | 'generating' | 'preview' | 'answering' | 'finished'
+
+	interface QuizQuestion {
+		type: 'single_choice' | 'multiple_choice' | 'true_false'
+		question: string
+		options: string[]
+		answer: string[]
+		explanation?: string
+		score?: number
+	}
+
+	interface ScoreDistribution {
+		single_choice?: { perQuestion: number; total: number }
+		multiple_choice?: { perQuestion: number; total: number }
+		true_false?: { perQuestion: number; total: number }
+	}
+
+	interface WorkflowState {
+		stage: WorkflowStage
+		uploadedFilePath: string
+		classification: string
+		generatedQuestions: QuizQuestion[]
+		scoreDistribution?: ScoreDistribution
+	}
+
 	interface ChatState {
 		active: number | null
 		usingContext: boolean;
 		history: History[]
 		chat: { uuid: number; data: Chat[] }[]
 		chatMode: 'normal' | 'noteToQuestion' | 'noteToStory'
+		workflowStates: { uuid: number; state: WorkflowState }[]
 	}
 
 	interface ConversationRequest {
 		conversationId?: string
 		parentMessageId?: string
+		model?: string
 	}
 
 	interface ConversationResponse {

@@ -11,6 +11,17 @@ export const useAppStore = defineStore('app-store', {
       this.recordState()
     },
 
+    setRightSiderCollapsed(collapsed: boolean) {
+      this.rightSiderCollapsed = collapsed
+      this.recordState()
+    },
+
+    setRightSiderWidth(width: number) {
+      // 限制宽度在 20% - 50% 之间
+      this.rightSiderWidth = Math.max(20, Math.min(50, width))
+      this.recordState()
+    },
+
     setTheme(theme: Theme) {
       this.theme = theme
       this.recordState()

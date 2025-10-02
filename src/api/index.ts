@@ -1,5 +1,5 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
-import { post } from '@/utils/request'
+import { get, post } from '@/utils/request'
 import { useAuthStore, useSettingStore } from '@/store'
 
 export function fetchChatAPI<T = any>(
@@ -23,7 +23,7 @@ export function fetchChatConfig<T = any>() {
 export function fetchChatAPIProcess<T = any>(
   params: {
     prompt: string
-    options?: { conversationId?: string; parentMessageId?: string }
+    options?: { conversationId?: string; parentMessageId?: string; model?: string }
     signal?: GenericAbortSignal
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
 ) {
@@ -44,6 +44,11 @@ export function fetchChatAPIProcess<T = any>(
     }
   }
 
+  // 如果 options 中包含模型信息，将其提取到顶层
+  if (params.options?.model) {
+    data.model = params.options.model
+  }
+
   return post<T>({
     url: '/chat-process',
     data,
@@ -62,5 +67,96 @@ export function fetchVerify<T>(token: string) {
   return post<T>({
     url: '/verify',
     data: { token },
+  })
+}
+
+export function fetchQuizRun<T = any>(filePath: string, numQuestions?: number) {
+  return post<T>({
+    url: '/quiz/run',
+    data: { filePath, numQuestions },
+  })
+}
+
+export function fetchQuizSave<T = any>(payload: any) {
+  return post<T>({
+    url: '/quiz/save',
+    data: payload,
+  })
+}
+
+export function fetchDeleteFile<T = any>(filePath: string) {
+  return post<T>({
+    url: '/upload/delete',
+    data: { filePath },
+  })
+}
+
+export function fetchQuizGenerate<T = any>(
+  filePath: string,
+  questionTypes: { single_choice: number; multiple_choice: number; true_false: number },
+) {
+  return post<T>({
+    url: '/quiz/generate',
+    data: { filePath, questionTypes },
+  })
+}
+
+export function fetchQuizFeedback<T = any>(
+  workflowId: string,
+  feedback: 'Accept' | 'Reject' | 'Revise',
+  revision_note?: string,
+) {
+  return post<T>({
+    url: '/quiz/feedback',
+    data: { workflowId, feedback, revision_note },
+  })
+}
+
+// 获取可用的模型列表
+export function fetchAvailableModels<T = any>() {
+  return post<T>({
+    url: '/models/list',
+  })
+}
+
+// 获取 API 使用量
+export function fetchAPIUsage<T = any>() {
+  return post<T>({
+    url: '/usage',
+  })
+}
+
+// 模型管理 API
+export function fetchModels<T = any>() {
+  return get<T>({
+    url: '/api/models',
+  })
+}
+
+export function addModel<T = any>(data: { id: string; provider: string; displayName: string; enabled?: boolean }) {
+  return post<T>({
+    url: '/api/models/add',
+    data,
+  })
+}
+
+export function updateModel<T = any>(data: { id: string; provider?: string; displayName?: string; enabled?: boolean }) {
+  return post<T>({
+    url: '/api/models/update',
+    data,
+  })
+}
+
+export function deleteModel<T = any>(id: string) {
+  return post<T>({
+    url: '/api/models/delete',
+    data: { id },
+  })
+}
+
+export function testModel<T = any>(modelId: string) {
+  return post<T>({
+    url: '/api/models/test',
+    data: { modelId },
   })
 }

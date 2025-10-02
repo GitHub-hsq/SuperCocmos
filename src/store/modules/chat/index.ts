@@ -21,6 +21,12 @@ export const useChatStore = defineStore('chat-store', {
         return state.chat.find(item => item.uuid === state.active)?.data ?? []
       }
     },
+
+    getWorkflowStateByUuid(state: Chat.ChatState) {
+      return (uuid: number) => {
+        return state.workflowStates.find(item => item.uuid === uuid)?.state
+      }
+    },
   },
 
   actions: {
@@ -207,6 +213,44 @@ export const useChatStore = defineStore('chat-store', {
 
     recordState() {
       setLocalState(this.$state)
+    },
+
+    // 工作流状态管理
+    setWorkflowState(uuid: number, state: Chat.WorkflowState) {
+      const index = this.workflowStates.findIndex(item => item.uuid === uuid)
+      if (index !== -1) {
+        this.workflowStates[index].state = state
+      } else {
+        this.workflowStates.push({ uuid, state })
+      }
+      this.recordState()
+    },
+
+    updateWorkflowStateSome(uuid: number, state: Partial<Chat.WorkflowState>) {
+      const index = this.workflowStates.findIndex(item => item.uuid === uuid)
+      if (index !== -1) {
+        this.workflowStates[index].state = { ...this.workflowStates[index].state, ...state }
+      } else {
+        this.workflowStates.push({ 
+          uuid, 
+          state: { 
+            stage: 'idle', 
+            uploadedFilePath: '', 
+            classification: '', 
+            generatedQuestions: [],
+            ...state 
+          } 
+        })
+      }
+      this.recordState()
+    },
+
+    clearWorkflowState(uuid: number) {
+      const index = this.workflowStates.findIndex(item => item.uuid === uuid)
+      if (index !== -1) {
+        this.workflowStates.splice(index, 1)
+        this.recordState()
+      }
     },
   },
 })

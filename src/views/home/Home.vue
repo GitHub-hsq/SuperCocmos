@@ -53,16 +53,17 @@ function goToLogin() {
 </template>
 
 <style scoped>
+/**引入Google Fonts - Inter 字体 和 cdn加载 Font Awesome 图标库 */
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
 
 .home-container {
-  position: fixed;
+  position: fixed; /**固定定位 */
   top: 0;
   left: 0;
   width: 100%;
   height: 100vh;
-  background-image: url(./img/bac\ 4.png);
+  background-image: url(./img/bac4.png);
   background-size: cover;
   background-position: top;
   background-repeat: no-repeat;
@@ -72,7 +73,7 @@ function goToLogin() {
 
 .home-container::after {
   content: '';
-  position: absolute;
+  position: absolute; /**绝对定位 */
   top: 0;
   bottom: 0;
   right: 0;
@@ -303,4 +304,3 @@ p {
   }
 }
 </style>
-

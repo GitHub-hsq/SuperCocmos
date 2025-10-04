@@ -1,5 +1,5 @@
+/// <reference path="../../../typings/model.d.ts" />
 import { defineStore } from 'pinia'
-import type { Model } from '@/typings/model'
 import { defaultModelState, getLocalWorkflowConfig, setLocalWorkflowConfig } from './helper'
 import { store } from '@/store/helper'
 import { fetchModels } from '@/api'
@@ -30,7 +30,7 @@ export const useModelStore = defineStore('model-store', {
     currentModel(state): Model.ModelInfo | undefined {
       // 从所有provider中查找
       for (const provider of state.providers) {
-        const model = provider.models.find(m => m.id === state.currentModelId)
+        const model = provider.models.find((m: any) => m.id === state.currentModelId)
         if (model)
           return model
       }
@@ -39,29 +39,28 @@ export const useModelStore = defineStore('model-store', {
 
     // 获取当前供应商
     currentProvider(state): Model.ProviderInfo | undefined {
-      return state.providers.find(p => p.id === state.currentProviderId)
+      return state.providers.find((p: any) => p.id === state.currentProviderId)
     },
 
     // 获取所有已启用的模型
     enabledModels(state): Model.ModelInfo[] {
       const models: Model.ModelInfo[] = []
-      state.providers.forEach((provider) => {
-        if (provider.enabled) {
-          models.push(...provider.models.filter(m => m.enabled !== false))
-        }
+      state.providers.forEach((provider: any) => {
+        if (provider.enabled)
+          models.push(...provider.models.filter((m: any) => m.enabled !== false))
       })
       return models
     },
 
     // 根据供应商ID获取模型列表
     getModelsByProvider: state => (providerId: Model.ProviderType): Model.ModelInfo[] => {
-      const provider = state.providers.find(p => p.id === providerId)
+      const provider = state.providers.find((p: any) => p.id === providerId)
       return provider?.models || []
     },
 
     // 根据节点类型获取配置
     getNodeConfig: state => (nodeType: Model.WorkflowNodeType): Model.WorkflowNodeConfig | undefined => {
-      return state.workflowNodes.find(n => n.nodeType === nodeType)
+      return state.workflowNodes.find((n: any) => n.nodeType === nodeType)
     },
   },
 
@@ -73,27 +72,27 @@ export const useModelStore = defineStore('model-store', {
         if (response.status === 'Success' && response.data) {
           // 将后端数据转换为前端格式
           const modelsData = response.data
-          
+
           // 按供应商分组
           const providerMap = new Map<string, BackendModelInfo[]>()
-          modelsData.forEach((model) => {
-            if (!providerMap.has(model.provider)) {
+          modelsData.forEach((model: any) => {
+            if (!providerMap.has(model.provider))
               providerMap.set(model.provider, [])
-            }
+
             providerMap.get(model.provider)!.push(model)
           })
-          
+
           // 构建providers数组
-          this.providers = Array.from(providerMap.entries()).map(([providerName, models]) => {
+          this.providers = Array.from(providerMap.entries()).map(([providerName, models]: [string, any[]]) => {
             const providerId = providerName.toLowerCase() as Model.ProviderType
-            const hasEnabledModel = models.some(m => m.enabled)
-            
+            const hasEnabledModel = models.some((m: any) => m.enabled)
+
             return {
               id: providerId,
               name: providerId,
               displayName: providerName,
               enabled: hasEnabledModel, // 如果有任何模型启用，则供应商启用
-              models: models.map(m => ({
+              models: models.map((m: any) => ({
                 id: m.id,
                 name: m.id,
                 displayName: m.displayName,
@@ -102,19 +101,20 @@ export const useModelStore = defineStore('model-store', {
               })),
             }
           })
-          
+
           // 如果当前选中的模型不在列表中，选择第一个启用的模型
-          const currentModelExists = this.enabledModels.some(m => m.id === this.currentModelId)
+          const currentModelExists = this.enabledModels.some((m: any) => m.id === this.currentModelId)
           if (!currentModelExists && this.enabledModels.length > 0) {
             const firstModel = this.enabledModels[0]
             this.currentModelId = firstModel.id
             this.currentProviderId = firstModel.provider
           }
-          
+
           return true
         }
         return false
-      } catch (error) {
+      }
+      catch (error) {
         console.error('从后端加载模型失败:', error)
         return false
       }
@@ -123,7 +123,7 @@ export const useModelStore = defineStore('model-store', {
     // 设置当前模型
     setCurrentModel(modelId: string) {
       // 验证模型是否存在
-      const model = this.enabledModels.find(m => m.id === modelId)
+      const model = this.enabledModels.find((m: any) => m.id === modelId)
       if (model) {
         this.currentModelId = modelId
         this.currentProviderId = model.provider
@@ -138,7 +138,7 @@ export const useModelStore = defineStore('model-store', {
 
     // 添加供应商
     addProvider(provider: Model.ProviderInfo) {
-      const existingIndex = this.providers.findIndex(p => p.id === provider.id)
+      const existingIndex = this.providers.findIndex((p: any) => p.id === provider.id)
       if (existingIndex >= 0) {
         // 更新现有供应商
         this.providers[existingIndex] = provider
@@ -151,48 +151,44 @@ export const useModelStore = defineStore('model-store', {
 
     // 更新供应商
     updateProvider(providerId: Model.ProviderType, updates: Partial<Model.ProviderInfo>) {
-      const provider = this.providers.find(p => p.id === providerId)
-      if (provider) {
+      const provider = this.providers.find((p: any) => p.id === providerId)
+      if (provider)
         Object.assign(provider, updates)
-      }
     },
 
     // 删除供应商
     removeProvider(providerId: Model.ProviderType) {
-      const index = this.providers.findIndex(p => p.id === providerId)
-      if (index >= 0) {
+      const index = this.providers.findIndex((p: any) => p.id === providerId)
+      if (index >= 0)
         this.providers.splice(index, 1)
-      }
     },
 
     // 添加模型到供应商
     addModelToProvider(providerId: Model.ProviderType, model: Model.ModelInfo) {
-      const provider = this.providers.find(p => p.id === providerId)
+      const provider = this.providers.find((p: any) => p.id === providerId)
       if (provider) {
-        const existingIndex = provider.models.findIndex(m => m.id === model.id)
-        if (existingIndex >= 0) {
+        const existingIndex = provider.models.findIndex((m: any) => m.id === model.id)
+        if (existingIndex >= 0)
           provider.models[existingIndex] = model
-        }
-        else {
+
+        else
           provider.models.push(model)
-        }
       }
     },
 
     // 从供应商中删除模型
     removeModelFromProvider(providerId: Model.ProviderType, modelId: string) {
-      const provider = this.providers.find(p => p.id === providerId)
+      const provider = this.providers.find((p: any) => p.id === providerId)
       if (provider) {
-        const index = provider.models.findIndex(m => m.id === modelId)
-        if (index >= 0) {
+        const index = provider.models.findIndex((m: any) => m.id === modelId)
+        if (index >= 0)
           provider.models.splice(index, 1)
-        }
       }
     },
 
     // 更新工作流节点配置
     updateWorkflowNodeConfig(nodeType: Model.WorkflowNodeType, config: Partial<Model.WorkflowNodeConfig>) {
-      const node = this.workflowNodes.find(n => n.nodeType === nodeType)
+      const node = this.workflowNodes.find((n: any) => n.nodeType === nodeType)
       if (node) {
         Object.assign(node, config)
         this.recordWorkflowConfig()

@@ -5,6 +5,10 @@ import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/store'
 import { t } from '@/locales'
 
+// 定义 emit
+const emit = defineEmits<{
+  (e: 'back'): void
+}>()
 const router = useRouter()
 const ms = useMessage()
 const authStore = useAuthStore()
@@ -69,13 +73,13 @@ async function handleEmailSubmit() {
   // 模拟网络延迟
   setTimeout(() => {
     // 在控制台输出验证码
-    console.log('========================================')
-    console.log('📧 验证码发送模拟')
-    console.log('========================================')
-    console.log(`收件人邮箱: ${email.value}`)
-    console.log(`验证码: ${generatedCode}`)
-    console.log(`有效期: 5分钟`)
-    console.log('========================================')
+    // console.log('========================================')
+    // console.log('📧 验证码发送模拟')
+    // console.log('========================================')
+    // console.log(`收件人邮箱: ${email.value}`)
+    // console.log(`验证码: ${generatedCode}`)
+    // console.log('有效期: 5分钟')
+    // console.log('========================================')
 
     ms.success(`${t('auth.verificationCodeSent')} (请查看控制台)`)
     currentStep.value = 'code'
@@ -101,12 +105,12 @@ function handleCodeInput(value: string) {
     setTimeout(() => {
       // 前端验证
       if (value === generatedCode) {
-        console.log('✅ 验证码验证成功!')
+        // console.log('✅ 验证码验证成功!')
         ms.success(t('auth.verificationSuccess'))
         currentStep.value = 'info'
       }
       else {
-        console.log(`❌ 验证码错误! 输入: ${value}, 正确: ${generatedCode}`)
+        // console.log(`❌ 验证码错误! 输入: ${value}, 正确: ${generatedCode}`)
         codeError.value = t('auth.verificationFailed')
         verificationCode.value = ''
       }
@@ -144,13 +148,13 @@ async function handleCompleteSignup() {
 
   // 模拟注册过程
   setTimeout(() => {
-    console.log('========================================')
-    console.log('🎉 注册成功!')
-    console.log('========================================')
-    console.log(`邮箱: ${email.value}`)
-    console.log(`昵称: ${nickname.value}`)
-    console.log(`密码: ${'*'.repeat(password.value.length)}`)
-    console.log('========================================')
+    // console.log('========================================')
+    // console.log('🎉 注册成功!')
+    // console.log('========================================')
+    // console.log(`邮箱: ${email.value}`)
+    // console.log(`昵称: ${nickname.value}`)
+    // console.log(`密码: ${'*'.repeat(password.value.length)}`)
+    // console.log('========================================')
 
     // 模拟用户数据
     const mockUser = {
@@ -197,11 +201,6 @@ function goBack() {
     emit('back')
   }
 }
-
-// 定义 emit
-const emit = defineEmits<{
-  back: []
-}>()
 </script>
 
 <template>
@@ -222,7 +221,9 @@ const emit = defineEmits<{
             autocomplete="email"
             :placeholder="t('auth.emailPlaceholder')"
           >
-          <p class="error-message">{{ emailError }}</p>
+          <p class="error-message">
+            {{ emailError }}
+          </p>
         </div>
         <div class="form-actions">
           <button type="submit" class="auth-btn primary-btn" :disabled="loading">
@@ -238,7 +239,9 @@ const emit = defineEmits<{
     <!-- 步骤2: 验证码输入 -->
     <div v-else-if="currentStep === 'code'" class="form-step">
       <div class="form-header">
-        <h1 class="form-title">{{ t('auth.verifyEmail') }}</h1>
+        <h1 class="form-title">
+          {{ t('auth.verifyEmail') }}
+        </h1>
         <p class="form-subtitle">
           <span>{{ t('auth.verifyEmailHint') }} </span>
           <span class="highlight">{{ email }}</span>
@@ -260,7 +263,9 @@ const emit = defineEmits<{
             @input="e => handleCodeInput((e.target as HTMLInputElement).value)"
           >
         </div>
-        <p class="error-message center">{{ codeError }}</p>
+        <p class="error-message center">
+          {{ codeError }}
+        </p>
         <div class="form-actions">
           <button type="button" class="auth-btn secondary-btn" @click="goBack">
             {{ t('auth.goBack') }}
@@ -272,7 +277,9 @@ const emit = defineEmits<{
     <!-- 步骤3: 信息填写 -->
     <div v-else-if="currentStep === 'info'" class="form-step">
       <div class="form-header">
-        <h1 class="form-title">{{ t('auth.completeSignup') }}</h1>
+        <h1 class="form-title">
+          {{ t('auth.completeSignup') }}
+        </h1>
         <div class="email-badge">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect width="20" height="16" x="2" y="4" rx="2" />
@@ -293,7 +300,9 @@ const emit = defineEmits<{
               name="nickname"
               :placeholder="t('auth.nicknamePlaceholder')"
             >
-            <p class="error-message">{{ nicknameError }}</p>
+            <p class="error-message">
+              {{ nicknameError }}
+            </p>
           </div>
 
           <!-- 密码 -->
@@ -318,8 +327,12 @@ const emit = defineEmits<{
                 </svg>
               </button>
             </div>
-            <p class="error-message">{{ passwordError }}</p>
-            <p class="password-hint">{{ t('auth.passwordHint') }}</p>
+            <p class="error-message">
+              {{ passwordError }}
+            </p>
+            <p class="password-hint">
+              {{ t('auth.passwordHint') }}
+            </p>
           </div>
         </div>
 
@@ -569,4 +582,3 @@ input[type="password"]::-webkit-caps-lock-indicator {
   }
 }
 </style>
-

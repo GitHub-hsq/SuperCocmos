@@ -40,16 +40,16 @@ async function fetchUsage() {
   try {
     loadingUsage.value = true
     const response = await fetchAPIUsage<any>()
-    console.log('余额 API 返回数据:', response)
-    
+    // console.log('余额 API 返回数据:', response)
+
     if (response.status === 'Success' && response.data) {
       // response.data 结构: { code: true, data: {...}, message: 'ok' }
       const apiData = response.data
-      if (apiData.data) {
+      if (apiData.data)
         usageData.value = apiData.data
-      } else {
+      else
         usageData.value = apiData
-      }
+
       message.success('使用量刷新成功')
     }
   }
@@ -64,7 +64,7 @@ async function fetchUsage() {
 
 // 暴露方法给父组件调用
 defineExpose({
-  fetchUsage
+  fetchUsage,
 })
 </script>
 
@@ -74,7 +74,7 @@ defineExpose({
     <h2 class="text-xl font-bold">
       Version - {{ pkg.version }}
     </h2>
-    
+
     <!-- API 使用量信息 -->
     <div v-if="isChatGPTAPI" class="space-y-4">
       <div class="flex items-center justify-between">
@@ -92,7 +92,7 @@ defineExpose({
           {{ loadingUsage ? '刷新中...' : '刷新' }}
         </NButton>
       </div>
-      
+
       <NSpin :show="loadingUsage">
         <div v-if="usageData" class="p-4 space-y-3 rounded-md bg-neutral-100 dark:bg-neutral-700">
           <!-- 模型限制状态 -->
@@ -102,25 +102,25 @@ defineExpose({
               {{ usageData.model_limits_enabled !== undefined ? (usageData.model_limits_enabled ? '已启用' : '未启用') : '-' }}
             </span>
           </div>
-          
+
           <!-- 总量 -->
           <div class="flex items-center justify-between">
             <span class="text-neutral-600 dark:text-neutral-300">总量：</span>
             <span class="font-semibold">{{ formatNumber(usageData.total_available) }}</span>
           </div>
-          
+
           <!-- 已使用 -->
           <div class="flex items-center justify-between">
             <span class="text-neutral-600 dark:text-neutral-300">已使用：</span>
             <span class="font-semibold text-red-500">{{ formatNumber(usageData.total_used) }}</span>
           </div>
-          
+
           <!-- 已授权 -->
           <div class="flex items-center justify-between">
             <span class="text-neutral-600 dark:text-neutral-300">已授权：</span>
             <span class="font-semibold">{{ formatNumber(usageData.total_granted) }}</span>
           </div>
-          
+
           <!-- 剩余量 -->
           <div class="flex items-center justify-between border-t pt-3 dark:border-neutral-600">
             <span class="text-neutral-600 dark:text-neutral-300 font-medium">剩余量：</span>
@@ -132,7 +132,7 @@ defineExpose({
         </div>
       </NSpin>
     </div>
-    
+
     <div v-else class="p-4 text-center text-neutral-500">
       当前使用的不是 ChatGPT API 模式
     </div>

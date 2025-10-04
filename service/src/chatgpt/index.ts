@@ -38,30 +38,28 @@ const ERROR_CACHE_TIME = 5000 // 5秒内的重复错误不显示
 console.warn = (...args: any[]) => {
   const msg = String(args[0] || '')
   // 过滤掉 token 计算相关的警告
-  if (msg.includes('Failed to calculate number of tokens') || 
-      msg.includes('falling back to approximate count')) {
+  if (msg.includes('Failed to calculate number of tokens')
+      || msg.includes('falling back to approximate count'))
     return
-  }
+
   originalConsoleWarn.apply(console, args)
 }
 
 console.error = (...args: any[]) => {
   const msg = String(args[0] || '')
-  
+
   // 过滤掉 token 计算相关的 ECONNRESET 错误
-  if (msg.includes('Failed to calculate number of tokens')) {
+  if (msg.includes('Failed to calculate number of tokens'))
     return
-  }
-  
+
   // 防止短时间内重复打印相同的错误
   const errorKey = msg.substring(0, 100)
-  if (recentErrors.has(errorKey)) {
+  if (recentErrors.has(errorKey))
     return
-  }
-  
+
   recentErrors.add(errorKey)
   setTimeout(() => recentErrors.delete(errorKey), ERROR_CACHE_TIME)
-  
+
   originalConsoleError.apply(console, args)
 }
 
@@ -162,16 +160,19 @@ async function chatReplyProcess(options: RequestOptions) {
     }
 
     // 添加调试信息
+    // eslint-disable-next-line no-console
     console.log('🚀 [ChatGPT] 开始调用 API')
+    // eslint-disable-next-line no-console
     console.log('📝 [ChatGPT] 消息内容:', message)
+    // eslint-disable-next-line no-console
     console.log('⚙️ [ChatGPT] 请求选项:', {
       model: options.completionParams?.model || '未指定',
       systemMessage: options.systemMessage || '无',
       temperature: options.completionParams?.temperature,
       top_p: options.completionParams?.top_p,
-      parentMessageId: options.parentMessageId || '无上下文'
+      parentMessageId: options.parentMessageId || '无上下文',
     })
-    
+
     const startTime = Date.now()
     const response = await api.sendMessage(message, {
       ...options,
@@ -180,13 +181,16 @@ async function chatReplyProcess(options: RequestOptions) {
       },
     })
     const endTime = Date.now()
-    
+
+    // eslint-disable-next-line no-console
     console.log('✅ [ChatGPT] API 调用完成')
+    // eslint-disable-next-line no-console
     console.log('⏱️ [ChatGPT] 耗时:', endTime - startTime, 'ms')
+    // eslint-disable-next-line no-console
     console.log('📊 [ChatGPT] 响应信息:', {
       id: response.id,
       model: response.detail?.model || '未知',
-      tokens: response.detail?.usage || '未知'
+      tokens: response.detail?.usage || '未知',
     })
 
     return sendResponse({ type: 'Success', data: response })
@@ -238,6 +242,7 @@ async function fetchUsage() {
   }
 }
 
+// eslint-disable-next-line unused-imports/no-unused-vars
 function formatDate(): string[] {
   const today = new Date()
   const year = today.getFullYear()

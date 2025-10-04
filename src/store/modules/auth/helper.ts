@@ -11,6 +11,8 @@ export interface UserInfo {
 export interface AuthState {
   userInfo: UserInfo | null
   token: string
+  session?: any
+  isChatGPTAPI?: boolean
 }
 
 export function defaultSetting(): AuthState {

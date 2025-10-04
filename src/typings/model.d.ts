@@ -1,6 +1,7 @@
 // 模型和供应商相关类型定义
 
-declare namespace Model {
+declare global {
+  namespace Model {
   // 供应商类型
   type ProviderType = 'openai' | 'deepseek' | 'anthropic' | 'google' | 'xai' | 'doubao' | 'qwen'
 
@@ -62,5 +63,8 @@ declare namespace Model {
     // 工作流节点配置
     workflowNodes: WorkflowNodeConfig[]
   }
+  }
 }
+
+export {}
 

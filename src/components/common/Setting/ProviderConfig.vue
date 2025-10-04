@@ -47,17 +47,17 @@ const addModelForm = ref({
 const testingModel = ref(false)
 const testResult = ref<{ success: boolean; message: string; response?: string } | null>(null)
 
+// 记录上一次的模型ID，用于判断是否自动同步
+const oldModelId = ref('')
+
 // 监听模型ID变化，自动同步到显示名称
 watch(() => addModelForm.value.id, (newId) => {
   // 只在显示名称为空或与旧ID相同时才自动同步
-  if (!addModelForm.value.displayName || addModelForm.value.displayName === oldModelId.value) {
+  if (!addModelForm.value.displayName || addModelForm.value.displayName === oldModelId.value)
     addModelForm.value.displayName = newId
-  }
+
   oldModelId.value = newId
 })
-
-// 记录上一次的模型ID，用于判断是否自动同步
-const oldModelId = ref('')
 
 // 编辑模型对话框
 const showEditModel = ref(false)
@@ -87,10 +87,10 @@ const columns: DataTableColumns<ModelItem> = [
     width: 150,
     render: (row) => {
       const colorMap: Record<string, 'success' | 'info' | 'warning' | 'error' | 'default'> = {
-        'OpenAI': 'success',
-        'Anthropic': 'info',
-        'Google': 'warning',
-        'DeepSeek': 'error',
+        OpenAI: 'success',
+        Anthropic: 'info',
+        Google: 'warning',
+        DeepSeek: 'error',
       }
       const tagType = colorMap[row.provider] || 'default'
       return h(NTag, {
@@ -161,13 +161,16 @@ async function loadModels() {
     if (response.status === 'Success' && response.data) {
       modelsList.value = response.data
       hasLoaded.value = true
-    } else {
+    }
+    else {
       message.error('加载模型列表失败')
     }
-  } catch (error: any) {
+  }
+  catch (error: any) {
     console.error('加载模型列表失败:', error)
     message.error(`加载失败: ${error.message || '未知错误'}`)
-  } finally {
+  }
+  finally {
     loadingModels.value = false
   }
 }
@@ -178,16 +181,18 @@ async function toggleModelEnabled(id: string, enabled: boolean) {
     const response = await updateModel({ id, enabled })
     if (response.status === 'Success') {
       const model = modelsList.value.find(m => m.id === id)
-      if (model) {
+      if (model)
         model.enabled = enabled
-      }
+
       message.success(enabled ? '模型已启用' : '模型已禁用')
       // 重新加载到ModelStore
       await modelStore.loadModelsFromBackend()
-    } else {
+    }
+    else {
       message.error('操作失败')
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('切换模型状态失败:', error)
     message.error('操作失败')
   }
@@ -221,11 +226,13 @@ async function handleAddModel() {
       await loadModels() // 重新加载列表
       // 重新加载到ModelStore，这样其他地方也能立即看到
       await modelStore.loadModelsFromBackend()
-    } else {
+    }
+    else {
       // 正确显示后端返回的错误消息
       message.error(response.message || '模型添加失败')
     }
-  } catch (error: any) {
+  }
+  catch (error: any) {
     console.error('添加模型失败:', error)
     // 从error.response中获取后端返回的message
     const errorMessage = error.response?.data?.message || error.message || '未知错误'
@@ -241,7 +248,8 @@ function editModel(model: ModelItem) {
 
 // 提交编辑模型
 async function handleEditModel() {
-  if (!editModelForm.value) return
+  if (!editModelForm.value)
+    return
 
   if (!editModelForm.value.provider || !editModelForm.value.displayName) {
     message.warning('请填写完整的模型信息')
@@ -260,10 +268,12 @@ async function handleEditModel() {
       await loadModels() // 重新加载列表
       // 重新加载到ModelStore
       await modelStore.loadModelsFromBackend()
-    } else {
+    }
+    else {
       message.error(response.message || '模型更新失败')
     }
-  } catch (error: any) {
+  }
+  catch (error: any) {
     console.error('更新模型失败:', error)
     message.error(`更新失败: ${error.message || '未知错误'}`)
   }
@@ -278,10 +288,12 @@ async function handleDeleteModel(id: string) {
       await loadModels() // 重新加载列表
       // 重新加载到ModelStore
       await modelStore.loadModelsFromBackend()
-    } else {
+    }
+    else {
       message.error(response.message || '模型删除失败')
     }
-  } catch (error: any) {
+  }
+  catch (error: any) {
     console.error('删除模型失败:', error)
     message.error(`删除失败: ${error.message || '未知错误'}`)
   }
@@ -309,35 +321,37 @@ async function handleTestModel() {
 
   try {
     const response = await testModel(addModelForm.value.id)
-    
+
     if (response.status === 'Success' && response.data?.success) {
       testResult.value = {
         success: true,
         message: '测试成功！模型响应正常',
         response: response.data.response,
       }
-    } else {
+    }
+    else {
       testResult.value = {
         success: false,
         message: response.data?.error || response.message || '测试失败',
       }
     }
-  } catch (error: any) {
+  }
+  catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message || '测试过程出错'
     testResult.value = {
       success: false,
       message: errorMessage,
     }
-  } finally {
+  }
+  finally {
     testingModel.value = false
   }
 }
 
 // 监听visible变化，只在第一次显示时加载数据
 watch(() => props.visible, (visible) => {
-  if (visible && !hasLoaded.value) {
+  if (visible && !hasLoaded.value)
     loadModels()
-  }
 }, { immediate: true })
 </script>
 
@@ -345,10 +359,12 @@ watch(() => props.visible, (visible) => {
   <div class="p-4 space-y-4">
     <!-- 标题和操作栏 -->
     <div class="flex items-center justify-between">
-      <h3 class="text-lg font-semibold">模型配置</h3>
+      <h3 class="text-lg font-semibold">
+        模型配置
+      </h3>
       <NSpace>
-        <NButton 
-          type="primary" 
+        <NButton
+          type="primary"
           @click="openAddModel"
         >
           <template #icon>
@@ -356,7 +372,7 @@ watch(() => props.visible, (visible) => {
           </template>
           新增模型
         </NButton>
-        <NButton 
+        <NButton
           secondary
           :loading="loadingModels"
           @click="loadModels"
@@ -425,7 +441,7 @@ watch(() => props.visible, (visible) => {
             placeholder="例如: GPT-4o, Claude 3.5 Sonnet"
           />
         </NFormItem>
-        
+
         <!-- 测试模型按钮 -->
         <NFormItem label="连接测试">
           <div class="w-full space-y-2">
@@ -439,7 +455,7 @@ watch(() => props.visible, (visible) => {
               </template>
               {{ testingModel ? '测试中...' : '测试连接' }}
             </NButton>
-            
+
             <!-- 测试结果显示 -->
             <div
               v-if="testResult"
@@ -534,4 +550,3 @@ watch(() => props.visible, (visible) => {
 <style scoped>
 /* 自定义样式 */
 </style>
-

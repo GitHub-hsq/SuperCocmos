@@ -1,6 +1,5 @@
+/// <reference path="../typings/model.d.ts" />
 // 模型解析工具 - 从 API 返回的数据中智能识别供应商和模型型号
-
-import type { Model } from '@/typings/model'
 
 // API 返回的原始模型数据
 export interface RawModelData {
@@ -103,7 +102,7 @@ export function extractModelName(modelId: string): string {
 
     return modelName
   }
-  
+
   // 如果没有斜杠，直接返回原始ID作为模型名称
   return modelId
 }
@@ -111,7 +110,7 @@ export function extractModelName(modelId: string): string {
 /**
  * 生成显示名称
  */
-export function generateDisplayName(modelName: string, provider: Model.ProviderType): string {
+export function generateDisplayName(modelName: string, _provider: Model.ProviderType): string {
   // 特殊处理一些常见的模型
   const nameMap: Record<string, string> = {
     'gpt-4o': 'GPT-4o',
@@ -240,4 +239,3 @@ export function parseAndGroupModels(rawModels: RawModelData[]): Record<Model.Pro
 
   return grouped as Record<Model.ProviderType, Model.ModelInfo[]>
 }
-

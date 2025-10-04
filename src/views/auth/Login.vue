@@ -1,8 +1,8 @@
 <script setup lang='ts'>
 import { ref } from 'vue'
-import { t } from '@/locales'
 import EmailSignupForm from './components/EmailSignupForm.vue'
 import EmailLoginForm from './components/EmailLoginForm.vue'
+import { t } from '@/locales'
 
 const isLogin = ref(true) // true: 登录模式, false: 注册模式
 const currentView = ref<'methods' | 'email-login' | 'email-signup'>('methods') // 当前视图
@@ -64,7 +64,7 @@ function switchToSignup() {
           <h1 class="tracking-tight text-2xl sm:text-3xl mb-6 text-center">
             {{ isLogin ? t('auth.login') : t('auth.createAccount') }}
           </h1>
-          
+
           <!-- X 登录按钮 -->
           <button type="button" class="auth-btn primary-btn">
             <span class="inline-flex items-center justify-center p-0 m-0 w-5 h-5">
@@ -127,15 +127,15 @@ function switchToSignup() {
         </div>
 
         <!-- 视图2: 邮箱登录表单 -->
-        <EmailLoginForm 
-          v-else-if="currentView === 'email-login'" 
+        <EmailLoginForm
+          v-else-if="currentView === 'email-login'"
           @back="backToMethods"
           @switch-to-signup="switchToSignup"
         />
 
         <!-- 视图3: 邮箱注册表单 -->
-        <EmailSignupForm 
-          v-else-if="currentView === 'email-signup'" 
+        <EmailSignupForm
+          v-else-if="currentView === 'email-signup'"
           @back="backToMethods"
         />
       </div>
@@ -285,7 +285,7 @@ function switchToSignup() {
   color: #000;
   text-decoration: underline;
   text-underline-offset: 2px;
-  
+
   &:hover {
     text-decoration: none;
   }

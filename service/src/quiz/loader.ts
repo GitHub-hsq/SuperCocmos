@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { existsSync } from 'node:fs'
+/* eslint-disable no-console */
+import { existsSync, readFileSync } from 'node:fs'
 import { extname } from 'node:path'
 import type { WorkflowState } from './types'
 

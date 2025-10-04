@@ -218,11 +218,11 @@ export const useChatStore = defineStore('chat-store', {
     // 工作流状态管理
     setWorkflowState(uuid: number, state: Chat.WorkflowState) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
-      if (index !== -1) {
+      if (index !== -1)
         this.workflowStates[index].state = state
-      } else {
+      else
         this.workflowStates.push({ uuid, state })
-      }
+
       this.recordState()
     },
 
@@ -230,16 +230,17 @@ export const useChatStore = defineStore('chat-store', {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.workflowStates[index].state = { ...this.workflowStates[index].state, ...state }
-      } else {
-        this.workflowStates.push({ 
-          uuid, 
-          state: { 
-            stage: 'idle', 
-            uploadedFilePath: '', 
-            classification: '', 
+      }
+      else {
+        this.workflowStates.push({
+          uuid,
+          state: {
+            stage: 'idle',
+            uploadedFilePath: '',
+            classification: '',
             generatedQuestions: [],
-            ...state 
-          } 
+            ...state,
+          },
         })
       }
       this.recordState()

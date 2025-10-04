@@ -16,6 +16,7 @@ async function main() {
   }, 3000)
 
   // 等待工作流完成
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const result = await workflowPromise
 }
 

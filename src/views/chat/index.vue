@@ -1,6 +1,7 @@
 <script setup lang='ts'>
+/* eslint-disable no-console */
 import type { Ref } from 'vue'
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import type { UploadFileInfo } from 'naive-ui'
@@ -15,10 +16,8 @@ import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAppStore, useChatStore, useModelStore, usePromptStore } from '@/store'
-import { fetchAvailableModels, fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
+import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { t } from '@/locales'
-import { parseAndGroupModels } from '@/utils/modelParser'
-import type { RawModelData } from '@/utils/modelParser'
 
 let controller = new AbortController()
 
@@ -37,9 +36,7 @@ const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
 
-// 模型选择相关
-const modelsLoaded = ref(false)
-const loadingModels = ref(false)
+const currentSelectedModel = ref<ModelItem | null>(null)
 
 const { uuid } = route.params as { uuid: string }
 
@@ -56,67 +53,6 @@ const promptStore = usePromptStore()
 // 使用storeToRefs，保证store修改后，联想部分能够重新渲染
 const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
 
-// 加载可用模型并保存到 ModelStore
-async function loadAvailableModels() {
-  if (modelsLoaded.value || loadingModels.value)
-    return
-
-  loadingModels.value = true
-  try {
-    const response = await fetchAvailableModels<RawModelData[]>()
-    console.log('🔄 [模型] 从 API 获取模型列表:', response)
-    
-    if (response.status === 'Success' && response.data) {
-      const rawModels = response.data
-      console.log('📋 [模型] 原始模型列表，共', rawModels.length, '个')
-      
-      // 使用新的模型解析器
-      const groupedModels = parseAndGroupModels(rawModels)
-      console.log('🔍 [模型] 解析后的分组模型:', groupedModels)
-      
-      // 更新ModelStore中的供应商和模型
-      Object.entries(groupedModels).forEach(([providerId, models]) => {
-        if (models.length > 0) {
-          const provider = modelStore.providers.find((p: any) => p.id === providerId)
-          if (provider) {
-            // 更新现有供应商的模型列表
-            provider.models = models
-            provider.enabled = true
-          } else {
-            // 添加新供应商
-            modelStore.addProvider({
-              id: providerId as any,
-              name: providerId,
-              displayName: providerId.charAt(0).toUpperCase() + providerId.slice(1),
-              models,
-              enabled: true,
-            })
-          }
-        }
-      })
-      
-      // 保存到localStorage
-      modelStore.recordState()
-      
-      const totalModels = Object.values(groupedModels).reduce((sum, models) => sum + models.length, 0)
-      console.log('💾 [模型] 已保存到 ModelStore，共', totalModels, '个模型')
-      
-      modelsLoaded.value = true
-      ms.success(`模型列表加载成功，共 ${totalModels} 个模型`)
-    }
-  }
-  catch (error: any) {
-    console.error('❌ [模型] 加载模型列表失败:', error)
-    ms.error(`加载模型列表失败: ${error.message || '未知错误'}`)
-  }
-  finally {
-    loadingModels.value = false
-  }
-}
-
-// 当前选中的模型
-const currentModel = computed(() => modelStore.currentModel)
-
 // 供应商显示名称映射
 const providerDisplayNames: Record<string, string> = {
   openai: 'OpenAI',
@@ -126,71 +62,6 @@ const providerDisplayNames: Record<string, string> = {
   xai: 'xAI',
   doubao: '豆包',
   qwen: '通义千问',
-}
-
-// 下拉菜单选项（只包含模型选择）
-const dropdownOptions = computed(() => {
-  const options: any[] = []
-
-  // 添加模型选择菜单（带子菜单）
-  const enabledProviders = modelStore.providers.filter((p: any) => p.enabled && p.models.length > 0)
-  if (enabledProviders.length > 0) {
-    enabledProviders.forEach((provider: any) => {
-      options.push({
-        type: 'group',
-        label: providerDisplayNames[provider.id] || provider.displayName,
-        key: `group-${provider.id}`,
-        children: provider.models.map((model: any) => ({
-          label: model.displayName,
-          key: `model-${model.id}`,
-          icon: () => h(SvgIcon, { 
-            icon: currentModel.value?.id === model.id ? 'ri:checkbox-circle-fill' : 'ri:checkbox-blank-circle-line',
-            class: currentModel.value?.id === model.id ? 'text-blue-500' : '',
-          }),
-        })),
-      })
-    })
-  }
-  else {
-    options.push({
-      label: '暂无可用模型',
-      key: 'no-models',
-      disabled: true,
-    })
-  }
-
-  return options
-})
-
-// 下拉菜单选择处理
-function handleDropdownSelect(key: string | { key: string; [key: string]: any }) {
-  // 处理不同的事件参数结构
-  let selectedKey: string
-  if (typeof key === 'string') {
-    selectedKey = key
-  }
-  else if (key && typeof key === 'object' && key.key) {
-    selectedKey = key.key
-  }
-  else {
-    console.error('Invalid dropdown select parameter:', key)
-    return
-  }
-
-  // 处理模型选择
-  if (selectedKey.startsWith('model-')) {
-    const modelId = selectedKey.substring(6) // 移除 'model-' 前缀
-    modelStore.setCurrentModel(modelId)
-    ms.success(`已切换到模型: ${modelStore.currentModel?.displayName}`)
-    return
-  }
-}
-
-// 首次打开下拉菜单时加载模型
-function handleDropdownShow() {
-  if (!modelsLoaded.value && !loadingModels.value) {
-    loadAvailableModels()
-  }
 }
 
 // 未知原因刷新页面，loading 状态不会重置，手动重置
@@ -621,23 +492,23 @@ const uploadFileList = ref<UploadFileInfo[]>([])
 const workflowState = computed(() => chatStore.getWorkflowStateByUuid(+uuid))
 const uploadedFilePath = computed({
   get: () => workflowState.value?.uploadedFilePath || '',
-  set: (val) => chatStore.updateWorkflowStateSome(+uuid, { uploadedFilePath: val })
+  set: val => chatStore.updateWorkflowStateSome(+uuid, { uploadedFilePath: val }),
 })
 const workflowStage = computed({
   get: () => workflowState.value?.stage || 'idle',
-  set: (val) => chatStore.updateWorkflowStateSome(+uuid, { stage: val })
+  set: val => chatStore.updateWorkflowStateSome(+uuid, { stage: val }),
 })
 const classification = computed({
   get: () => workflowState.value?.classification || '',
-  set: (val) => chatStore.updateWorkflowStateSome(+uuid, { classification: val })
+  set: val => chatStore.updateWorkflowStateSome(+uuid, { classification: val }),
 })
 const generatedQuestions = computed({
   get: () => workflowState.value?.generatedQuestions || [],
-  set: (val) => chatStore.updateWorkflowStateSome(+uuid, { generatedQuestions: val })
+  set: val => chatStore.updateWorkflowStateSome(+uuid, { generatedQuestions: val }),
 })
 const scoreDistribution = computed({
   get: () => workflowState.value?.scoreDistribution,
-  set: (val) => chatStore.updateWorkflowStateSome(+uuid, { scoreDistribution: val })
+  set: val => chatStore.updateWorkflowStateSome(+uuid, { scoreDistribution: val }),
 })
 const quizLoading = ref(false)
 
@@ -704,7 +575,7 @@ const handleUploadSuccess = (options: {
         // 保存文件路径
         uploadedFilePath.value = response.data.filePath
         classification.value = response.data.classification || ''
-        
+
         // 使用原始文件名显示（如果有的话）
         const displayName = response.data.originalName || file.name
         ms.success(`文件 ${displayName} 上传成功！`)
@@ -772,7 +643,7 @@ const handleUploadRemove = async (options: {
 
     // 更新文件列表（fileList 已经是过滤后的列表）
     uploadFileList.value = fileList
-    
+
     return true // 返回 true 表示允许删除
   }
   catch (error: any) {
@@ -796,9 +667,9 @@ async function handleQuizConfigSubmit(config: {
     if (result.data && result.data.questions) {
       generatedQuestions.value = result.data.questions
       // 保存分数分配信息
-      if (result.data.scoreDistribution) {
+      if (result.data.scoreDistribution)
         scoreDistribution.value = result.data.scoreDistribution
-      }
+
       workflowStage.value = 'preview'
       ms.success('题目生成成功！')
     }
@@ -840,11 +711,11 @@ async function handleQuizRevise(note: string) {
   try {
     quizLoading.value = true
     await fetchQuizFeedback(uploadedFilePath.value, 'Revise', note)
-    
+
     // 重新生成题目
     ms.info('正在根据您的意见重新生成题目...')
     workflowStage.value = 'generating'
-    
+
     // 这里可以调用重新生成的 API
     // 暂时回到配置页面
     setTimeout(() => {
@@ -889,12 +760,12 @@ function handleResizeStart(e: MouseEvent) {
 function handleResizeMove(e: MouseEvent) {
   if (!isDragging.value)
     return
-  
+
   const windowWidth = window.innerWidth
   const deltaX = dragStartX.value - e.clientX // 向左拖动为正
   const deltaPercent = (deltaX / windowWidth) * 100
   const newWidth = dragStartWidth.value + deltaPercent
-  
+
   appStore.setRightSiderWidth(newWidth)
 }
 
@@ -909,10 +780,10 @@ onMounted(() => {
   scrollToBottom()
   if (inputRef.value && !isMobile.value)
     inputRef.value?.focus()
-  
+
   // 加载当前选中的模型
   loadCurrentModel()
-  
+
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
 })
@@ -920,7 +791,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (loading.value)
     controller.abort()
-  
+
   document.removeEventListener('mousemove', handleResizeMove)
   document.removeEventListener('mouseup', handleResizeEnd)
 })
@@ -946,20 +817,20 @@ interface ModelItem {
 const availableVendors = computed(() => {
   try {
     const vendors = new Map<string, number>()
-    
+
     // 从ModelStore获取启用的供应商和模型
     modelStore.providers.forEach((provider: any) => {
-      if (provider.enabled && provider.models.length > 0) {
+      if (provider.enabled && provider.models.length > 0)
         vendors.set(provider.id, provider.models.length)
-      }
     })
-    
+
     return Array.from(vendors.entries()).map(([provider, count]) => ({
       label: providerDisplayNames[provider] || provider,
       key: provider,
       count,
     }))
-  } catch (error) {
+  }
+  catch (error) {
     console.error('❌ [模型] 获取供应商列表失败:', error)
     return []
   }
@@ -970,8 +841,9 @@ const currentVendorModels = computed(() => {
   try {
     // 从ModelStore获取当前供应商的模型
     const provider = modelStore.providers.find((p: any) => p.id === activeVendor.value)
-    if (!provider || !provider.enabled) return []
-    
+    if (!provider || !provider.enabled)
+      return []
+
     let filteredModels = provider.models.map((model: any) => ({
       id: model.id,
       name: model.name,
@@ -980,18 +852,19 @@ const currentVendorModels = computed(() => {
       enabled: true,
       deleted: false,
     }))
-    
+
     // 搜索过滤
     if (modelSearch.value) {
       const keyword = modelSearch.value.toLowerCase()
-      filteredModels = filteredModels.filter((model: any) => 
-        model.name.toLowerCase().includes(keyword) || 
-        model.displayName.toLowerCase().includes(keyword)
+      filteredModels = filteredModels.filter((model: any) =>
+        model.name.toLowerCase().includes(keyword)
+        || model.displayName.toLowerCase().includes(keyword),
       )
     }
-    
+
     return filteredModels
-  } catch (error) {
+  }
+  catch (error) {
     console.error('❌ [模型] 获取模型列表失败:', error)
     return []
   }
@@ -1003,19 +876,16 @@ function handleVendorHover(vendor: string) {
   modelSearch.value = '' // 清空搜索
 }
 
-// 当前选中的模型（从 localStorage 读取）
-const currentSelectedModel = ref<ModelItem | null>(null)
-
 // 加载当前选中的模型
 function loadCurrentModel() {
   try {
     // 从ModelStore获取当前选中的模型
     const currentModelFromStore = modelStore.currentModel
-    
+
     if (currentModelFromStore) {
       // 检查模型是否仍然存在于可用模型列表中
       const isModelAvailable = modelStore.enabledModels.some((m: any) => m.id === currentModelFromStore.id)
-      
+
       if (isModelAvailable) {
         // 模型存在，直接使用
         currentSelectedModel.value = {
@@ -1028,17 +898,20 @@ function loadCurrentModel() {
         }
         selectedModelFromPopover.value = currentModelFromStore.id
         console.log('✅ [模型] 加载已保存的模型:', currentModelFromStore.displayName)
-      } else {
+      }
+      else {
         // 模型不存在，重置为默认状态
         console.warn('⚠️ [模型] 已保存的模型不存在，重置为默认状态')
         resetToDefaultModel()
       }
-    } else {
+    }
+    else {
       // 没有保存的模型，重置为默认状态
       console.log('ℹ️ [模型] 没有保存的模型，重置为默认状态')
       resetToDefaultModel()
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('❌ [模型] 加载当前模型失败:', error)
     resetToDefaultModel()
   }
@@ -1058,15 +931,16 @@ function handleSelectModel(model: ModelItem) {
   selectedModelFromPopover.value = model.id
   currentSelectedModel.value = model
   console.log('✅ [模型] 已选择模型:', model.name, '供应商:', model.provider)
-  
+
   // 保存到ModelStore
   try {
     modelStore.setCurrentModel(model.id)
     console.log('💾 [模型] 已保存模型选择到ModelStore')
-  } catch (error) {
+  }
+  catch (error) {
     console.error('❌ [模型] 保存模型选择失败:', error)
   }
-  
+
   // 关闭弹窗
   showModelSelector.value = false
   ms.success(`已切换到模型: ${model.displayName}`)
@@ -1163,12 +1037,11 @@ function handleSelectModel(model: ModelItem) {
           </div>
           <div v-else class="empty-vendor">
             <p>暂无可用模型</p>
-            <p class="text-sm text-gray-500 mt-2">请先在设置中配置模型</p>
+            <p class="text-sm text-gray-500 mt-2">
+              请先在设置中配置模型
+            </p>
           </div>
         </NPopover>
-
-
-
       </div>
       <div class="flex items-center space-x-2">
         <HoverButton
@@ -1188,10 +1061,10 @@ function handleSelectModel(model: ModelItem) {
 
     <main class="flex-1 overflow-hidden flex flex-col relative">
       <!-- 中间主聊天区域 -->
-      <div 
+      <div
         class="flex-1 overflow-hidden transition-all duration-300"
         :style="{
-          marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0'
+          marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
         }"
       >
         <article class="h-full overflow-hidden flex flex-col">
@@ -1235,7 +1108,7 @@ function handleSelectModel(model: ModelItem) {
               </div>
             </div>
           </div>
-          
+
           <!-- Footer 固定在底部 -->
           <footer :class="footerClass">
             <div class="w-full max-w-screen-xl m-auto">
@@ -1357,14 +1230,14 @@ function handleSelectModel(model: ModelItem) {
             <!-- 工作流阶段展示 -->
             <div class="mt-4">
               <!-- 题目配置阶段 -->
-              <QuizConfig 
+              <QuizConfig
                 v-if="workflowStage === 'config' || workflowStage === 'generating'"
                 :loading="quizLoading || workflowStage === 'generating'"
                 @submit="handleQuizConfigSubmit"
               />
 
               <!-- 题目预览阶段 -->
-              <QuizPreview 
+              <QuizPreview
                 v-else-if="workflowStage === 'preview'"
                 :questions="generatedQuestions"
                 :score-distribution="scoreDistribution"
@@ -1374,7 +1247,7 @@ function handleSelectModel(model: ModelItem) {
               />
 
               <!-- 答题阶段 -->
-              <QuizAnswer 
+              <QuizAnswer
                 v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
                 :questions="generatedQuestions"
                 :score-distribution="scoreDistribution"
@@ -1382,13 +1255,15 @@ function handleSelectModel(model: ModelItem) {
               />
 
               <!-- 空闲状态提示 -->
-              <div 
+              <div
                 v-else-if="workflowStage === 'idle' && !uploadedFilePath"
                 class="text-center text-neutral-500 dark:text-neutral-400"
               >
                 <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
                 <p>笔记转题目功能</p>
-                <p class="text-sm mt-1">请上传笔记文件</p>
+                <p class="text-sm mt-1">
+                  请上传笔记文件
+                </p>
               </div>
             </div>
           </div>

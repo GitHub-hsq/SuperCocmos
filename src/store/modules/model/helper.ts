@@ -1,4 +1,4 @@
-import type { Model } from '@/typings/model'
+/// <reference path="../../../typings/model.d.ts" />
 import { ss } from '@/utils/storage'
 
 const LOCAL_NAME = 'workflowConfig'

@@ -5,6 +5,11 @@ import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/store'
 import { t } from '@/locales'
 
+// 定义 emit
+const emit = defineEmits<{
+  (e: 'back'): void
+  (e: 'switchToSignup'): void
+}>()
 const router = useRouter()
 const ms = useMessage()
 const authStore = useAuthStore()
@@ -47,16 +52,16 @@ async function handleEmailSubmit() {
   // 前端模拟：检查邮箱是否已注册
   // TODO: 调用后端 API 验证邮箱是否存在
   // const response = await fetch('/api/check-email', { method: 'POST', body: JSON.stringify({ email: email.value }) })
-  
+
   setTimeout(() => {
     // 模拟验证成功
-    console.log('========================================')
-    console.log('✅ 邮箱验证')
-    console.log('========================================')
-    console.log(`邮箱: ${email.value}`)
-    console.log(`状态: 已注册`)
-    console.log('========================================')
-    
+    // console.log('========================================')
+    // console.log('✅ 邮箱验证')
+    // console.log('========================================')
+    // console.log(`邮箱: ${email.value}`)
+    // console.log('状态: 已注册')
+    // console.log('========================================')
+
     ms.success(t('auth.emailVerified'))
     currentStep.value = 'password'
     loading.value = false
@@ -85,12 +90,12 @@ async function handlePasswordSubmit() {
   // const response = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 
   setTimeout(() => {
-    console.log('========================================')
-    console.log('🎉 登录成功!')
-    console.log('========================================')
-    console.log(`邮箱: ${email.value}`)
-    console.log(`密码: ${'*'.repeat(password.value.length)}`)
-    console.log('========================================')
+    // console.log('========================================')
+    // console.log('🎉 登录成功!')
+    // console.log('========================================')
+    // console.log(`邮箱: ${email.value}`)
+    // console.log(`密码: ${'*'.repeat(password.value.length)}`)
+    // console.log('========================================')
 
     // 模拟用户数据
     const mockUser = {
@@ -130,14 +135,8 @@ function goBack() {
 
 // 切换到注册页面
 function goToSignup() {
-  emit('switch-to-signup')
+  emit('switchToSignup')
 }
-
-// 定义 emit
-const emit = defineEmits<{
-  back: []
-  'switch-to-signup': []
-}>()
 </script>
 
 <template>
@@ -158,7 +157,9 @@ const emit = defineEmits<{
             autocomplete="email"
             :placeholder="t('auth.emailPlaceholder')"
           >
-          <p class="error-message">{{ emailError }}</p>
+          <p class="error-message">
+            {{ emailError }}
+          </p>
         </div>
         <div class="form-actions">
           <button type="submit" class="auth-btn primary-btn" :disabled="loading">
@@ -228,7 +229,9 @@ const emit = defineEmits<{
                 </svg>
               </button>
             </div>
-            <p class="error-message">{{ passwordError }}</p>
+            <p class="error-message">
+              {{ passwordError }}
+            </p>
           </div>
         </div>
 
@@ -441,4 +444,3 @@ const emit = defineEmits<{
   justify-content: space-between;
 }
 </style>
-

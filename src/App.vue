@@ -14,7 +14,8 @@ const modelStore = useModelStore()
 onMounted(async () => {
   try {
     await modelStore.loadModelsFromBackend()
-  } catch (error) {
+  }
+  catch (error) {
     console.error('加载模型列表失败:', error)
   }
 })

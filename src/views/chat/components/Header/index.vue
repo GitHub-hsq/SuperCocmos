@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import { computed, nextTick, ref } from 'vue'
+import ModelSelectors from './ModelSelector.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useAppStore, useChatStore } from '@/store'
 import ModelSelector from '@/components/common/ModelSelector/index.vue'
-import ModelSelectors from './ModelSelector.vue'
 
 interface Props {
   usingContext: boolean
@@ -54,6 +54,7 @@ function openOldModelSelector() {
 }
 
 function handleModelSelect(modelId: string, provider: string) {
+  // eslint-disable-next-line no-console
   console.log('选择的模型:', modelId, provider)
   // 这里可以保存到 store 或直接使用
   // modelStore.setCurrentModel(modelId, provider)
@@ -81,12 +82,12 @@ function handleModelSelect(modelId: string, provider: string) {
         {{ currentChatHistory?.title ?? '' }}
       </h1>
       <div class="flex items-center space-x-2">
-        <HoverButton @click="openModelSelector" :tooltip="'新版模型选择器'">
+        <HoverButton tooltip="新版模型选择器" @click="openModelSelector">
           <span class="text-xl text-[#4f555e] dark:text-white">
             <SvgIcon icon="ri:robot-line" />
           </span>
         </HoverButton>
-        <HoverButton @click="openOldModelSelector" :tooltip="'旧版模型选择器(Drawer)'">
+        <HoverButton tooltip="旧版模型选择器(Drawer)" @click="openOldModelSelector">
           <span class="text-xl text-[#4f555e] dark:text-white">
             <SvgIcon icon="ri:menu-line" />
           </span>
@@ -106,7 +107,7 @@ function handleModelSelect(modelId: string, provider: string) {
 
     <!-- 新版模型选择器弹窗 -->
     <ModelSelector v-model:visible="showModelSelector" @select="handleModelSelect" />
-    
+
     <!-- 旧版模型选择器 (Drawer) -->
     <ModelSelectors v-model:show="showOldModelSelector" />
   </header>

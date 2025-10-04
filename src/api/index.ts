@@ -45,9 +45,8 @@ export function fetchChatAPIProcess<T = any>(
   }
 
   // 如果 options 中包含模型信息，将其提取到顶层
-  if (params.options?.model) {
+  if (params.options?.model)
     data.model = params.options.model
-  }
 
   return post<T>({
     url: '/chat-process',

@@ -7,8 +7,10 @@ export const useAuthStore = defineStore('auth-store', {
   state: (): AuthState => getLocalState(),
 
   getters: {
-    isLoggedIn: (state) => !!state.token,
-    getUserEmail: (state) => state.userInfo?.email || '',
+    isLoggedIn: state => !!state.token,
+    getUserEmail: state => state.userInfo?.email || '',
+    isChatGPTAPI: state => state.isChatGPTAPI || false,
+    session: state => state.session || null,
   },
 
   actions: {
@@ -25,6 +27,21 @@ export const useAuthStore = defineStore('auth-store', {
     logout() {
       this.userInfo = null
       this.token = ''
+      this.recordState()
+    },
+
+    removeToken() {
+      this.token = ''
+      this.recordState()
+    },
+
+    setSession(session: any) {
+      this.session = session
+      this.recordState()
+    },
+
+    setIsChatGPTAPI(isChatGPTAPI: boolean) {
+      this.isChatGPTAPI = isChatGPTAPI
       this.recordState()
     },
 

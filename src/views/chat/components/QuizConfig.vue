@@ -27,14 +27,14 @@ function handleSubmit() {
   })
 }
 
-const totalCount = computed(() => 
-  singleChoiceCount.value + multipleChoiceCount.value + trueFalseCount.value
+const totalCount = computed(() =>
+  singleChoiceCount.value + multipleChoiceCount.value + trueFalseCount.value,
 )
 </script>
 
 <template>
-  <NCard 
-    title="配置题目" 
+  <NCard
+    title="配置题目"
     class="mt-4"
     :bordered="false"
   >
@@ -51,9 +51,9 @@ const totalCount = computed(() =>
             <SvgIcon icon="ri:checkbox-circle-line" class="text-xl text-blue-500" />
             <span class="font-medium">单选题</span>
           </div>
-          <NInputNumber 
-            v-model:value="singleChoiceCount" 
-            :min="0" 
+          <NInputNumber
+            v-model:value="singleChoiceCount"
+            :min="0"
             :max="50"
             :disabled="loading"
             class="w-32"
@@ -65,9 +65,9 @@ const totalCount = computed(() =>
             <SvgIcon icon="ri:checkbox-multiple-line" class="text-xl text-green-500" />
             <span class="font-medium">多选题</span>
           </div>
-          <NInputNumber 
-            v-model:value="multipleChoiceCount" 
-            :min="0" 
+          <NInputNumber
+            v-model:value="multipleChoiceCount"
+            :min="0"
             :max="50"
             :disabled="loading"
             class="w-32"
@@ -79,17 +79,17 @@ const totalCount = computed(() =>
             <SvgIcon icon="ri:question-answer-line" class="text-xl text-orange-500" />
             <span class="font-medium">判断题</span>
           </div>
-          <NInputNumber 
-            v-model:value="trueFalseCount" 
-            :min="0" 
+          <NInputNumber
+            v-model:value="trueFalseCount"
+            :min="0"
             :max="50"
             :disabled="loading"
             class="w-32"
           />
         </div>
 
-        <NButton 
-          type="primary" 
+        <NButton
+          type="primary"
           block
           :loading="loading"
           :disabled="totalCount === 0"
@@ -111,4 +111,3 @@ const totalCount = computed(() =>
   margin: 0 auto;
 }
 </style>
-

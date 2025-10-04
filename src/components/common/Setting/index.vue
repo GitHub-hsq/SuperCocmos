@@ -44,9 +44,8 @@ watch(active, (newValue) => {
     hasLoadedUsage.value = true
     // 延迟执行，确保组件已经渲染
     setTimeout(() => {
-      if (aboutRef.value && typeof aboutRef.value.fetchUsage === 'function') {
+      if (aboutRef.value && typeof aboutRef.value.fetchUsage === 'function')
         aboutRef.value.fetchUsage()
-      }
     }, 100)
   }
 })

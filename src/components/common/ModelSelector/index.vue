@@ -29,29 +29,30 @@ const show = computed({
 
 // 从ModelStore获取已启用的模型
 const enabledModels = computed(() => {
-  return modelStore.enabledModels.filter(m => m.enabled !== false)
+  return modelStore.enabledModels.filter((m: any) => m.enabled !== false)
 })
 
 // 供应商列表（按模型数量统计）
 const providers = computed(() => {
   const providerMap = new Map<string, { name: string; displayName: string; count: number }>()
-  
-  enabledModels.value.forEach((model) => {
+
+  enabledModels.value.forEach((model: any) => {
     const providerId = model.provider
     const existing = providerMap.get(providerId)
     if (existing) {
       existing.count++
-    } else {
+    }
+    else {
       // 从providers中获取显示名称
-      const provider = modelStore.providers.find(p => p.id === providerId)
-      providerMap.set(providerId, { 
-        name: providerId, 
+      const provider = modelStore.providers.find((p: any) => p.id === providerId)
+      providerMap.set(providerId, {
+        name: providerId,
         displayName: provider?.displayName || providerId,
-        count: 1 
+        count: 1,
       })
     }
   })
-  
+
   return Array.from(providerMap.entries()).map(([id, data]) => ({
     id,
     name: data.displayName,
@@ -67,21 +68,21 @@ const searchKeyword = ref('')
 
 // 当前供应商的模型列表（过滤后）
 const currentModels = computed(() => {
-  let models = enabledModels.value.filter((model) => {
+  let models = enabledModels.value.filter((model: any) => {
     if (selectedProvider.value && model.provider !== selectedProvider.value)
       return false
     return true
   })
-  
+
   // 搜索过滤
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    models = models.filter(model => 
-      model.name.toLowerCase().includes(keyword) || 
-      model.displayName.toLowerCase().includes(keyword)
+    models = models.filter((model: any) =>
+      model.name.toLowerCase().includes(keyword)
+      || model.displayName.toLowerCase().includes(keyword),
     )
   }
-  
+
   return models
 })
 
@@ -89,11 +90,11 @@ const currentModels = computed(() => {
 const selectedModel = ref<string>('')
 
 // 供应商颜色映射
-const providerColorMap: Record<string, string> = {
-  'openai': 'success',
-  'anthropic': 'info',
-  'google': 'warning',
-  'deepseek': 'error',
+const providerColorMap: Record<string, 'default' | 'error' | 'info' | 'success' | 'warning' | 'primary'> = {
+  openai: 'success',
+  anthropic: 'info',
+  google: 'warning',
+  deepseek: 'error',
 }
 
 // 选择供应商
@@ -101,10 +102,9 @@ function selectProvider(providerId: string) {
   selectedProvider.value = providerId
   searchKeyword.value = '' // 清空搜索
   // 如果该供应商有模型，自动选中第一个
-  const models = enabledModels.value.filter(m => m.provider === providerId)
-  if (models.length > 0) {
+  const models = enabledModels.value.filter((m: any) => m.provider === providerId)
+  if (models.length > 0)
     selectedModel.value = models[0].id
-  }
 }
 
 // 选择模型
@@ -115,7 +115,7 @@ function selectModel(modelId: string) {
 // 确认选择
 function handleConfirm() {
   if (selectedModel.value) {
-    const model = enabledModels.value.find(m => m.id === selectedModel.value)
+    const model = enabledModels.value.find((m: any) => m.id === selectedModel.value)
     if (model) {
       // 更新 ModelStore
       modelStore.setCurrentModel(model.id)
@@ -136,11 +136,11 @@ watch(() => props.visible, (visible) => {
     // 使用当前选中的模型
     if (modelStore.currentModelId) {
       selectedModel.value = modelStore.currentModelId
-      const currentModel = enabledModels.value.find(m => m.id === modelStore.currentModelId)
-      if (currentModel) {
+      const currentModel = enabledModels.value.find((m: any) => m.id === modelStore.currentModelId)
+      if (currentModel)
         selectedProvider.value = currentModel.provider
-      }
-    } else if (providers.value.length > 0) {
+    }
+    else if (providers.value.length > 0) {
       // 默认选择第一个供应商
       selectProvider(providers.value[0].id)
     }
@@ -162,7 +162,7 @@ watch(() => props.visible, (visible) => {
         <div class="mb-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
           供应商
         </div>
-        
+
         <div v-if="providers.length === 0" class="flex-1 flex items-center justify-center">
           <NEmpty description="没有可用的供应商">
             <template #extra>
@@ -172,7 +172,7 @@ watch(() => props.visible, (visible) => {
             </template>
           </NEmpty>
         </div>
-        
+
         <NScrollbar v-else class="flex-1">
           <div class="space-y-2">
             <div
@@ -186,7 +186,9 @@ watch(() => props.visible, (visible) => {
               @mouseenter="selectProvider(provider.id)"
             >
               <div class="flex items-center justify-between">
-                <div class="font-medium">{{ provider.name }}</div>
+                <div class="font-medium">
+                  {{ provider.name }}
+                </div>
                 <NTag
                   :type="providerColorMap[provider.id] || 'default'"
                   size="small"
@@ -205,7 +207,7 @@ watch(() => props.visible, (visible) => {
         <div class="mb-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
           模型
         </div>
-        
+
         <!-- 搜索框 -->
         <div class="mb-3">
           <NInput
@@ -218,12 +220,12 @@ watch(() => props.visible, (visible) => {
             </template>
           </NInput>
         </div>
-        
+
         <!-- 模型列表 -->
         <div v-if="currentModels.length === 0" class="flex-1 flex items-center justify-center">
           <NEmpty :description="searchKeyword ? '没有找到匹配的模型' : '该供应商没有可用模型'" />
         </div>
-        
+
         <NScrollbar v-else class="flex-1">
           <div class="space-y-2 pr-2">
             <div
@@ -238,8 +240,12 @@ watch(() => props.visible, (visible) => {
             >
               <div class="flex items-center justify-between">
                 <div class="flex-1 min-w-0">
-                  <div class="font-medium text-sm truncate">{{ model.displayName || model.name }}</div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{{ model.id }}</div>
+                  <div class="font-medium text-sm truncate">
+                    {{ model.displayName || model.name }}
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
+                    {{ model.id }}
+                  </div>
                 </div>
                 <SvgIcon
                   v-if="selectedModel === model.id"
@@ -257,7 +263,7 @@ watch(() => props.visible, (visible) => {
     <template #footer>
       <div class="flex justify-between items-center">
         <div v-if="selectedModel" class="text-sm text-gray-600 dark:text-gray-400">
-          已选择: <span class="font-medium">{{ enabledModels.find(m => m.id === selectedModel)?.displayName }}</span>
+          已选择: <span class="font-medium">{{ enabledModels.find((m: any) => m.id === selectedModel)?.displayName }}</span>
         </div>
         <div v-else />
         <div class="flex gap-2">

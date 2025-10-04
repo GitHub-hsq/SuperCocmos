@@ -42,6 +42,14 @@ let timer: NodeJS.Timeout | null = null
 // 分数
 const score = ref(0)
 
+// 检查是否全部作答
+const allAnswered = computed(() => {
+  return props.questions.every((_, index) => {
+    const answer = userAnswers.value[index]
+    return answer && answer.length > 0
+  })
+})
+
 // 开始答题
 function startQuiz() {
   isStarted.value = true
@@ -59,7 +67,7 @@ function submitAnswers() {
       const answer = userAnswers.value[index]
       return !answer || answer.length === 0
     })
-    
+
     if (firstUnansweredIndex !== -1) {
       // 滚动到该题目
       const element = document.getElementById(`question-${firstUnansweredIndex}`)
@@ -74,27 +82,26 @@ function submitAnswers() {
     }
     return
   }
-  
+
   if (timer) {
     clearInterval(timer)
     timer = null
   }
-  
+
   // 计算分数
   let correct = 0
   props.questions.forEach((question, index) => {
     const userAnswer = userAnswers.value[index] || []
-    const correctAnswer = question.answer.sort()
-    const userAnswerSorted = userAnswer.sort()
-    
-    if (JSON.stringify(correctAnswer) === JSON.stringify(userAnswerSorted)) {
+    const correctAnswer = [...question.answer].sort()
+    const userAnswerSorted = [...userAnswer].sort()
+
+    if (JSON.stringify(correctAnswer) === JSON.stringify(userAnswerSorted))
       correct++
-    }
   })
-  
+
   score.value = Math.round((correct / props.questions.length) * 100)
   isFinished.value = true
-  
+
   emit('submit', userAnswers.value, timeSpent.value)
 }
 
@@ -105,14 +112,6 @@ const formattedTime = computed(() => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 })
 
-// 检查是否全部作答
-const allAnswered = computed(() => {
-  return props.questions.every((_, index) => {
-    const answer = userAnswers.value[index]
-    return answer && answer.length > 0
-  })
-})
-
 // 获取选项标签 (A, B, C, D...)
 function getOptionLabel(index: number): string {
   return String.fromCharCode(65 + index)
@@ -121,24 +120,25 @@ function getOptionLabel(index: number): string {
 // 检查答案是否正确（提交后显示）
 function isAnswerCorrect(questionIndex: number): boolean {
   const userAnswer = userAnswers.value[questionIndex] || []
-  const correctAnswer = props.questions[questionIndex].answer.sort()
-  const userAnswerSorted = userAnswer.sort()
+  const correctAnswer = [...props.questions[questionIndex].answer].sort()
+  const userAnswerSorted = [...userAnswer].sort()
   return JSON.stringify(correctAnswer) === JSON.stringify(userAnswerSorted)
 }
 
 // 获取题型文本
-function getQuestionTypeText(type: string): string {
-  switch (type) {
-    case 'single_choice':
-      return '单选题'
-    case 'multiple_choice':
-      return '多选题'
-    case 'true_false':
-      return '判断题'
-    default:
-      return '未知'
-  }
-}
+
+// function getQuestionTypeText(type: string): string {
+//   switch (type) {
+//     case 'single_choice':
+//       return '单选题'
+//     case 'multiple_choice':
+//       return '多选题'
+//     case 'true_false':
+//       return '判断题'
+//     default:
+//       return '未知'
+//   }
+// }
 
 // 统计各题型数量和分数
 const questionStats = computed(() => {
@@ -152,10 +152,12 @@ const questionStats = computed(() => {
     if (q.type === 'single_choice') {
       stats.single_choice.count++
       stats.single_choice.total += q.score || 0
-    } else if (q.type === 'multiple_choice') {
+    }
+    else if (q.type === 'multiple_choice') {
       stats.multiple_choice.count++
       stats.multiple_choice.total += q.score || 0
-    } else if (q.type === 'true_false') {
+    }
+    else if (q.type === 'true_false') {
       stats.true_false.count++
       stats.true_false.total += q.score || 0
     }
@@ -172,44 +174,43 @@ const groupedQuestions = computed(() => {
     description: string
     questions: Array<{ question: any; globalIndex: number }>
   }> = []
-  
+
   const chineseNumbers = ['一', '二', '三', '四', '五']
   let sectionNumber = 0
-  let globalIndex = 0
-  
+
   const types: Array<'single_choice' | 'multiple_choice' | 'true_false'> = ['single_choice', 'multiple_choice', 'true_false']
-  
+
   types.forEach((type) => {
     const questionsOfType = props.questions
       .map((q, idx) => ({ question: q, globalIndex: idx }))
       .filter(item => item.question.type === type)
-    
+
     if (questionsOfType.length > 0) {
       const stat = questionStats.value[type]
       const dist = props.scoreDistribution?.[type]
       const perQuestion = dist?.perQuestion || (stat.total / stat.count)
       const total = dist?.total || stat.total
-      
+
       const typeTextMap = {
         single_choice: '单选题',
         multiple_choice: '多选题',
         true_false: '判断题',
       }
-      
+
       const sectionName = chineseNumbers[sectionNumber]
       const description = `${sectionName}、${typeTextMap[type]}：本题共 ${questionsOfType.length} 小题，每小题 ${perQuestion} 分，共 ${total} 分。`
-      
+
       groups.push({
         type,
         typeName: typeTextMap[type],
         description,
         questions: questionsOfType,
       })
-      
+
       sectionNumber++
     }
   })
-  
+
   return groups
 })
 
@@ -224,9 +225,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (timer) {
+  if (timer)
     clearInterval(timer)
-  }
 })
 </script>
 
@@ -269,22 +269,26 @@ onUnmounted(() => {
 
       <!-- 试卷标题 -->
       <div class="text-center mb-8">
-        <h1 class="text-2xl font-bold">{{ currentYear }}年国家公务员考试</h1>
+        <h1 class="text-2xl font-bold">
+          {{ currentYear }}年国家公务员考试
+        </h1>
       </div>
 
       <!-- 按题型分组显示题目 -->
       <div v-for="(group, groupIdx) in groupedQuestions" :key="groupIdx" class="mb-8">
         <!-- 题型说明 -->
         <div class="mb-4 pl-4">
-          <div class="text-base font-medium">{{ group.description }}</div>
+          <div class="text-base font-medium">
+            {{ group.description }}
+          </div>
         </div>
 
         <!-- 该题型的所有题目 -->
         <NSpace vertical :size="16">
           <div
             v-for="(item, itemIdx) in group.questions"
-            :key="item.globalIndex"
             :id="`question-${item.globalIndex}`"
+            :key="item.globalIndex"
             class="pl-4"
           >
             <NSpace vertical :size="8">
@@ -293,9 +297,9 @@ onUnmounted(() => {
                 <div class="text-base flex-1">
                   <span class="font-medium">{{ item.globalIndex + 1 }}.</span>
                   <span class="ml-1">{{ item.question.question }}</span>
-                  <NTag 
-                    v-if="isFinished" 
-                    :type="isAnswerCorrect(item.globalIndex) ? 'success' : 'error'" 
+                  <NTag
+                    v-if="isFinished"
+                    :type="isAnswerCorrect(item.globalIndex) ? 'success' : 'error'"
                     size="small"
                     class="ml-2"
                   >
@@ -305,15 +309,15 @@ onUnmounted(() => {
               </div>
 
               <!-- 单选题 -->
-              <NRadioGroup 
-                v-if="item.question.type === 'single_choice'" 
+              <NRadioGroup
+                v-if="item.question.type === 'single_choice'"
                 v-model:value="userAnswers[item.globalIndex][0]"
                 :disabled="isFinished"
                 class="ml-6"
               >
                 <NSpace vertical>
-                  <NRadio 
-                    v-for="(option, optIndex) in item.question.options" 
+                  <NRadio
+                    v-for="(option, optIndex) in item.question.options"
                     :key="optIndex"
                     :value="getOptionLabel(optIndex)"
                     @update:checked="(checked) => {
@@ -328,15 +332,15 @@ onUnmounted(() => {
               </NRadioGroup>
 
               <!-- 多选题 -->
-              <NCheckboxGroup 
-                v-else-if="item.question.type === 'multiple_choice'" 
+              <NCheckboxGroup
+                v-else-if="item.question.type === 'multiple_choice'"
                 v-model:value="userAnswers[item.globalIndex]"
                 :disabled="isFinished"
                 class="ml-6"
               >
                 <NSpace vertical>
-                  <NCheckbox 
-                    v-for="(option, optIndex) in item.question.options" 
+                  <NCheckbox
+                    v-for="(option, optIndex) in item.question.options"
                     :key="optIndex"
                     :value="getOptionLabel(optIndex)"
                   >
@@ -346,14 +350,14 @@ onUnmounted(() => {
               </NCheckboxGroup>
 
               <!-- 判断题 -->
-              <NRadioGroup 
-                v-else 
+              <NRadioGroup
+                v-else
                 v-model:value="userAnswers[item.globalIndex][0]"
                 :disabled="isFinished"
                 class="ml-6"
               >
                 <NSpace>
-                  <NRadio 
+                  <NRadio
                     value="正确"
                     @update:checked="(checked) => {
                       if (checked) {
@@ -363,7 +367,7 @@ onUnmounted(() => {
                   >
                     正确
                   </NRadio>
-                  <NRadio 
+                  <NRadio
                     value="错误"
                     @update:checked="(checked) => {
                       if (checked) {
@@ -389,15 +393,15 @@ onUnmounted(() => {
             </NSpace>
 
             <!-- 题目之间的分隔线 -->
-            <div v-if="itemIdx < group.questions.length - 1" class="mt-4 border-b border-neutral-200 dark:border-neutral-700"></div>
+            <div v-if="itemIdx < group.questions.length - 1" class="mt-4 border-b border-neutral-200 dark:border-neutral-700" />
           </div>
         </NSpace>
       </div>
 
       <!-- 提交按钮 -->
       <div v-if="!isFinished" class="mt-6 text-center">
-        <NButton 
-          type="primary" 
+        <NButton
+          type="primary"
           size="large"
           @click="submitAnswers"
         >
@@ -457,4 +461,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

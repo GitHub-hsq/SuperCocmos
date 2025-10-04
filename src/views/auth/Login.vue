@@ -51,7 +51,7 @@ function switchToSignup() {
           <button type="button" class="signin-badge">
             <span class="flex items-center gap-1">
               <span>{{ t('auth.signingInto') }} </span>
-              <span class="font-medium">ChatGPT</span>
+              <span class="font-medium">SuperCocmos</span>
             </span>
           </button>
         </div>

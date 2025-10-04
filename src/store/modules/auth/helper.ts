@@ -1,15 +1,30 @@
 import { ss } from '@/utils/storage'
 
-const LOCAL_NAME = 'SECRET_TOKEN'
+const LOCAL_NAME = 'authStorage'
 
-export function getToken() {
-  return ss.get(LOCAL_NAME)
+export interface UserInfo {
+  email: string
+  id: string
+  createdAt: string
 }
 
-export function setToken(token: string) {
-  return ss.set(LOCAL_NAME, token)
+export interface AuthState {
+  userInfo: UserInfo | null
+  token: string
 }
 
-export function removeToken() {
-  return ss.remove(LOCAL_NAME)
+export function defaultSetting(): AuthState {
+  return {
+    userInfo: null,
+    token: '',
+  }
+}
+
+export function getLocalState(): AuthState {
+  const localSetting: AuthState | undefined = ss.get(LOCAL_NAME)
+  return { ...defaultSetting(), ...localSetting }
+}
+
+export function setLocalState(setting: AuthState): void {
+  ss.set(LOCAL_NAME, setting)
 }

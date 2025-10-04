@@ -1,5 +1,5 @@
 // 引入 Node.js 内置模块：文件系统（fs）和路径（path）
-import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 // 引入 Express 框架和 Multer（用于文件上传）
@@ -785,6 +785,176 @@ router.post('/verify', async (req, res) => {
   }
   catch (error: any) {
     res.send({ status: 'Fail', message: error?.message || String(error), data: null })
+  }
+})
+
+// 用户认证相关 API
+const usersFilePath = join(process.cwd(), 'users.json')
+
+// 初始化用户文件
+if (!existsSync(usersFilePath)) {
+  writeFileSync(usersFilePath, JSON.stringify([]), 'utf-8')
+}
+
+// 读取用户数据
+function readUsers() {
+  try {
+    const data = readFileSync(usersFilePath, 'utf-8')
+    return JSON.parse(data)
+  } catch (error) {
+    return []
+  }
+}
+
+// 写入用户数据
+function writeUsers(users: any[]) {
+  writeFileSync(usersFilePath, JSON.stringify(users, null, 2), 'utf-8')
+}
+
+// 生成简单的 token（实际应用中应使用 JWT）
+function generateToken(userId: string): string {
+  return Buffer.from(`${userId}-${Date.now()}`).toString('base64')
+}
+
+// 注册 API
+router.post('/auth/register', async (req, res) => {
+  try {
+    const { email, password } = req.body as { email: string; password: string }
+    
+    if (!email || !password) {
+      return res.status(400).send({ 
+        status: 'Fail', 
+        message: '邮箱和密码不能为空',
+        data: null
+      })
+    }
+
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.status(400).send({ 
+        status: 'Fail', 
+        message: '邮箱格式不正确',
+        data: null
+      })
+    }
+
+    // 验证密码长度
+    if (password.length < 6) {
+      return res.status(400).send({ 
+        status: 'Fail', 
+        message: '密码长度至少为6位',
+        data: null
+      })
+    }
+
+    const users = readUsers()
+    
+    // 检查邮箱是否已存在
+    const existingUser = users.find((u: any) => u.email === email)
+    if (existingUser) {
+      return res.status(400).send({ 
+        status: 'Fail', 
+        message: '该邮箱已被注册',
+        data: null
+      })
+    }
+
+    // 创建新用户
+    const newUser = {
+      id: `user_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      email,
+      password, // 实际应用中应该加密密码
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    users.push(newUser)
+    writeUsers(users)
+
+    console.log(`✅ [注册] 新用户注册成功: ${email}`)
+
+    res.send({ 
+      status: 'Success', 
+      message: '注册成功',
+      data: {
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          createdAt: newUser.createdAt,
+        },
+      }
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [注册] 注册失败:', error)
+    res.status(500).send({ 
+      status: 'Fail', 
+      message: error?.message || String(error),
+      data: null
+    })
+  }
+})
+
+// 登录 API
+router.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body as { email: string; password: string }
+    
+    if (!email || !password) {
+      return res.status(400).send({ 
+        status: 'Fail', 
+        message: '邮箱和密码不能为空',
+        data: null
+      })
+    }
+
+    const users = readUsers()
+    
+    // 查找用户
+    const user = users.find((u: any) => u.email === email)
+    if (!user) {
+      return res.status(401).send({ 
+        status: 'Fail', 
+        message: '邮箱或密码错误',
+        data: null
+      })
+    }
+
+    // 验证密码
+    if (user.password !== password) {
+      return res.status(401).send({ 
+        status: 'Fail', 
+        message: '邮箱或密码错误',
+        data: null
+      })
+    }
+
+    // 生成 token
+    const token = generateToken(user.id)
+
+    console.log(`✅ [登录] 用户登录成功: ${email}`)
+
+    res.send({ 
+      status: 'Success', 
+      message: '登录成功',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          createdAt: user.createdAt,
+        },
+        token,
+      }
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [登录] 登录失败:', error)
+    res.status(500).send({ 
+      status: 'Fail', 
+      message: error?.message || String(error),
+      data: null
+    })
   }
 })
 

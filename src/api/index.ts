@@ -160,3 +160,47 @@ export function testModel<T = any>(modelId: string) {
     data: { modelId },
   })
 }
+
+// 认证相关 API
+export function fetchLogin<T = any>(data: { email: string; password: string }) {
+  return post<T>({
+    url: '/auth/login',
+    data,
+  })
+}
+
+export function fetchRegister<T = any>(data: { email: string; password: string }) {
+  return post<T>({
+    url: '/auth/register',
+    data,
+  })
+}
+
+// 新的邮箱验证流程 API
+export function fetchSendVerificationCode<T = any>(data: { email: string }) {
+  return post<T>({
+    url: '/auth/send-code',
+    data,
+  })
+}
+
+export function fetchVerifyCode<T = any>(data: { email: string; code: string }) {
+  return post<T>({
+    url: '/auth/verify-code',
+    data,
+  })
+}
+
+export function fetchCompleteSignup<T = any>(data: { email: string; code: string; nickname: string; password: string }) {
+  return post<T>({
+    url: '/auth/complete-signup',
+    data,
+  })
+}
+
+export function fetchLoginWithPassword<T = any>(data: { email: string; password: string }) {
+  return post<T>({
+    url: '/auth/login',
+    data,
+  })
+}

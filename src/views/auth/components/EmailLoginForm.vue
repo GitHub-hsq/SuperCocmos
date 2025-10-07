@@ -54,14 +54,6 @@ async function handleEmailSubmit() {
   // const response = await fetch('/api/check-email', { method: 'POST', body: JSON.stringify({ email: email.value }) })
 
   setTimeout(() => {
-    // 模拟验证成功
-    // console.log('========================================')
-    // console.log('✅ 邮箱验证')
-    // console.log('========================================')
-    // console.log(`邮箱: ${email.value}`)
-    // console.log('状态: 已注册')
-    // console.log('========================================')
-
     ms.success(t('auth.emailVerified'))
     currentStep.value = 'password'
     loading.value = false
@@ -90,12 +82,6 @@ async function handlePasswordSubmit() {
   // const response = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 
   setTimeout(() => {
-    // console.log('========================================')
-    // console.log('🎉 登录成功!')
-    // console.log('========================================')
-    // console.log(`邮箱: ${email.value}`)
-    // console.log(`密码: ${'*'.repeat(password.value.length)}`)
-    // console.log('========================================')
 
     // 模拟用户数据
     const mockUser = {

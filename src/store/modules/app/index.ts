@@ -2,7 +2,9 @@ import { defineStore } from 'pinia'
 import type { AppState, Language, Theme } from './helper'
 import { getLocalSetting, setLocalSetting } from './helper'
 import { store } from '@/store/helper'
-
+/**
+ * 定义appStore，就行defineProps定义一个props
+ */
 export const useAppStore = defineStore('app-store', {
   state: (): AppState => getLocalSetting(),
   actions: {
@@ -39,7 +41,10 @@ export const useAppStore = defineStore('app-store', {
     },
   },
 })
-
+/**
+ * 为了在组件外也能使用appStore，需要导出useAppStoreWithOut
+ * 上面是在组件里使用，下面这个是在组件外使用，两个本质是同一个实例
+ */
 export function useAppStoreWithOut() {
   return useAppStore(store)
 }

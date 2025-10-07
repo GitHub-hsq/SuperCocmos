@@ -18,7 +18,9 @@ import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAppStore, useChatStore, useModelStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { t } from '@/locales'
-
+/**
+ * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
+ */
 let controller = new AbortController()
 
 const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'

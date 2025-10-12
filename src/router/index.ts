@@ -1,7 +1,6 @@
 import type { App } from 'vue'
 import type { RouteRecordRaw } from 'vue-router'
-import { createRouter, createWebHashHistory } from 'vue-router'
-import { setupPageGuard } from './permission'
+import { createRouter, createWebHistory } from 'vue-router'
 import { ChatLayout } from '@/views/chat/layout'
 
 const routes: RouteRecordRaw[] = [
@@ -9,6 +8,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'Home',
     component: () => import('@/views/home/Home.vue'),
+    meta: { public: true },
   },
 
   {
@@ -26,9 +26,16 @@ const routes: RouteRecordRaw[] = [
   },
 
   {
-    path: '/login',
+    path: '/signin',
     name: 'Login',
     component: () => import('@/views/auth/Login.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/signup',
+    name: 'Logup',
+    component: () => import('@/views/auth/Logup.vue'),
+    meta: { public: true },
   },
 
   {
@@ -51,12 +58,10 @@ const routes: RouteRecordRaw[] = [
 ]
 
 export const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes,
   scrollBehavior: () => ({ left: 0, top: 0 }),
 })
-
-setupPageGuard(router)
 
 export async function setupRouter(app: App) {
   app.use(router)

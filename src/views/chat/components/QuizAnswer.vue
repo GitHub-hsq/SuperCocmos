@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { NButton, NCard, NCheckbox, NCheckboxGroup, NRadio, NRadioGroup, NSpace, NTag } from 'naive-ui'
-import { SvgIcon } from '@/components/common'
+import { NButton, NCard, NSpace, NTag } from 'naive-ui'
+import { Checkboxes, Radio, SvgIcon } from '@/components/common'
 
 interface Question {
   type: 'single_choice' | 'multiple_choice' | 'true_false'
@@ -309,76 +309,82 @@ onUnmounted(() => {
               </div>
 
               <!-- 单选题 -->
-              <NRadioGroup
+              <div
                 v-if="item.question.type === 'single_choice'"
-                v-model:value="userAnswers[item.globalIndex][0]"
-                :disabled="isFinished"
                 class="ml-6"
               >
                 <NSpace vertical>
-                  <NRadio
+                  <Radio
                     v-for="(option, optIndex) in item.question.options"
                     :key="optIndex"
+                    :model-value="userAnswers[item.globalIndex]?.[0] === getOptionLabel(optIndex)"
+                    :disabled="isFinished"
                     :value="getOptionLabel(optIndex)"
-                    @update:checked="(checked) => {
+                    @change="(value) => {
+                      userAnswers[item.globalIndex] = [value]
+                    }"
+                  >
+                    {{ getOptionLabel(optIndex) }}. {{ option.replace(/^[A-Z]\.\s*/, '') }}
+                  </Radio>
+                </NSpace>
+              </div>
+
+              <!-- 多选题 -->
+              <div
+                v-else-if="item.question.type === 'multiple_choice'"
+                class="ml-6"
+              >
+                <NSpace vertical>
+                  <Checkboxes
+                    v-for="(option, optIndex) in item.question.options"
+                    :key="optIndex"
+                    :model-value="userAnswers[item.globalIndex]?.includes(getOptionLabel(optIndex)) || false"
+                    :disabled="isFinished"
+                    @update:model-value="(checked) => {
+                      const currentAnswers = userAnswers[item.globalIndex] || []
+                      const optionLabel = getOptionLabel(optIndex)
                       if (checked) {
-                        userAnswers[item.globalIndex] = [getOptionLabel(optIndex)]
+                        if (!currentAnswers.includes(optionLabel)) {
+                          userAnswers[item.globalIndex] = [...currentAnswers, optionLabel]
+                        }
+                      } else {
+                        userAnswers[item.globalIndex] = currentAnswers.filter(a => a !== optionLabel)
                       }
                     }"
                   >
                     {{ getOptionLabel(optIndex) }}. {{ option.replace(/^[A-Z]\.\s*/, '') }}
-                  </NRadio>
+                  </Checkboxes>
                 </NSpace>
-              </NRadioGroup>
-
-              <!-- 多选题 -->
-              <NCheckboxGroup
-                v-else-if="item.question.type === 'multiple_choice'"
-                v-model:value="userAnswers[item.globalIndex]"
-                :disabled="isFinished"
-                class="ml-6"
-              >
-                <NSpace vertical>
-                  <NCheckbox
-                    v-for="(option, optIndex) in item.question.options"
-                    :key="optIndex"
-                    :value="getOptionLabel(optIndex)"
-                  >
-                    {{ getOptionLabel(optIndex) }}. {{ option.replace(/^[A-Z]\.\s*/, '') }}
-                  </NCheckbox>
-                </NSpace>
-              </NCheckboxGroup>
+              </div>
 
               <!-- 判断题 -->
-              <NRadioGroup
+              <div
                 v-else
-                v-model:value="userAnswers[item.globalIndex][0]"
-                :disabled="isFinished"
                 class="ml-6"
               >
                 <NSpace>
-                  <NRadio
+                  <Radio
+                    :model-value="userAnswers[item.globalIndex]?.[0] === '正确'"
+                    :disabled="isFinished"
                     value="正确"
-                    @update:checked="(checked) => {
-                      if (checked) {
-                        userAnswers[item.globalIndex] = ['正确']
-                      }
+                    @change="(value) => {
+                      userAnswers[item.globalIndex] = [value]
                     }"
                   >
                     正确
-                  </NRadio>
-                  <NRadio
+                  </Radio>
+                  <Radio
+                    :model-value="userAnswers[item.globalIndex]?.[0] === '错误'"
+                    :disabled="isFinished"
                     value="错误"
-                    @update:checked="(checked) => {
-                      if (checked) {
-                        userAnswers[item.globalIndex] = ['错误']
-                      }
+                    @change="(value) => {
+                      userAnswers[item.globalIndex] = [value]
                     }"
                   >
                     错误
-                  </NRadio>
+                  </Radio>
                 </NSpace>
-              </NRadioGroup>
+              </div>
 
               <!-- 答案和解析（提交后显示） -->
               <div v-if="isFinished" class="mt-2 ml-6 p-3 bg-neutral-100 dark:bg-neutral-800 rounded">

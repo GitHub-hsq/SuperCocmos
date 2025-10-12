@@ -61,5 +61,21 @@
   "i18n-ally.localesPaths": [
     "src/locales"
   ],
-  "i18n-ally.keystyle": "nested"
+  "i18n-ally.keystyle": "nested",
+  "sqltools.connections": [
+    {
+      "server": "svc-3482219c-a389-4079-b18b-d50662524e8a-shared-dml.aws-virginia-6.svc.singlestore.com",
+      "port": 3333,
+      "database": "db__e9107",
+      "username": "SuperCocmos",
+      "password": "QO%}BNjK(3rgn{=5QT0*+xXB",
+      "useSsl": true,
+      "previewLimit": 50,
+      "ssl": {
+        "rejectUnauthorized": true
+      },
+      "driver": "SingleStoreDB",
+      "name": "法外狂徒"
+    }
+  ]
 }

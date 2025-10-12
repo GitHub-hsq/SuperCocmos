@@ -18,6 +18,8 @@ import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAppStore, useChatStore, useModelStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { t } from '@/locales'
+import { SignedIn, UserButton, SignInButton, SignedOut } from '@clerk/vue'
+
 /**
  * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
  */
@@ -950,6 +952,7 @@ function handleSelectModel(model: ModelItem) {
 </script>
 
 <template>
+<SignedIn>
   <div class="flex flex-col w-full h-full">
     <HeaderComponent
       v-if="isMobile"
@@ -959,7 +962,7 @@ function handleSelectModel(model: ModelItem) {
     />
 
     <!-- Web端Header -->
-    <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#101014]">
+    <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#161618]">
       <div class="flex items-center space-x-4">
         <NPopover
           v-model:show="showModelSelector"
@@ -1026,7 +1029,7 @@ function handleSelectModel(model: ModelItem) {
                             <span class="model-name">{{ model.displayName }}</span>
                             <span class="model-id">{{ model.id }}</span>
                           </div>
-                          <NIcon v-if="selectedModelFromPopover === model.id" color="#18a058" size="20">
+                          <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
                             <CheckmarkOutline />
                           </NIcon>
                         </div>
@@ -1046,18 +1049,7 @@ function handleSelectModel(model: ModelItem) {
         </NPopover>
       </div>
       <div class="flex items-center space-x-2">
-        <HoverButton
-          tooltip="导出对话"
-          @click="handleExport"
-        >
-          <SvgIcon icon="ri:download-line" />
-        </HoverButton>
-        <HoverButton
-          tooltip="清空对话"
-          @click="handleClear"
-        >
-          <SvgIcon icon="ri:delete-bin-line" />
-        </HoverButton>
+        <UserButton />
       </div>
     </header>
 
@@ -1073,7 +1065,7 @@ function handleSelectModel(model: ModelItem) {
           <div class="flex-1 overflow-hidden">
             <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
               <div
-                class="w-full max-w-screen-xl m-auto dark:bg-[#101014]"
+                class="w-full max-w-screen-xl m-auto dark:bg-[#161618]"
                 :class="[isMobile ? 'p-2' : 'p-4']"
               >
                 <div id="image-wrapper" class="relative">
@@ -1126,7 +1118,7 @@ function handleSelectModel(model: ModelItem) {
                   </span>
                 </HoverButton>
                 <HoverButton @click="toggleUsingContext">
-                  <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingContext, 'text-[#a8071a]': !usingContext }">
+                  <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
                     <SvgIcon icon="ri:chat-history-line" />
                   </span>
                 </HoverButton>
@@ -1161,7 +1153,7 @@ function handleSelectModel(model: ModelItem) {
       <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
       <div
         v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
-        class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#101014] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
+        class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
         @click="toggleRightSider"
       >
         <SvgIcon
@@ -1173,7 +1165,7 @@ function handleSelectModel(model: ModelItem) {
       <!-- 右侧侧边栏 -->
       <aside
         v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
-        class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#101014] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
+        class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
         :style="{
           width: `${rightSiderWidth}%`,
         }"
@@ -1188,7 +1180,7 @@ function handleSelectModel(model: ModelItem) {
 
         <!-- 收起按钮 -->
         <div
-          class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#101014] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
+          class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
           @click="toggleRightSider"
         >
           <SvgIcon
@@ -1289,6 +1281,7 @@ function handleSelectModel(model: ModelItem) {
       </aside>
     </main>
   </div>
+</SignedIn>
 </template>
 
 <style scoped>
@@ -1298,7 +1291,7 @@ function handleSelectModel(model: ModelItem) {
 }
 
 :deep(.dark) .model-selector-popup {
-  background: #18181c;
+  background: #161618;
 }
 
 /* 供应商列表样式 */
@@ -1307,7 +1300,7 @@ function handleSelectModel(model: ModelItem) {
 }
 
 :deep(.dark) .vendor-sidebar {
-  background: #1a1a1a;
+  background: #161618;
 }
 
 .vendor-list {
@@ -1326,12 +1319,21 @@ function handleSelectModel(model: ModelItem) {
 }
 
 .vendor-item:hover {
-  background: rgba(24, 160, 88, 0.1);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+:deep(.dark) .vendor-item:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .vendor-item.active {
-  background: rgba(24, 160, 88, 0.15);
-  border-left: 3px solid #18a058;
+  background: rgba(0, 0, 0, 0.05);
+  border-left: 3px solid #333333;
+}
+
+:deep(.dark) .vendor-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-left: 3px solid #ffffff;
 }
 
 .vendor-name {
@@ -1347,8 +1349,13 @@ function handleSelectModel(model: ModelItem) {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 12px;
-  background: #18a058;
+  background: #333333;
   color: white;
+}
+
+:deep(.dark) .vendor-count {
+  background: #ffffff;
+  color: #000000;
 }
 
 /* 搜索框样式 */
@@ -1362,7 +1369,7 @@ function handleSelectModel(model: ModelItem) {
 }
 
 :deep(.dark) .model-content {
-  background: #18181c;
+  background: #161618;
 }
 
 .model-item {
@@ -1371,11 +1378,19 @@ function handleSelectModel(model: ModelItem) {
 }
 
 .model-item:hover {
-  background: rgba(24, 160, 88, 0.05);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+:deep(.dark) .model-item:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .model-item.selected {
-  background: rgba(24, 160, 88, 0.1);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:deep(.dark) .model-item.selected {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .model-item-content {

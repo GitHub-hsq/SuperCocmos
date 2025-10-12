@@ -6,7 +6,7 @@ import { join } from 'node:path'
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
 import multer from 'multer'
-import { v4 as uuidv4 } from 'uuid'
+import { nanoid } from 'nanoid'
 
 // 引入自定义类型和模块
 import type { RequestProps } from './types' // 请求参数类型
@@ -18,6 +18,10 @@ import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字�
 import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
 import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
+import { initUserTable, testConnection } from './utils/db' // 数据库连接
+import { createUser, findUserByEmail, validateUserPassword, findUserById, updateUser, deleteUser, getAllUsers, findUserByUsername } from './utils/userService' // 用户服务
+import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
+import clerkRoutes from './api/routes' // Clerk + Supabase 路由
 
 const app = express()
 const router = express.Router()
@@ -73,7 +77,7 @@ const storage = multer.diskStorage({
     // 获取文件扩展名
     const ext = file.originalname.substring(file.originalname.lastIndexOf('.'))
     // 使用 UUID + 时间戳 + 扩展名，避免中文乱码问题
-    const uniqueName = `${Date.now()}_${uuidv4()}${ext}`
+    const uniqueName = `${Date.now()}_${nanoid()}${ext}`
     cb(null, uniqueName)
   },
 })
@@ -825,7 +829,7 @@ function generateToken(userId: string): string {
 // 注册 API
 router.post('/auth/register', async (req, res) => {
   try {
-    const { email, password } = req.body as { email: string; password: string }
+    const { email, password, name } = req.body as { email: string; password: string; name?: string }
 
     if (!email || !password) {
       return res.status(400).send({
@@ -854,10 +858,8 @@ router.post('/auth/register', async (req, res) => {
       })
     }
 
-    const users = readUsers()
-
     // 检查邮箱是否已存在
-    const existingUser = users.find((u: any) => u.email === email)
+    const existingUser = await findUserByEmail(email)
     if (existingUser) {
       return res.status(400).send({
         status: 'Fail',
@@ -866,17 +868,8 @@ router.post('/auth/register', async (req, res) => {
       })
     }
 
-    // 创建新用户
-    const newUser = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      email,
-      password, // 实际应用中应该加密密码
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    users.push(newUser)
-    writeUsers(users)
+    // 创建新用户（密码会在 createUser 中自动加密）
+    const newUser = await createUser(email, password, name)
 
     console.log(`✅ [注册] 新用户注册成功: ${email}`)
 
@@ -887,7 +880,9 @@ router.post('/auth/register', async (req, res) => {
         user: {
           id: newUser.id,
           email: newUser.email,
-          createdAt: newUser.createdAt,
+          username: newUser.username,
+          nickname: newUser.nickname,
+          createdAt: newUser.created_at,
         },
       },
     })
@@ -915,20 +910,9 @@ router.post('/auth/login', async (req, res) => {
       })
     }
 
-    const users = readUsers()
-
-    // 查找用户
-    const user = users.find((u: any) => u.email === email)
+    // 验证用户密码
+    const user = await validateUserPassword(email, password)
     if (!user) {
-      return res.status(401).send({
-        status: 'Fail',
-        message: '邮箱或密码错误',
-        data: null,
-      })
-    }
-
-    // 验证密码
-    if (user.password !== password) {
       return res.status(401).send({
         status: 'Fail',
         message: '邮箱或密码错误',
@@ -948,7 +932,9 @@ router.post('/auth/login', async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
-          createdAt: user.createdAt,
+          username: user.username,
+          nickname: user.nickname,
+          createdAt: user.created_at,
         },
         token,
       },
@@ -964,8 +950,264 @@ router.post('/auth/login', async (req, res) => {
   }
 })
 
+// 获取用户信息 API
+router.get('/user/:id', [auth], async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const user = await findUserById(id)
+    if (!user) {
+      return res.status(404).send({
+        status: 'Fail',
+        message: '用户不存在',
+        data: null,
+      })
+    }
+
+    res.send({
+      status: 'Success',
+      message: '获取用户信息成功',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          nickname: user.nickname,
+          createdAt: user.created_at,
+          updatedAt: user.updated_at,
+        },
+      },
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [用户] 获取用户信息失败:', error)
+    res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+})
+
+// 更新用户信息 API
+router.put('/user/:id', [auth], async (req, res) => {
+  try {
+    const { id } = req.params
+    const { username, nickname, email, password } = req.body as {
+      username?: string
+      nickname?: string
+      email?: string
+      password?: string
+    }
+
+    // 检查用户是否存在
+    const existingUser = await findUserById(id)
+    if (!existingUser) {
+      return res.status(404).send({
+        status: 'Fail',
+        message: '用户不存在',
+        data: null,
+      })
+    }
+
+    // 如果更新邮箱，检查邮箱是否已被其他用户使用
+    if (email && email !== existingUser.email) {
+      const emailUser = await findUserByEmail(email)
+      if (emailUser && emailUser.id !== id) {
+        return res.status(400).send({
+          status: 'Fail',
+          message: '该邮箱已被其他用户使用',
+          data: null,
+        })
+      }
+    }
+
+    // 如果更新用户名，检查用户名是否已被其他用户使用
+    if (username && username !== existingUser.username) {
+      const usernameUser = await findUserByUsername(username)
+      if (usernameUser && usernameUser.id !== id) {
+        return res.status(400).send({
+          status: 'Fail',
+          message: '该用户名已被其他用户使用',
+          data: null,
+        })
+      }
+    }
+
+    const updatedUser = await updateUser(id, {
+      username,
+      nickname,
+      email,
+      password,
+    })
+
+    if (!updatedUser) {
+      return res.status(500).send({
+        status: 'Fail',
+        message: '更新用户信息失败',
+        data: null,
+      })
+    }
+
+    console.log(`✅ [用户] 用户信息更新成功: ${id}`)
+
+    res.send({
+      status: 'Success',
+      message: '用户信息更新成功',
+      data: {
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          username: updatedUser.username,
+          nickname: updatedUser.nickname,
+          createdAt: updatedUser.created_at,
+          updatedAt: updatedUser.updated_at,
+        },
+      },
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [用户] 更新用户信息失败:', error)
+    res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+})
+
+// 删除用户 API
+router.delete('/user/:id', [auth], async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // 检查用户是否存在
+    const existingUser = await findUserById(id)
+    if (!existingUser) {
+      return res.status(404).send({
+        status: 'Fail',
+        message: '用户不存在',
+        data: null,
+      })
+    }
+
+    const deleted = await deleteUser(id)
+    if (!deleted) {
+      return res.status(500).send({
+        status: 'Fail',
+        message: '删除用户失败',
+        data: null,
+      })
+    }
+
+    console.log(`✅ [用户] 用户删除成功: ${id}`)
+
+    res.send({
+      status: 'Success',
+      message: '用户删除成功',
+      data: null,
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [用户] 删除用户失败:', error)
+    res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+})
+
+// 获取用户列表 API
+router.get('/users', [auth], async (req, res) => {
+  try {
+    const users = await getAllUsers()
+
+    res.send({
+      status: 'Success',
+      message: '获取用户列表成功',
+      data: {
+        users: users.map(user => ({
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          nickname: user.nickname,
+          createdAt: user.created_at,
+          updatedAt: user.updated_at,
+        })),
+        total: users.length,
+      },
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [用户] 获取用户列表失败:', error)
+    res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+})
+
 app.use('', router)
 app.use('/api', router)
+// 集成 Clerk + Supabase 路由
+app.use('/api', clerkRoutes)
 app.set('trust proxy', 1)
 
-app.listen(3002, () => globalThis.console.log('Server is running on port 3002'))
+// 支持 History 模式：将所有非 API 路由返回 index.html
+// 确保在所有 API 路由之后添加
+const distPath = join(process.cwd(), 'dist')
+if (existsSync(distPath)) {
+  console.log('✅ [启动] 检测到 dist 目录，启用静态文件服务')
+  app.use(express.static(distPath))
+  
+  // Catch-all 路由：所有非 API 路由都返回 index.html（支持 History 模式）
+  app.get('*', (req, res) => {
+    // 排除 API 路由
+    if (req.path.startsWith('/api')) {
+      return res.status(404).send({ status: 'Fail', message: 'API not found', data: null })
+    }
+    res.sendFile(join(distPath, 'index.html'))
+  })
+}
+else {
+  console.log('⚠️  [启动] 未检测到 dist 目录，请先运行 pnpm build 构建前端')
+}
+
+// 初始化数据库
+async function initDatabase() {
+  try {
+    console.log('🔍 [启动] 初始化数据库...')
+    
+    // 测试旧的数据库连接（如果配置了）
+    const hasOldDb = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
+    if (hasOldDb) {
+      console.log('🔍 [启动] 检测到 Supabase 配置，测试连接...')
+      await testSupabaseConnection()
+    }
+    else {
+      // 使用旧的数据库连接
+      await testConnection()
+      await initUserTable()
+    }
+    
+    console.log('✅ [启动] 数据库初始化完成')
+  }
+  catch (error: any) {
+    console.error('❌ [启动] 数据库初始化失败:', error.message)
+    console.error('⚠️  [启动] 服务将继续运行，但数据库功能可能不可用')
+  }
+}
+
+// 启动服务器
+async function startServer() {
+  // 初始化数据库
+  await initDatabase()
+
+  app.listen(3002, () => {
+    globalThis.console.log('Server is running on port 3002')
+  })
+}
+
+startServer()

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { defaultState, getLocalState, setLocalState } from './helper'
 import { router } from '@/router'
 import { t } from '@/locales'
+import { nanoid } from 'nanoid'
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -113,7 +114,7 @@ export const useChatStore = defineStore('chat-store', {
     addChatByUuid(uuid: number, chat: Chat.Chat) {
       if (!uuid || uuid === 0) {
         if (this.history.length === 0) {
-          const uuid = Date.now()
+          const uuid = nanoid()
           this.history.push({ uuid, title: chat.text, isEdit: false, mode: 'normal' })
           this.chat.push({ uuid, data: [chat] })
           this.active = uuid

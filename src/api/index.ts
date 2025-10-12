@@ -1,6 +1,16 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
 import { get, post } from '@/utils/request'
 import { useAuthStore, useSettingStore } from '@/store'
+import type {
+  ApiResponse,
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
+  UpdateUserRequest,
+  UserListResponse,
+  User,
+} from './types'
 
 export function fetchChatAPI<T = any>(
   prompt: string,
@@ -161,15 +171,15 @@ export function testModel<T = any>(modelId: string) {
 }
 
 // 认证相关 API
-export function fetchLogin<T = any>(data: { email: string; password: string }) {
-  return post<T>({
+export function fetchLogin(data: LoginRequest) {
+  return post<ApiResponse<LoginResponse>>({
     url: '/auth/login',
     data,
   })
 }
 
-export function fetchRegister<T = any>(data: { email: string; password: string }) {
-  return post<T>({
+export function fetchRegister(data: RegisterRequest) {
+  return post<ApiResponse<RegisterResponse>>({
     url: '/auth/register',
     data,
   })
@@ -197,9 +207,35 @@ export function fetchCompleteSignup<T = any>(data: { email: string; code: string
   })
 }
 
-export function fetchLoginWithPassword<T = any>(data: { email: string; password: string }) {
-  return post<T>({
+export function fetchLoginWithPassword(data: LoginRequest) {
+  return post<ApiResponse<LoginResponse>>({
     url: '/auth/login',
     data,
+  })
+}
+
+// 用户管理 API
+export function fetchUser(id: string) {
+  return get<ApiResponse<{ user: Omit<User, 'password'> }>>({
+    url: `/user/${id}`,
+  })
+}
+
+export function updateUser(id: string, data: UpdateUserRequest) {
+  return post<ApiResponse<{ user: Omit<User, 'password'> }>>({
+    url: `/user/${id}`,
+    data,
+  })
+}
+
+export function deleteUser(id: string) {
+  return post<ApiResponse<null>>({
+    url: `/user/${id}`,
+  })
+}
+
+export function fetchUsers() {
+  return get<ApiResponse<UserListResponse>>({
+    url: '/users',
   })
 }

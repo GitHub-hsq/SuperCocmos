@@ -77,7 +77,7 @@ function selectModel(model) {
                 >
                   <div class="flex justify-between items-center w-full">
                     <span>{{ model }}</span>
-                    <NIcon v-if="model === selectedModel" color="#18a058">
+                    <NIcon v-if="model === selectedModel" color="#333333" class="dark:text-white">
                       <CheckmarkOutline />
                     </NIcon>
                   </div>

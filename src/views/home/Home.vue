@@ -5,7 +5,12 @@ import Particles from '@/components/ui/Particles.vue'
 const router = useRouter()
 
 function goToLogin() {
-  router.push('/login')
+  console.log('🔵 [Home] 点击登录按钮，准备跳转到 /login')
+  router.push('/signin').then(() => {
+    console.log('✅ [Home] 路由跳转成功')
+  }).catch((error) => {
+    console.error('❌ [Home] 路由跳转失败:', error)
+  })
 }
 </script>
 
@@ -52,9 +57,9 @@ function goToLogin() {
 
 .cta {
   position: absolute;
-  bottom: 50%;
+  bottom: 80px;
   left: 50%;
-  transform: translate(-50%, 50%);
+  transform: translateX(-50%);
   display: flex;
   justify-content: center;
   width: 100%;

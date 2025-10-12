@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { nanoid } from 'nanoid'
 import type { SavePayload } from './types'
 
 const QUESTIONS_DIR = path.resolve(process.cwd(), 'questions')
@@ -12,7 +12,7 @@ export function ensureDir() {
 
 export function saveQuestions(payload: SavePayload) {
   ensureDir()
-  const id = uuidv4()
+  const id = nanoid()
   const file = path.join(QUESTIONS_DIR, `${id}.json`)
   const content = JSON.stringify({ id, createdAt: new Date().toISOString(), ...payload }, null, 2)
   fs.writeFileSync(file, content, 'utf-8')

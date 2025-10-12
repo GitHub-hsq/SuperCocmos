@@ -8,6 +8,7 @@ import { useAppStore, useChatStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { PromptStore, SvgIcon } from '@/components/common'
 import { t } from '@/locales'
+import { nanoid } from 'nanoid'
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
@@ -30,7 +31,7 @@ function handleAdd() {
     }
   }
 
-  chatStore.addHistory({ title: t('chat.newChatTitle'), uuid: Date.now(), isEdit: false, mode: 'normal' })
+  chatStore.addHistory({ title: t('chat.newChatTitle'), uuid: nanoid(), isEdit: false, mode: 'normal' })
   if (isMobile.value)
     appStore.setSiderCollapsed(true)
 }
@@ -68,7 +69,7 @@ function handleModeChange(mode: 'noteToQuestion' | 'noteToStory') {
   // 创建目标模式的新对话
   chatStore.addHistory({
     title: mode === 'noteToQuestion' ? t('chat.modeNoteToQuestion') : t('chat.modeNoteToStory'),
-    uuid: Date.now(),
+    uuid: nanoid(),
     isEdit: false,
     mode,
   })

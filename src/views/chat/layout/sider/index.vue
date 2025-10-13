@@ -1,14 +1,14 @@
 <script setup lang='ts'>
 import type { CSSProperties } from 'vue'
-import { computed, ref, watch } from 'vue'
 import { NButton, NLayoutSider, useDialog } from 'naive-ui'
-import List from './List.vue'
-import Footer from './Footer.vue'
-import { useAppStore, useChatStore } from '@/store'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { PromptStore, SvgIcon } from '@/components/common'
-import { t } from '@/locales'
 import { nanoid } from 'nanoid'
+import { computed, ref, watch } from 'vue'
+import { PromptStore, SvgIcon } from '@/components/common'
+import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { t } from '@/locales'
+import { useAppStore, useChatStore } from '@/store'
+import Footer from './Footer.vue'
+import List from './List.vue'
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
@@ -23,7 +23,7 @@ const collapsed = computed(() => appStore.siderCollapsed)
 function handleAdd() {
   const previousUuid = chatStore.active
   if (previousUuid) {
-    const prevMessages = chatStore.getChatByUuid(previousUuid as number)
+    const prevMessages = chatStore.getChatByUuid(previousUuid)
     if (!prevMessages || prevMessages.length === 0) {
       const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
       if (prevIndex !== -1)
@@ -58,7 +58,7 @@ function handleModeChange(mode: 'noteToQuestion' | 'noteToStory') {
   // 离开当前对话：若无消息则删除
   const previousUuid = chatStore.active
   if (previousUuid) {
-    const prevMessages = chatStore.getChatByUuid(previousUuid as number)
+    const prevMessages = chatStore.getChatByUuid(previousUuid)
     if (!prevMessages || prevMessages.length === 0) {
       const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
       if (prevIndex !== -1)

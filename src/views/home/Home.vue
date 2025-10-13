@@ -5,19 +5,14 @@ import Particles from '@/components/ui/Particles.vue'
 const router = useRouter()
 
 function goToLogin() {
-  console.log('🔵 [Home] 点击登录按钮，准备跳转到 /login')
-  router.push('/signin').then(() => {
-    console.log('✅ [Home] 路由跳转成功')
-  }).catch((error) => {
-    console.error('❌ [Home] 路由跳转失败:', error)
-  })
+  router.push('/signin')
 }
 </script>
 
 <template>
   <div class="home-container">
     <!-- 粒子背景效果 -->
-    <Particles 
+    <Particles
       class="absolute inset-0 z-0"
       :quantity="100"
       :staticity="80"
@@ -28,7 +23,7 @@ function goToLogin() {
       :vy="0.05"
       :colors="['#ffffff']"
     />
-    
+
     <!-- 登录按钮 -->
     <div class="cta">
       <button @click="goToLogin">
@@ -53,7 +48,6 @@ function goToLogin() {
   background-color: #000000;
   overflow: hidden;
 }
-
 
 .cta {
   position: absolute;

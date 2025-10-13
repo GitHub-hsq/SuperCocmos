@@ -1,10 +1,10 @@
+import { clerkPlugin } from '@clerk/vue'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { setupI18n } from './locales'
 import { setupAssets, setupScrollbarStyle } from './plugins'
-import { setupStore } from './store'
 import { setupRouter } from './router'
-import { clerkPlugin } from '@clerk/vue'
+import { setupStore } from './store'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 const SIGN_IN_FALLBACK_REDIRECT_URL = import.meta.env.VITE_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
@@ -16,7 +16,7 @@ if (!PUBLISHABLE_KEY) {
 
 async function bootstrap() {
   const app = createApp(App)
-  
+
   setupAssets()
   setupScrollbarStyle()
 
@@ -28,7 +28,7 @@ async function bootstrap() {
     publishableKey: PUBLISHABLE_KEY,
     signInUrl: '/signin',
     signUpUrl: '/signup',
-    signUpFallbackRedirectUrl:SIGN_IN_FALLBACK_REDIRECT_URL,
+    signUpFallbackRedirectUrl: SIGN_IN_FALLBACK_REDIRECT_URL,
     appearance: {
       cssLayerName: 'clerk',
     },

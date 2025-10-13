@@ -1,14 +1,14 @@
-import * as dotenv from 'dotenv'
-import 'isomorphic-fetch'
 import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt'
-import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt'
-import { SocksProxyAgent } from 'socks-proxy-agent'
-import httpsProxyAgent from 'https-proxy-agent'
-import fetch from 'node-fetch'
-import { sendResponse } from '../utils'
-import { isNotEmptyString } from '../utils/is'
 import type { ApiModel, ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
 import type { RequestOptions, SetProxyOptions, UsageResponse } from './types'
+import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt'
+import * as dotenv from 'dotenv'
+import httpsProxyAgent from 'https-proxy-agent'
+import fetch from 'node-fetch'
+import { SocksProxyAgent } from 'socks-proxy-agent'
+import { sendResponse } from '../utils'
+import { isNotEmptyString } from '../utils/is'
+import 'isomorphic-fetch'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -23,7 +23,7 @@ const ErrorCodeMessage: Record<string, string> = {
   500: '[OpenAI] 服务器繁忙，请稍后再试 | Internal Server Error',
 }
 
-const timeoutMs: number = !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 100 * 1000
+const timeoutMs: number = !Number.isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 100 * 1000
 const disableDebug: boolean = process.env.OPENAI_API_DISABLE_DEBUG === 'true'
 
 // 抑制 chatgpt 库的 token 计算错误日志
@@ -39,8 +39,9 @@ console.warn = (...args: any[]) => {
   const msg = String(args[0] || '')
   // 过滤掉 token 计算相关的警告
   if (msg.includes('Failed to calculate number of tokens')
-      || msg.includes('falling back to approximate count'))
+    || msg.includes('falling back to approximate count')) {
     return
+  }
 
   originalConsoleWarn.apply(console, args)
 }
@@ -197,7 +198,7 @@ async function chatReplyProcess(options: RequestOptions) {
   }
   catch (error: any) {
     const code = error.statusCode
-    global.console.log(error)
+    globalThis.console.error(error)
     if (Reflect.has(ErrorCodeMessage, code))
       return sendResponse({ type: 'Fail', message: ErrorCodeMessage[code] })
     return sendResponse({ type: 'Fail', message: error.message ?? 'Please check the back-end console' })
@@ -237,7 +238,7 @@ async function fetchUsage() {
     return Promise.resolve(usage ? `$${usage}` : '-')
   }
   catch (error) {
-    global.console.log(error)
+    globalThis.console.error(error)
     return Promise.resolve('-')
   }
 }
@@ -300,4 +301,4 @@ function currentModel(): ApiModel {
 
 export type { ChatContext, ChatMessage }
 
-export { chatReplyProcess, chatConfig, currentModel }
+export { chatConfig, chatReplyProcess, currentModel }

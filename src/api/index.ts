@@ -1,6 +1,4 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
-import { get, post } from '@/utils/request'
-import { useAuthStore, useSettingStore } from '@/store'
 import type {
   ApiResponse,
   LoginRequest,
@@ -8,13 +6,15 @@ import type {
   RegisterRequest,
   RegisterResponse,
   UpdateUserRequest,
-  UserListResponse,
   User,
+  UserListResponse,
 } from './types'
+import { useAuthStore, useSettingStore } from '@/store'
+import { get, post } from '@/utils/request'
 
 export function fetchChatAPI<T = any>(
   prompt: string,
-  options?: { conversationId?: string; parentMessageId?: string },
+  options?: { conversationId?: string, parentMessageId?: string },
   signal?: GenericAbortSignal,
 ) {
   return post<T>({
@@ -33,9 +33,10 @@ export function fetchChatConfig<T = any>() {
 export function fetchChatAPIProcess<T = any>(
   params: {
     prompt: string
-    options?: { conversationId?: string; parentMessageId?: string; model?: string }
+    options?: { conversationId?: string, parentMessageId?: string, model?: string }
     signal?: GenericAbortSignal
-    onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
+    onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void
+  },
 ) {
   const settingStore = useSettingStore()
   const authStore = useAuthStore()
@@ -102,7 +103,7 @@ export function fetchDeleteFile<T = any>(filePath: string) {
 
 export function fetchQuizGenerate<T = any>(
   filePath: string,
-  questionTypes: { single_choice: number; multiple_choice: number; true_false: number },
+  questionTypes: { single_choice: number, multiple_choice: number, true_false: number },
 ) {
   return post<T>({
     url: '/quiz/generate',
@@ -142,14 +143,14 @@ export function fetchModels<T = any>() {
   })
 }
 
-export function addModel<T = any>(data: { id: string; provider: string; displayName: string; enabled?: boolean }) {
+export function addModel<T = any>(data: { id: string, provider: string, displayName: string, enabled?: boolean }) {
   return post<T>({
     url: '/api/models/add',
     data,
   })
 }
 
-export function updateModel<T = any>(data: { id: string; provider?: string; displayName?: string; enabled?: boolean }) {
+export function updateModel<T = any>(data: { id: string, provider?: string, displayName?: string, enabled?: boolean }) {
   return post<T>({
     url: '/api/models/update',
     data,
@@ -193,14 +194,14 @@ export function fetchSendVerificationCode<T = any>(data: { email: string }) {
   })
 }
 
-export function fetchVerifyCode<T = any>(data: { email: string; code: string }) {
+export function fetchVerifyCode<T = any>(data: { email: string, code: string }) {
   return post<T>({
     url: '/auth/verify-code',
     data,
   })
 }
 
-export function fetchCompleteSignup<T = any>(data: { email: string; code: string; nickname: string; password: string }) {
+export function fetchCompleteSignup<T = any>(data: { email: string, code: string, nickname: string, password: string }) {
   return post<T>({
     url: '/auth/complete-signup',
     data,

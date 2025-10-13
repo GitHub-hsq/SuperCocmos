@@ -1,9 +1,9 @@
 <script setup lang='ts'>
-import { computed } from 'vue'
 import { NInput, NPopconfirm, NScrollbar } from 'naive-ui'
+import { computed } from 'vue'
 import { SvgIcon } from '@/components/common'
-import { useAppStore, useChatStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { useAppStore, useChatStore } from '@/store'
 import { debounce } from '@/utils/functions/debounce'
 
 const { isMobile } = useBasicLayout()
@@ -20,7 +20,7 @@ async function handleSelect({ uuid }: Chat.History) {
   // If leaving current active chat and it's empty, delete it
   const previousUuid = chatStore.active
   if (previousUuid) {
-    const prevMessages = chatStore.getChatByUuid(previousUuid as number)
+    const prevMessages = chatStore.getChatByUuid(previousUuid)
     if (!prevMessages || prevMessages.length === 0) {
       const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
       if (prevIndex !== -1)
@@ -56,7 +56,7 @@ function handleEnter({ uuid }: Chat.History, isEdit: boolean, event: KeyboardEve
     chatStore.updateHistory(uuid, { isEdit })
 }
 
-function isActive(uuid: number) {
+function isActive(uuid: string) {
   return chatStore.active === uuid
 }
 </script>

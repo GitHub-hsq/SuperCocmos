@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 角色管理控制器
  */
@@ -235,4 +234,3 @@ export async function getUserRoles(req: Request, res: Response) {
     })
   }
 }
-

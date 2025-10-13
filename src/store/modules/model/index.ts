@@ -1,8 +1,8 @@
 /// <reference path="../../../typings/model.d.ts" />
 import { defineStore } from 'pinia'
-import { defaultModelState, getLocalWorkflowConfig, setLocalWorkflowConfig } from './helper'
-import { store } from '@/store/helper'
 import { fetchModels } from '@/api'
+import { store } from '@/store/helper'
+import { defaultModelState, getLocalWorkflowConfig, setLocalWorkflowConfig } from './helper'
 
 // 后端模型数据格式
 interface BackendModelInfo {

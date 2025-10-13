@@ -1,11 +1,11 @@
 /* eslint-disable no-console */
+import type { ClassificationLabel, HumanFeedbackInput, ModelConfig, ModelInfo, QuizItem, Subject, WorkflowNodeConfig, WorkflowNodeType, WorkflowState } from './types'
 // workflow.ts
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ChatOpenAI } from '@langchain/openai'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
 import { END, StateGraph } from '@langchain/langgraph'
-import type { ClassificationLabel, HumanFeedbackInput, ModelConfig, ModelInfo, QuizItem, Subject, WorkflowNodeConfig, WorkflowNodeType, WorkflowState } from './types'
+import { ChatOpenAI } from '@langchain/openai'
 import { loadFile } from './loader'
 
 // ---------- LLM ----------
@@ -44,7 +44,7 @@ function makeLLM(modelInfo?: ModelInfo, config?: ModelConfig) {
 }
 
 // 获取节点配置
-function getNodeConfig(state: WorkflowState, nodeType: WorkflowNodeType): { modelInfo: ModelInfo; config: ModelConfig } | null {
+function getNodeConfig(state: WorkflowState, nodeType: WorkflowNodeType): { modelInfo: ModelInfo, config: ModelConfig } | null {
   const nodeConfig = state.workflowConfig?.find(c => c.nodeType === nodeType)
   if (!nodeConfig)
     return null
@@ -181,7 +181,7 @@ async function parseQuestions(state: WorkflowState): Promise<WorkflowState> {
   try {
     let content = (result.content as string).trim()
     // 移除可能的 markdown 代码块标记
-    content = content.replace(/^```json\s*\n?/i, '').replace(/\n?```\s*$/i, '')
+    content = content.replace(/^```json\s*/i, '').replace(/\n?```\s*$/, '')
     const parsed = JSON.parse(content)
     state.questions = Array.isArray(parsed) ? parsed : [parsed]
     state.retry_count = (state.retry_count || 0) + 1
@@ -224,7 +224,7 @@ async function generateQuestions(state: WorkflowState): Promise<WorkflowState> {
 
   try {
     let content = (result.content as string).trim()
-    content = content.replace(/^```json\s*\n?/i, '').replace(/\n?```\s*$/i, '')
+    content = content.replace(/^```json\s*/i, '').replace(/\n?```\s*$/, '')
     const parsed = JSON.parse(content)
     state.questions = Array.isArray(parsed) ? parsed : [parsed]
     state.retry_count = (state.retry_count || 0) + 1
@@ -479,7 +479,7 @@ export async function classifyFile(filePath: string): Promise<{
 // ---------- 从笔记生成题目（指定题型和数量） ----------
 export async function generateQuestionsFromNote(
   filePath: string,
-  questionTypes: { single_choice: number; multiple_choice: number; true_false: number },
+  questionTypes: { single_choice: number, multiple_choice: number, true_false: number },
 ): Promise<WorkflowState & { scoreDistribution?: any }> {
   try {
     const state: WorkflowState = {
@@ -541,7 +541,7 @@ export async function generateQuestionsFromNote(
     const result = await chain.invoke({ text: state.text })
 
     let content = (result.content as string).trim()
-    content = content.replace(/^```json\s*\n?/i, '').replace(/\n?```\s*$/i, '')
+    content = content.replace(/^```json\s*/i, '').replace(/\n?```\s*$/, '')
     const parsed = JSON.parse(content)
 
     // 兼容旧格式（直接返回数组）和新格式（返回对象）

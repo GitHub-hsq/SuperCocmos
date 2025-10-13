@@ -1,10 +1,10 @@
 /* eslint-disable no-console */
+import dotenv from 'dotenv'
 /**
  * 数据库连接测试脚本
  */
 import { testConnection } from './utils/db'
 import { createUser, findUserByEmail, getAllUsers } from './utils/userService'
-import dotenv from 'dotenv'
 
 // 加载环境变量
 dotenv.config()
@@ -17,14 +17,14 @@ async function main() {
     console.log('1️⃣ 测试 Supabase 连接...')
     await testConnection()
     console.log('✅ [测试] Supabase 连接成功\n')
-    
+
     // 测试创建用户
     console.log('   - 创建测试用户...')
     const testUser = await createUser(
       'test@example.com',
       'password123',
       'testuser',
-      'email'
+      'email',
     )
     console.log('   ✅ 创建用户成功:', testUser.user_id)
 
@@ -53,4 +53,3 @@ async function main() {
 }
 
 main()
-

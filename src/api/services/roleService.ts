@@ -2,8 +2,8 @@
  * 角色管理服务层
  */
 
-import { request } from '../client'
 import type { ApiResponse } from '../types'
+import { request } from '../client'
 
 export interface Role {
   role_id: number
@@ -25,14 +25,14 @@ export interface UserRole {
  * 获取所有角色
  */
 export async function getAllRoles() {
-  const response = await request.get<ApiResponse<{ roles: Role[]; total: number }>>('/roles')
+  const response = await request.get<ApiResponse<{ roles: Role[], total: number }>>('/roles')
   return response.data
 }
 
 /**
  * 创建角色
  */
-export async function createRole(data: { role_name: string; role_description?: string }) {
+export async function createRole(data: { role_name: string, role_description?: string }) {
   const response = await request.post<ApiResponse<{ role: Role }>>('/roles', data)
   return response.data
 }
@@ -40,7 +40,7 @@ export async function createRole(data: { role_name: string; role_description?: s
 /**
  * 更新角色
  */
-export async function updateRole(id: number, data: { role_name?: string; role_description?: string }) {
+export async function updateRole(id: number, data: { role_name?: string, role_description?: string }) {
   const response = await request.put<ApiResponse<{ role: Role }>>(`/roles/${id}`, data)
   return response.data
 }
@@ -76,4 +76,3 @@ export async function getUserRoles(userId: number) {
   const response = await request.get<ApiResponse<UserRole>>(`/user-roles/${userId}`)
   return response.data
 }
-

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 
@@ -24,10 +23,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 // 测试连接
 export async function testSupabaseConnection() {
   try {
-    const { data, error } = await supabase.from('users').select('count').limit(1)
+    const { error } = await supabase.from('users').select('count').limit(1)
     if (error)
       throw error
-    console.log('✅ [Supabase] 连接成功')
+    console.warn('✅ [Supabase] 连接成功')
     return true
   }
   catch (error: any) {
@@ -35,4 +34,3 @@ export async function testSupabaseConnection() {
     return false
   }
 }
-

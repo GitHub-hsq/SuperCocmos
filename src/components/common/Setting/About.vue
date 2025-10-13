@@ -1,10 +1,10 @@
 <script setup lang='ts'>
-import { computed, ref } from 'vue'
 import { NButton, NSpin, useMessage } from 'naive-ui'
-import pkg from '../../../../package.json'
+import { computed, ref } from 'vue'
 import { fetchAPIUsage } from '@/api'
-import { useAuthStore } from '@/store'
 import { SvgIcon } from '@/components/common'
+import { useAuthStore } from '@/store'
+import pkg from '../../../../package.json'
 
 interface UsageData {
   model_limits_enabled?: boolean

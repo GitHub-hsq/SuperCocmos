@@ -2,9 +2,9 @@
  * 用户管理服务层
  */
 
-import { request } from '../client'
 import type { ApiResponse } from '../types'
 import type { User } from './authService'
+import { request } from '../client'
 
 export interface UpdateUserRequest {
   username?: string
@@ -41,7 +41,6 @@ export async function deleteUser(id: string) {
  * 获取用户列表
  */
 export async function getUsers() {
-  const response = await request.get<ApiResponse<{ users: User[]; total: number }>>('/users')
+  const response = await request.get<ApiResponse<{ users: User[], total: number }>>('/users')
   return response.data
 }
-

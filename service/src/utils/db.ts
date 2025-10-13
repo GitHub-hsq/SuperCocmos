@@ -18,11 +18,11 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 // 测试数据库连接
 export async function testConnection() {
   try {
-    const { data, error } = await supabase.from('users').select('count').limit(1)
+    const { error } = await supabase.from('users').select('count').limit(1)
     if (error) {
       throw error
     }
-    console.log('✅ [数据库] Supabase 连接成功')
+    console.warn('✅ [数据库] Supabase 连接成功')
     return true
   }
   catch (error: any) {
@@ -67,17 +67,17 @@ export async function initUserTable() {
     const { error } = await supabase.rpc('exec_sql', { sql: createTableSQL })
     if (error) {
       console.warn('⚠️  [数据库] 表可能已存在或需要手动创建:', error.message)
-    } else {
-      console.log('✅ [数据库] 用户表初始化成功')
+    }
+    else {
+      console.warn('✅ [数据库] 用户表初始化成功')
     }
   }
   catch (error: any) {
     console.warn('⚠️  [数据库] 用户表初始化警告:', error.message)
-    console.log('💡 [数据库] 请在 Supabase 控制台的 SQL 编辑器中手动执行以下 SQL:')
-    console.log(createTableSQL)
+    console.warn('💡 [数据库] 请在 Supabase 控制台的 SQL 编辑器中手动执行以下 SQL:')
+    console.warn(createTableSQL)
   }
 }
 
 // 导出 Supabase 客户端供其他模块使用
 export default supabase
-

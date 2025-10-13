@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { NButton, NCard, NSpace, NTag } from 'naive-ui'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Checkboxes, Radio, SvgIcon } from '@/components/common'
 
 interface Question {
@@ -13,9 +13,9 @@ interface Question {
 }
 
 interface ScoreDistribution {
-  single_choice?: { perQuestion: number; total: number }
-  multiple_choice?: { perQuestion: number; total: number }
-  true_false?: { perQuestion: number; total: number }
+  single_choice?: { perQuestion: number, total: number }
+  multiple_choice?: { perQuestion: number, total: number }
+  true_false?: { perQuestion: number, total: number }
 }
 
 interface QuizAnswerProps {
@@ -117,6 +117,21 @@ function getOptionLabel(index: number): string {
   return String.fromCharCode(65 + index)
 }
 
+// 处理多选题选择变化
+function handleMultipleChoiceChange(questionIndex: number, optionIndex: number, checked: boolean) {
+  const currentAnswers = userAnswers.value[questionIndex] || []
+  const optionLabel = getOptionLabel(optionIndex)
+
+  if (checked) {
+    if (!currentAnswers.includes(optionLabel)) {
+      userAnswers.value[questionIndex] = [...currentAnswers, optionLabel]
+    }
+  }
+  else {
+    userAnswers.value[questionIndex] = currentAnswers.filter((a: string) => a !== optionLabel)
+  }
+}
+
 // 检查答案是否正确（提交后显示）
 function isAnswerCorrect(questionIndex: number): boolean {
   const userAnswer = userAnswers.value[questionIndex] || []
@@ -172,7 +187,7 @@ const groupedQuestions = computed(() => {
     type: 'single_choice' | 'multiple_choice' | 'true_false'
     typeName: string
     description: string
-    questions: Array<{ question: any; globalIndex: number }>
+    questions: Array<{ question: any, globalIndex: number }>
   }> = []
 
   const chineseNumbers = ['一', '二', '三', '四', '五']
@@ -340,17 +355,7 @@ onUnmounted(() => {
                     :key="optIndex"
                     :model-value="userAnswers[item.globalIndex]?.includes(getOptionLabel(optIndex)) || false"
                     :disabled="isFinished"
-                    @update:model-value="(checked) => {
-                      const currentAnswers = userAnswers[item.globalIndex] || []
-                      const optionLabel = getOptionLabel(optIndex)
-                      if (checked) {
-                        if (!currentAnswers.includes(optionLabel)) {
-                          userAnswers[item.globalIndex] = [...currentAnswers, optionLabel]
-                        }
-                      } else {
-                        userAnswers[item.globalIndex] = currentAnswers.filter(a => a !== optionLabel)
-                      }
-                    }"
+                    @update:model-value="(checked: boolean) => handleMultipleChoiceChange(item.globalIndex, optIndex, checked)"
                   >
                     {{ getOptionLabel(optIndex) }}. {{ option.replace(/^[A-Z]\.\s*/, '') }}
                   </Checkboxes>
@@ -459,7 +464,8 @@ onUnmounted(() => {
 }
 
 @keyframes highlight-pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
   }
   50% {

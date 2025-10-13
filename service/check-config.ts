@@ -4,8 +4,8 @@
  * 运行: cd service && pnpm esno check-config.ts
  */
 
-import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
 
 dotenv.config()
 
@@ -63,7 +63,7 @@ for (const check of envChecks) {
     envOk = false
   }
   else {
-    const masked = check.value.substring(0, 15) + '...'
+    const masked = `${check.value.substring(0, 15)}...`
     console.log(`✅ ${check.name}: ${masked}`)
   }
 }
@@ -85,7 +85,7 @@ async function testSupabase() {
     )
 
     // 测试连接
-    const { data: users, error: userError } = await supabase
+    const { error: userError } = await supabase
       .from('users')
       .select('count')
       .limit(1)
@@ -168,4 +168,3 @@ async function main() {
 }
 
 main()
-

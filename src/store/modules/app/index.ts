@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia'
 import type { AppState, Language, Theme } from './helper'
-import { getLocalSetting, setLocalSetting } from './helper'
+import { defineStore } from 'pinia'
 import { store } from '@/store/helper'
+import { getLocalSetting, setLocalSetting } from './helper'
 /**
  * 定义appStore，就行defineProps定义一个props
  */

@@ -1,24 +1,24 @@
 <script setup lang='ts'>
 /* eslint-disable no-console */
-import type { Ref } from 'vue'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { storeToRefs } from 'pinia'
 import type { UploadFileInfo } from 'naive-ui'
-import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage } from 'naive-ui'
+import type { Ref } from 'vue'
+import { SignedIn, UserButton } from '@clerk/vue'
 import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
-import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
-import { useScroll } from './hooks/useScroll'
-import { useChat } from './hooks/useChat'
-import { useUsingContext } from './hooks/useUsingContext'
-import HeaderComponent from './components/Header/index.vue'
+import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage } from 'naive-ui'
+import { storeToRefs } from 'pinia'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useAppStore, useChatStore, useModelStore, usePromptStore } from '@/store'
-import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { t } from '@/locales'
-import { SignedIn, UserButton, SignInButton, SignedOut } from '@clerk/vue'
+import { useAppStore, useChatStore, useModelStore, usePromptStore } from '@/store'
+import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
+import HeaderComponent from './components/Header/index.vue'
+import { useChat } from './hooks/useChat'
+import { useScroll } from './hooks/useScroll'
+import { useUsingContext } from './hooks/useUsingContext'
 
 /**
  * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
@@ -44,7 +44,7 @@ const currentSelectedModel = ref<ModelItem | null>(null)
 
 const { uuid } = route.params as { uuid: string }
 
-const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
+const dataSources = computed(() => chatStore.getChatByUuid(uuid))
 const conversationList = computed(() => dataSources.value.filter(item => (!item.inversion && !!item.conversationOptions)))
 
 const prompt = ref<string>('')
@@ -71,7 +71,7 @@ const providerDisplayNames: Record<string, string> = {
 // 未知原因刷新页面，loading 状态不会重置，手动重置
 dataSources.value.forEach((item, index) => {
   if (item.loading)
-    updateChatSome(+uuid, index, { loading: false })
+    updateChatSome(uuid, index, { loading: false })
 })
 
 function handleSubmit() {
@@ -96,7 +96,7 @@ async function onConversation() {
   controller = new AbortController()
 
   addChat(
-    +uuid,
+    uuid,
     {
       dateTime: new Date().toLocaleString(),
       text: message,
@@ -125,7 +125,7 @@ async function onConversation() {
   }
 
   addChat(
-    +uuid,
+    uuid,
     {
       dateTime: new Date().toLocaleString(),
       text: t('chat.thinking'),
@@ -156,7 +156,7 @@ async function onConversation() {
           try {
             const data = JSON.parse(chunk)
             updateChat(
-              +uuid,
+              uuid,
               dataSources.value.length - 1,
               {
                 dateTime: new Date().toLocaleString(),
@@ -178,12 +178,12 @@ async function onConversation() {
 
             scrollToBottomIfAtBottom()
           }
-          catch (error) {
+          catch {
             //
           }
         },
       })
-      updateChatSome(+uuid, dataSources.value.length - 1, { loading: false })
+      updateChatSome(uuid, dataSources.value.length - 1, { loading: false })
     }
 
     await fetchChatAPIOnce()
@@ -193,7 +193,7 @@ async function onConversation() {
 
     if (error.message === 'canceled') {
       updateChatSome(
-        +uuid,
+        uuid,
         dataSources.value.length - 1,
         {
           loading: false,
@@ -203,11 +203,11 @@ async function onConversation() {
       return
     }
 
-    const currentChat = getChatByUuidAndIndex(+uuid, dataSources.value.length - 1)
+    const currentChat = getChatByUuidAndIndex(uuid, dataSources.value.length - 1)
 
     if (currentChat?.text && currentChat.text !== '') {
       updateChatSome(
-        +uuid,
+        uuid,
         dataSources.value.length - 1,
         {
           text: `${currentChat.text}\n[${errorMessage}]`,
@@ -219,7 +219,7 @@ async function onConversation() {
     }
 
     updateChat(
-      +uuid,
+      uuid,
       dataSources.value.length - 1,
       {
         dateTime: new Date().toLocaleString(),
@@ -263,7 +263,7 @@ async function onRegenerate(index: number) {
   loading.value = true
 
   updateChat(
-    +uuid,
+    uuid,
     index,
     {
       dateTime: new Date().toLocaleString(),
@@ -294,7 +294,7 @@ async function onRegenerate(index: number) {
           try {
             const data = JSON.parse(chunk)
             updateChat(
-              +uuid,
+              uuid,
               index,
               {
                 dateTime: new Date().toLocaleString(),
@@ -314,19 +314,19 @@ async function onRegenerate(index: number) {
               return fetchChatAPIOnce()
             }
           }
-          catch (error) {
+          catch {
             //
           }
         },
       })
-      updateChatSome(+uuid, index, { loading: false })
+      updateChatSome(uuid, index, { loading: false })
     }
     await fetchChatAPIOnce()
   }
   catch (error: any) {
     if (error.message === 'canceled') {
       updateChatSome(
-        +uuid,
+        uuid,
         index,
         {
           loading: false,
@@ -338,7 +338,7 @@ async function onRegenerate(index: number) {
     const errorMessage = error?.message ?? t('common.wrong')
 
     updateChat(
-      +uuid,
+      uuid,
       index,
       {
         dateTime: new Date().toLocaleString(),
@@ -384,7 +384,7 @@ function handleExport() {
         ms.success(t('chat.exportSuccess'))
         Promise.resolve()
       }
-      catch (error: any) {
+      catch {
         ms.error(t('chat.exportFailed'))
       }
       finally {
@@ -404,7 +404,7 @@ function handleDelete(index: number) {
     positiveText: t('common.yes'),
     negativeText: t('common.no'),
     onPositiveClick: () => {
-      chatStore.deleteChatByUuid(+uuid, index)
+      chatStore.deleteChatByUuid(uuid, index)
     },
   })
 }
@@ -419,7 +419,7 @@ function handleClear() {
     positiveText: t('common.yes'),
     negativeText: t('common.no'),
     onPositiveClick: () => {
-      chatStore.clearChatByUuid(+uuid)
+      chatStore.clearChatByUuid(uuid)
     },
   })
 }
@@ -464,7 +464,7 @@ const searchOptions = computed(() => {
 })
 
 // value反渲染key
-const renderOption = (option: { label: string }) => {
+function renderOption(option: { label: string }) {
   for (const i of promptTemplate.value) {
     if (i.value === option.label)
       return [i.key]
@@ -493,26 +493,26 @@ const footerClass = computed(() => {
 const uploadFileList = ref<UploadFileInfo[]>([])
 
 // 工作流状态 - 从 store 获取和更新
-const workflowState = computed(() => chatStore.getWorkflowStateByUuid(+uuid))
+const workflowState = computed(() => chatStore.getWorkflowStateByUuid(uuid))
 const uploadedFilePath = computed({
   get: () => workflowState.value?.uploadedFilePath || '',
-  set: val => chatStore.updateWorkflowStateSome(+uuid, { uploadedFilePath: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid, { uploadedFilePath: val }),
 })
 const workflowStage = computed({
   get: () => workflowState.value?.stage || 'idle',
-  set: val => chatStore.updateWorkflowStateSome(+uuid, { stage: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid, { stage: val }),
 })
 const classification = computed({
   get: () => workflowState.value?.classification || '',
-  set: val => chatStore.updateWorkflowStateSome(+uuid, { classification: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid, { classification: val }),
 })
 const generatedQuestions = computed({
   get: () => workflowState.value?.generatedQuestions || [],
-  set: val => chatStore.updateWorkflowStateSome(+uuid, { generatedQuestions: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid, { generatedQuestions: val }),
 })
 const scoreDistribution = computed({
   get: () => workflowState.value?.scoreDistribution,
-  set: val => chatStore.updateWorkflowStateSome(+uuid, { scoreDistribution: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid, { scoreDistribution: val }),
 })
 const quizLoading = ref(false)
 
@@ -520,7 +520,7 @@ function handleUploadChange(options: { fileList: UploadFileInfo[] }) {
   uploadFileList.value = options.fileList
 }
 // 文件上传时的回调，判断是否上传
-async function handleBeforeUpload(data: { file: UploadFileInfo; fileList: UploadFileInfo[] }) {
+async function handleBeforeUpload(data: { file: UploadFileInfo, fileList: UploadFileInfo[] }) {
   const { file: fileInfo } = data
 
   const rawFile = fileInfo.file as File | null
@@ -562,15 +562,15 @@ async function handleBeforeUpload(data: { file: UploadFileInfo; fileList: Upload
   return true
 }
 
-const handleUploadSuccess = (options: {
+function handleUploadSuccess(options: {
   file: UploadFileInfo
   event?: ProgressEvent
-}) => {
+}) {
   try {
     const { file } = options
 
     // 获取响应数据
-    const xhr = (options.event?.target as XMLHttpRequest)
+    const xhr = options.event?.target as XMLHttpRequest
     if (xhr && xhr.responseText) {
       const response = JSON.parse(xhr.responseText)
 
@@ -614,19 +614,19 @@ const handleUploadSuccess = (options: {
 }
 
 // 处理上传错误
-const handleUploadError = (options: {
+function handleUploadError(options: {
   file: UploadFileInfo
   event?: ProgressEvent
-}) => {
+}) {
   const { file } = options
   ms.error(`文件 ${file.name} 上传失败`)
 }
 
 // 处理文件删除
-const handleUploadRemove = async (options: {
+async function handleUploadRemove(options: {
   file: UploadFileInfo
   fileList: UploadFileInfo[]
-}): Promise<boolean> => {
+}): Promise<boolean> {
   try {
     const { file, fileList } = options
 
@@ -952,336 +952,336 @@ function handleSelectModel(model: ModelItem) {
 </script>
 
 <template>
-<SignedIn>
-  <div class="flex flex-col w-full h-full">
-    <HeaderComponent
-      v-if="isMobile"
-      :using-context="usingContext"
-      @export="handleExport"
-      @handle-clear="handleClear"
-    />
+  <SignedIn>
+    <div class="flex flex-col w-full h-full">
+      <HeaderComponent
+        v-if="isMobile"
+        :using-context="usingContext"
+        @export="handleExport"
+        @handle-clear="handleClear"
+      />
 
-    <!-- Web端Header -->
-    <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#161618]">
-      <div class="flex items-center space-x-4">
-        <NPopover
-          v-model:show="showModelSelector"
-          trigger="click"
-          placement="bottom-start"
-          :show-arrow="false"
-          :width="700"
-          @update:show="(show) => show && loadCurrentModel()"
-        >
-          <template #trigger>
-            <NButton quaternary>
-              <template #icon>
-                <SvgIcon icon="ri:openai-fill" />
-              </template>
-              {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
-            </NButton>
-          </template>
+      <!-- Web端Header -->
+      <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#161618]">
+        <div class="flex items-center space-x-4">
+          <NPopover
+            v-model:show="showModelSelector"
+            trigger="click"
+            placement="bottom-start"
+            :show-arrow="false"
+            :width="700"
+            @update:show="(show) => show && loadCurrentModel()"
+          >
+            <template #trigger>
+              <NButton quaternary>
+                <template #icon>
+                  <SvgIcon icon="ri:openai-fill" />
+                </template>
+                {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
+              </NButton>
+            </template>
 
-          <!-- 弹出内容 -->
-          <div v-if="availableVendors.length > 0" class="model-selector-popup">
-            <NLayout has-sider style="height: 400px">
-              <!-- 左侧供应商列表 -->
-              <NLayoutSider :width="180" bordered class="vendor-sidebar">
-                <NScrollbar style="height: 100%">
-                  <div class="vendor-list">
-                    <div
-                      v-for="vendor in availableVendors"
-                      :key="vendor.key"
-                      class="vendor-item"
-                      :class="{ active: activeVendor === vendor.key }"
-                      @mouseenter="handleVendorHover(vendor.key)"
-                    >
-                      <span class="vendor-name">{{ vendor.label }}</span>
-                    </div>
-                  </div>
-                </NScrollbar>
-              </NLayoutSider>
-
-              <!-- 右侧模型列表 -->
-              <NLayout class="model-content">
-                <NLayoutHeader bordered class="search-header">
-                  <NInput
-                    v-model:value="modelSearch"
-                    placeholder="🔍 搜索模型名称..."
-                    clearable
-                    size="small"
-                  />
-                </NLayoutHeader>
-                <NLayoutContent>
+            <!-- 弹出内容 -->
+            <div v-if="availableVendors.length > 0" class="model-selector-popup">
+              <NLayout has-sider style="height: 400px">
+                <!-- 左侧供应商列表 -->
+                <NLayoutSider :width="180" bordered class="vendor-sidebar">
                   <NScrollbar style="height: 100%">
-                    <div v-if="currentVendorModels.length === 0" class="empty-state">
-                      {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
-                    </div>
-                    <NList v-else bordered>
-                      <NListItem
-                        v-for="model in currentVendorModels"
-                        :key="model.id"
-                        class="model-item"
-                        :class="{ selected: selectedModelFromPopover === model.id }"
-                        @click="handleSelectModel(model)"
+                    <div class="vendor-list">
+                      <div
+                        v-for="vendor in availableVendors"
+                        :key="vendor.key"
+                        class="vendor-item"
+                        :class="{ active: activeVendor === vendor.key }"
+                        @mouseenter="handleVendorHover(vendor.key)"
                       >
-                        <div class="model-item-content">
-                          <div class="model-info">
-                            <span class="model-name">{{ model.displayName }}</span>
-                            <span class="model-id">{{ model.id }}</span>
-                          </div>
-                          <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
-                            <CheckmarkOutline />
-                          </NIcon>
-                        </div>
-                      </NListItem>
-                    </NList>
-                  </NScrollbar>
-                </NLayoutContent>
-              </NLayout>
-            </NLayout>
-          </div>
-          <div v-else class="empty-vendor">
-            <p>暂无可用模型</p>
-            <p class="text-sm text-gray-500 mt-2">
-              请先在设置中配置模型
-            </p>
-          </div>
-        </NPopover>
-      </div>
-      <div class="flex items-center space-x-2">
-        <UserButton />
-      </div>
-    </header>
-
-    <main class="flex-1 overflow-hidden flex flex-col relative">
-      <!-- 中间主聊天区域 -->
-      <div
-        class="flex-1 overflow-hidden transition-all duration-300"
-        :style="{
-          marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
-        }"
-      >
-        <article class="h-full overflow-hidden flex flex-col">
-          <div class="flex-1 overflow-hidden">
-            <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
-              <div
-                class="w-full max-w-screen-xl m-auto dark:bg-[#161618]"
-                :class="[isMobile ? 'p-2' : 'p-4']"
-              >
-                <div id="image-wrapper" class="relative">
-                  <template v-if="!dataSources.length">
-                    <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
-                      <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
-                      <span>{{ t('chat.newChatTitle') }}</span>
-                    </div>
-                  </template>
-                  <template v-else>
-                    <div>
-                      <Message
-                        v-for="(item, index) of dataSources"
-                        :key="index"
-                        :date-time="item.dateTime"
-                        :text="item.text"
-                        :inversion="item.inversion"
-                        :error="item.error"
-                        :loading="item.loading"
-                        @regenerate="onRegenerate(index)"
-                        @delete="handleDelete(index)"
-                      />
-                      <div class="sticky bottom-0 left-0 flex justify-center">
-                        <NButton v-if="loading" type="warning" @click="handleStop">
-                          <template #icon>
-                            <SvgIcon icon="ri:stop-circle-line" />
-                          </template>
-                          {{ t('common.stopResponding') }}
-                        </NButton>
+                        <span class="vendor-name">{{ vendor.label }}</span>
                       </div>
                     </div>
-                  </template>
+                  </NScrollbar>
+                </NLayoutSider>
+
+                <!-- 右侧模型列表 -->
+                <NLayout class="model-content">
+                  <NLayoutHeader bordered class="search-header">
+                    <NInput
+                      v-model:value="modelSearch"
+                      placeholder="🔍 搜索模型名称..."
+                      clearable
+                      size="small"
+                    />
+                  </NLayoutHeader>
+                  <NLayoutContent>
+                    <NScrollbar style="height: 100%">
+                      <div v-if="currentVendorModels.length === 0" class="empty-state">
+                        {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
+                      </div>
+                      <NList v-else bordered>
+                        <NListItem
+                          v-for="model in currentVendorModels"
+                          :key="model.id"
+                          class="model-item"
+                          :class="{ selected: selectedModelFromPopover === model.id }"
+                          @click="handleSelectModel(model)"
+                        >
+                          <div class="model-item-content">
+                            <div class="model-info">
+                              <span class="model-name">{{ model.displayName }}</span>
+                              <span class="model-id">{{ model.id }}</span>
+                            </div>
+                            <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
+                              <CheckmarkOutline />
+                            </NIcon>
+                          </div>
+                        </NListItem>
+                      </NList>
+                    </NScrollbar>
+                  </NLayoutContent>
+                </NLayout>
+              </NLayout>
+            </div>
+            <div v-else class="empty-vendor">
+              <p>暂无可用模型</p>
+              <p class="text-sm text-gray-500 mt-2">
+                请先在设置中配置模型
+              </p>
+            </div>
+          </NPopover>
+        </div>
+        <div class="flex items-center space-x-2">
+          <UserButton />
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-hidden flex flex-col relative">
+        <!-- 中间主聊天区域 -->
+        <div
+          class="flex-1 overflow-hidden transition-all duration-300"
+          :style="{
+            marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
+          }"
+        >
+          <article class="h-full overflow-hidden flex flex-col">
+            <div class="flex-1 overflow-hidden">
+              <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
+                <div
+                  class="w-full max-w-screen-xl m-auto dark:bg-[#161618]"
+                  :class="[isMobile ? 'p-2' : 'p-4']"
+                >
+                  <div id="image-wrapper" class="relative">
+                    <template v-if="!dataSources.length">
+                      <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
+                        <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
+                        <span>{{ t('chat.newChatTitle') }}</span>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div>
+                        <Message
+                          v-for="(item, index) of dataSources"
+                          :key="index"
+                          :date-time="item.dateTime"
+                          :text="item.text"
+                          :inversion="item.inversion"
+                          :error="item.error"
+                          :loading="item.loading"
+                          @regenerate="onRegenerate(index)"
+                          @delete="handleDelete(index)"
+                        />
+                        <div class="sticky bottom-0 left-0 flex justify-center">
+                          <NButton v-if="loading" type="warning" @click="handleStop">
+                            <template #icon>
+                              <SvgIcon icon="ri:stop-circle-line" />
+                            </template>
+                            {{ t('common.stopResponding') }}
+                          </NButton>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Footer 固定在底部 -->
-          <footer :class="footerClass">
-            <div class="w-full max-w-screen-xl m-auto">
-              <div class="flex items-center justify-between space-x-2">
-                <HoverButton v-if="!isMobile" @click="handleClear">
-                  <span class="text-xl text-[#4f555e] dark:text-white">
-                    <SvgIcon icon="ri:delete-bin-line" />
-                  </span>
-                </HoverButton>
-                <HoverButton v-if="!isMobile" @click="handleExport">
-                  <span class="text-xl text-[#4f555e] dark:text-white">
-                    <SvgIcon icon="ri:download-2-line" />
-                  </span>
-                </HoverButton>
-                <HoverButton @click="toggleUsingContext">
-                  <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
-                    <SvgIcon icon="ri:chat-history-line" />
-                  </span>
-                </HoverButton>
-                <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
-                  <template #default="{ handleInput, handleBlur, handleFocus }">
-                    <NInput
-                      ref="inputRef"
-                      v-model:value="prompt"
-                      type="textarea"
-                      :placeholder="placeholder"
-                      :autosize="{ minRows: 1, maxRows: isMobile ? 4 : 8 }"
-                      @input="handleInput"
-                      @focus="handleFocus"
-                      @blur="handleBlur"
-                      @keypress="handleEnter"
-                    />
-                  </template>
-                </NAutoComplete>
-                <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
-                  <template #icon>
-                    <span class="dark:text-black">
-                      <SvgIcon icon="ri:send-plane-fill" />
+            <!-- Footer 固定在底部 -->
+            <footer :class="footerClass">
+              <div class="w-full max-w-screen-xl m-auto">
+                <div class="flex items-center justify-between space-x-2">
+                  <HoverButton v-if="!isMobile" @click="handleClear">
+                    <span class="text-xl text-[#4f555e] dark:text-white">
+                      <SvgIcon icon="ri:delete-bin-line" />
                     </span>
-                  </template>
-                </NButton>
+                  </HoverButton>
+                  <HoverButton v-if="!isMobile" @click="handleExport">
+                    <span class="text-xl text-[#4f555e] dark:text-white">
+                      <SvgIcon icon="ri:download-2-line" />
+                    </span>
+                  </HoverButton>
+                  <HoverButton @click="toggleUsingContext">
+                    <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
+                      <SvgIcon icon="ri:chat-history-line" />
+                    </span>
+                  </HoverButton>
+                  <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
+                    <template #default="{ handleInput, handleBlur, handleFocus }">
+                      <NInput
+                        ref="inputRef"
+                        v-model:value="prompt"
+                        type="textarea"
+                        :placeholder="placeholder"
+                        :autosize="{ minRows: 1, maxRows: isMobile ? 4 : 8 }"
+                        @input="handleInput"
+                        @focus="handleFocus"
+                        @blur="handleBlur"
+                        @keypress="handleEnter"
+                      />
+                    </template>
+                  </NAutoComplete>
+                  <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
+                    <template #icon>
+                      <span class="dark:text-black">
+                        <SvgIcon icon="ri:send-plane-fill" />
+                      </span>
+                    </template>
+                  </NButton>
+                </div>
               </div>
-            </div>
-          </footer>
-        </article>
-      </div>
-
-      <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
-      <div
-        v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
-        class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
-        @click="toggleRightSider"
-      >
-        <SvgIcon
-          icon="ri:arrow-left-s-line"
-          class="text-lg text-neutral-600 dark:text-neutral-400"
-        />
-      </div>
-
-      <!-- 右侧侧边栏 -->
-      <aside
-        v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
-        class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
-        :style="{
-          width: `${rightSiderWidth}%`,
-        }"
-      >
-        <!-- 拖拽调整宽度的分隔条 -->
-        <div
-          class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors group"
-          @mousedown="handleResizeStart"
-        >
-          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-neutral-300 dark:bg-neutral-600 group-hover:bg-blue-500 rounded-full transition-colors" />
+            </footer>
+          </article>
         </div>
 
-        <!-- 收起按钮 -->
+        <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
         <div
-          class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
+          v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
+          class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
           @click="toggleRightSider"
         >
           <SvgIcon
-            icon="ri:arrow-right-s-line"
+            icon="ri:arrow-left-s-line"
             class="text-lg text-neutral-600 dark:text-neutral-400"
           />
         </div>
 
-        <!-- 右侧内容区域 -->
-        <div class="flex-1 overflow-hidden flex flex-col">
-          <!-- 笔记转题目 -->
+        <!-- 右侧侧边栏 -->
+        <aside
+          v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
+          class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
+          :style="{
+            width: `${rightSiderWidth}%`,
+          }"
+        >
+          <!-- 拖拽调整宽度的分隔条 -->
           <div
-            v-if="chatStore.chatMode === 'noteToQuestion'"
-            class="flex-1 overflow-y-auto p-4"
+            class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors group"
+            @mousedown="handleResizeStart"
           >
-            <NUpload
-              directory-dnd
-              :show-file-list="true"
-              :default-upload="true"
-              action="/api/upload"
-              :max="1"
-              :on-before-upload="handleBeforeUpload"
-              :on-change="handleUploadChange"
-              :on-finish="handleUploadSuccess"
-              :on-error="handleUploadError"
-              :on-remove="handleUploadRemove"
+            <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-neutral-300 dark:bg-neutral-600 group-hover:bg-blue-500 rounded-full transition-colors" />
+          </div>
+
+          <!-- 收起按钮 -->
+          <div
+            class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
+            @click="toggleRightSider"
+          >
+            <SvgIcon
+              icon="ri:arrow-right-s-line"
+              class="text-lg text-neutral-600 dark:text-neutral-400"
+            />
+          </div>
+
+          <!-- 右侧内容区域 -->
+          <div class="flex-1 overflow-hidden flex flex-col">
+            <!-- 笔记转题目 -->
+            <div
+              v-if="chatStore.chatMode === 'noteToQuestion'"
+              class="flex-1 overflow-y-auto p-4"
             >
-              <NUploadDragger>
-                <div style="margin-bottom: 12px;">
-                  <SvgIcon icon="ri:folder-upload-fill" class="mx-auto text-3xl" />
-                </div>
-                <NText depth="3">
-                  将文件拖拽到此处，或点击选择文件
-                </NText>
-                <div style="margin-top: 8px;" class="text-xs text-neutral-500">
-                  支持TXT、PDF、Markdown、Word等纯文本文件
-                </div>
-              </NUploadDragger>
-            </NUpload>
-
-            <!-- 工作流阶段展示 -->
-            <div class="mt-4">
-              <!-- 题目配置阶段 -->
-              <QuizConfig
-                v-if="workflowStage === 'config' || workflowStage === 'generating'"
-                :loading="quizLoading || workflowStage === 'generating'"
-                @submit="handleQuizConfigSubmit"
-              />
-
-              <!-- 题目预览阶段 -->
-              <QuizPreview
-                v-else-if="workflowStage === 'preview'"
-                :questions="generatedQuestions"
-                :score-distribution="scoreDistribution"
-                @accept="handleQuizAccept"
-                @reject="handleQuizReject"
-                @revise="handleQuizRevise"
-              />
-
-              <!-- 答题阶段 -->
-              <QuizAnswer
-                v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
-                :questions="generatedQuestions"
-                :score-distribution="scoreDistribution"
-                @submit="handleQuizSubmit"
-              />
-
-              <!-- 空闲状态提示 -->
-              <div
-                v-else-if="workflowStage === 'idle' && !uploadedFilePath"
-                class="text-center text-neutral-500 dark:text-neutral-400"
+              <NUpload
+                directory-dnd
+                :show-file-list="true"
+                :default-upload="true"
+                action="/api/upload"
+                :max="1"
+                :on-before-upload="handleBeforeUpload"
+                :on-change="handleUploadChange"
+                :on-finish="handleUploadSuccess"
+                :on-error="handleUploadError"
+                :on-remove="handleUploadRemove"
               >
-                <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
-                <p>笔记转题目功能</p>
+                <NUploadDragger>
+                  <div style="margin-bottom: 12px;">
+                    <SvgIcon icon="ri:folder-upload-fill" class="mx-auto text-3xl" />
+                  </div>
+                  <NText depth="3">
+                    将文件拖拽到此处，或点击选择文件
+                  </NText>
+                  <div style="margin-top: 8px;" class="text-xs text-neutral-500">
+                    支持TXT、PDF、Markdown、Word等纯文本文件
+                  </div>
+                </NUploadDragger>
+              </NUpload>
+
+              <!-- 工作流阶段展示 -->
+              <div class="mt-4">
+                <!-- 题目配置阶段 -->
+                <QuizConfig
+                  v-if="workflowStage === 'config' || workflowStage === 'generating'"
+                  :loading="quizLoading || workflowStage === 'generating'"
+                  @submit="handleQuizConfigSubmit"
+                />
+
+                <!-- 题目预览阶段 -->
+                <QuizPreview
+                  v-else-if="workflowStage === 'preview'"
+                  :questions="generatedQuestions"
+                  :score-distribution="scoreDistribution"
+                  @accept="handleQuizAccept"
+                  @reject="handleQuizReject"
+                  @revise="handleQuizRevise"
+                />
+
+                <!-- 答题阶段 -->
+                <QuizAnswer
+                  v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
+                  :questions="generatedQuestions"
+                  :score-distribution="scoreDistribution"
+                  @submit="handleQuizSubmit"
+                />
+
+                <!-- 空闲状态提示 -->
+                <div
+                  v-else-if="workflowStage === 'idle' && !uploadedFilePath"
+                  class="text-center text-neutral-500 dark:text-neutral-400"
+                >
+                  <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
+                  <p>笔记转题目功能</p>
+                  <p class="text-sm mt-1">
+                    请上传笔记文件
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 笔记转故事 -->
+            <div
+              v-if="chatStore.chatMode === 'noteToStory'"
+              class="flex-1 overflow-y-auto p-4"
+            >
+              <div class="text-center text-neutral-500 dark:text-neutral-400">
+                <SvgIcon icon="ri:book-open-line" class="mx-auto mb-2 text-4xl" />
+                <p>
+                  笔记转故事功能
+                </p>
                 <p class="text-sm mt-1">
-                  请上传笔记文件
+                  此功能正在开发中...
                 </p>
               </div>
             </div>
           </div>
-
-          <!-- 笔记转故事 -->
-          <div
-            v-if="chatStore.chatMode === 'noteToStory'"
-            class="flex-1 overflow-y-auto p-4"
-          >
-            <div class="text-center text-neutral-500 dark:text-neutral-400">
-              <SvgIcon icon="ri:book-open-line" class="mx-auto mb-2 text-4xl" />
-              <p>
-                笔记转故事功能
-              </p>
-              <p class="text-sm mt-1">
-                此功能正在开发中...
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </main>
-  </div>
-</SignedIn>
+        </aside>
+      </main>
+    </div>
+  </SignedIn>
 </template>
 
 <style scoped>

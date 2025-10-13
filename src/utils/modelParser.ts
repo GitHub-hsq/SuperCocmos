@@ -43,12 +43,12 @@ const providerRules: Array<{
   },
   {
     provider: 'doubao',
-    patterns: [/^doubao/i, /豆包/i, /^bytedance\//i],
+    patterns: [/^doubao/i, /豆包/, /^bytedance\//i],
     keywords: ['doubao', 'bytedance'],
   },
   {
     provider: 'qwen',
-    patterns: [/^qwen/i, /^通义/i, /^alibaba\//i],
+    patterns: [/^qwen/i, /^通义/, /^alibaba\//i],
     keywords: ['qwen', 'tongyi', 'alibaba'],
   },
 ]

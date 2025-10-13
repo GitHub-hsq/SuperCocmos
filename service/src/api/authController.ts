@@ -5,9 +5,9 @@
  */
 
 import type { Request, Response } from 'express'
-import { Webhook } from 'svix'
 import { getAuth } from '@clerk/express'
-import { upsertUserFromOAuth, findUserByClerkId } from '../db/supabaseUserService'
+import { Webhook } from 'svix'
+import { findUserByClerkId, upsertUserFromOAuth } from '../db/supabaseUserService'
 import { getUserWithRoles } from '../db/userRoleService'
 
 /**
@@ -165,4 +165,3 @@ export async function getCurrentUser(req: Request, res: Response) {
     })
   }
 }
-

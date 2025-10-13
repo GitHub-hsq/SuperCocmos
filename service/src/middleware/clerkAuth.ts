@@ -1,12 +1,11 @@
-/* eslint-disable no-console */
 /**
  * Clerk 认证中间件
  * 用于验证 Clerk JWT Token
  * 使用最新的 @clerk/express SDK
  */
 
-import { clerkMiddleware, getAuth, requireAuth as clerkRequireAuth } from '@clerk/express'
-import type { Request, Response, NextFunction } from 'express'
+import type { NextFunction, Request, Response } from 'express'
+import { clerkMiddleware, getAuth } from '@clerk/express'
 
 /**
  * Clerk 认证中间件

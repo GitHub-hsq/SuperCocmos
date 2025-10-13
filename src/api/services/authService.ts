@@ -3,8 +3,8 @@
  * 处理用户认证相关的业务逻辑
  */
 
-import { request } from '../client'
 import type { ApiResponse } from '../types'
+import { request } from '../client'
 
 export interface User {
   id: number
@@ -102,4 +102,3 @@ export async function completeSignup(data: {
   const response = await request.post<ApiResponse<LoginResponse>>('/auth/complete-signup', data)
   return response.data
 }
-

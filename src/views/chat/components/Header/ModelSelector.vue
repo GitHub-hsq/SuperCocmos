@@ -1,7 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { NButton, NDrawer, NDrawerContent, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NMenu, NScrollbar } from 'naive-ui'
 import { CheckmarkOutline } from '@vicons/ionicons5'
+import { NButton, NDrawer, NDrawerContent, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NMenu, NScrollbar } from 'naive-ui'
+import { computed, ref } from 'vue'
 
 // 厂商和模型数据
 const vendorModels = {

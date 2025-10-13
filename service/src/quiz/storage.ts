@@ -1,7 +1,7 @@
-import fs from 'fs'
-import path from 'path'
-import { nanoid } from 'nanoid'
 import type { SavePayload } from './types'
+import fs from 'node:fs'
+import path from 'node:path'
+import { nanoid } from 'nanoid'
 
 const QUESTIONS_DIR = path.resolve(process.cwd(), 'questions')
 

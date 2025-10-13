@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
 import { NButton, NEmpty, NInput, NModal, NScrollbar, NTag } from 'naive-ui'
+import { computed, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useModelStore } from '@/store'
 
@@ -34,7 +34,7 @@ const enabledModels = computed(() => {
 
 // 供应商列表（按模型数量统计）
 const providers = computed(() => {
-  const providerMap = new Map<string, { name: string; displayName: string; count: number }>()
+  const providerMap = new Map<string, { name: string, displayName: string, count: number }>()
 
   enabledModels.value.forEach((model: any) => {
     const providerId = model.provider

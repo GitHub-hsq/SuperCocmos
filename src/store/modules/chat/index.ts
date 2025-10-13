@@ -1,8 +1,8 @@
-import { defineStore } from 'pinia'
-import { defaultState, getLocalState, setLocalState } from './helper'
-import { router } from '@/router'
-import { t } from '@/locales'
 import { nanoid } from 'nanoid'
+import { defineStore } from 'pinia'
+import { t } from '@/locales'
+import { router } from '@/router'
+import { defaultState, getLocalState, setLocalState } from './helper'
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -16,7 +16,7 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     getChatByUuid(state: Chat.ChatState) {
-      return (uuid?: number) => {
+      return (uuid?: string) => {
         if (uuid)
           return state.chat.find(item => item.uuid === uuid)?.data ?? []
         return state.chat.find(item => item.uuid === state.active)?.data ?? []
@@ -24,7 +24,7 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     getWorkflowStateByUuid(state: Chat.ChatState) {
-      return (uuid: number) => {
+      return (uuid: string) => {
         return state.workflowStates.find(item => item.uuid === uuid)?.state
       }
     },
@@ -49,7 +49,7 @@ export const useChatStore = defineStore('chat-store', {
       this.reloadRoute(history.uuid)
     },
 
-    updateHistory(uuid: number, edit: Partial<Chat.History>) {
+    updateHistory(uuid: string, edit: Partial<Chat.History>) {
       const index = this.history.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.history[index] = { ...this.history[index], ...edit }
@@ -89,7 +89,7 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    async setActive(uuid: number) {
+    async setActive(uuid: string) {
       this.active = uuid
       // 根据对话的模式设置聊天模式
       const history = this.history.find(item => item.uuid === uuid)
@@ -99,8 +99,8 @@ export const useChatStore = defineStore('chat-store', {
       return await this.reloadRoute(uuid)
     },
 
-    getChatByUuidAndIndex(uuid: number, index: number) {
-      if (!uuid || uuid === 0) {
+    getChatByUuidAndIndex(uuid: string, index: number) {
+      if (!uuid) {
         if (this.chat.length)
           return this.chat[0].data[index]
         return null
@@ -111,8 +111,8 @@ export const useChatStore = defineStore('chat-store', {
       return null
     },
 
-    addChatByUuid(uuid: number, chat: Chat.Chat) {
-      if (!uuid || uuid === 0) {
+    addChatByUuid(uuid: string, chat: Chat.Chat) {
+      if (!uuid) {
         if (this.history.length === 0) {
           const uuid = nanoid()
           this.history.push({ uuid, title: chat.text, isEdit: false, mode: 'normal' })
@@ -138,8 +138,8 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    updateChatByUuid(uuid: number, index: number, chat: Chat.Chat) {
-      if (!uuid || uuid === 0) {
+    updateChatByUuid(uuid: string, index: number, chat: Chat.Chat) {
+      if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data[index] = chat
           this.recordState()
@@ -154,8 +154,8 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    updateChatSomeByUuid(uuid: number, index: number, chat: Partial<Chat.Chat>) {
-      if (!uuid || uuid === 0) {
+    updateChatSomeByUuid(uuid: string, index: number, chat: Partial<Chat.Chat>) {
+      if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data[index] = { ...this.chat[0].data[index], ...chat }
           this.recordState()
@@ -170,8 +170,8 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    deleteChatByUuid(uuid: number, index: number) {
-      if (!uuid || uuid === 0) {
+    deleteChatByUuid(uuid: string, index: number) {
+      if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data.splice(index, 1)
           this.recordState()
@@ -186,8 +186,8 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    clearChatByUuid(uuid: number) {
-      if (!uuid || uuid === 0) {
+    clearChatByUuid(uuid: string) {
+      if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data = []
           this.recordState()
@@ -207,7 +207,7 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
-    async reloadRoute(uuid?: number) {
+    async reloadRoute(uuid?: string) {
       this.recordState()
       await router.push({ name: 'Chat', params: { uuid } })
     },
@@ -217,7 +217,7 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     // 工作流状态管理
-    setWorkflowState(uuid: number, state: Chat.WorkflowState) {
+    setWorkflowState(uuid: string, state: Chat.WorkflowState) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1)
         this.workflowStates[index].state = state
@@ -227,7 +227,7 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
-    updateWorkflowStateSome(uuid: number, state: Partial<Chat.WorkflowState>) {
+    updateWorkflowStateSome(uuid: string, state: Partial<Chat.WorkflowState>) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.workflowStates[index].state = { ...this.workflowStates[index].state, ...state }
@@ -247,7 +247,7 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
-    clearWorkflowState(uuid: number) {
+    clearWorkflowState(uuid: string) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.workflowStates.splice(index, 1)

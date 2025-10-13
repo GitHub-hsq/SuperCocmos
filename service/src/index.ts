@@ -1,27 +1,27 @@
 /* eslint-disable no-console */
+import type { ChatMessage } from './chatgpt' // 聊天消息类型
+import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
+
+// 引入自定义类型和模块
+import type { RequestProps } from './types' // 请求参数类型
 // 引入 Node.js 内置模块：文件系统（fs）和路径（path）
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
 import multer from 'multer'
 import { nanoid } from 'nanoid'
-
-// 引入自定义类型和模块
-import type { RequestProps } from './types' // 请求参数类型
-import type { ChatMessage } from './chatgpt' // 聊天消息类型
+import clerkRoutes from './api/routes' // Clerk + Supabase 路由
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
+import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
 import { auth } from './middleware/auth' // 身份认证中间件
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
-import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字符串
-import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
-import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
+import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
 import { initUserTable, testConnection } from './utils/db' // 数据库连接
-import { createUser, findUserByEmail, validateUserPassword, findUserById, updateUser, deleteUser, getAllUsers, findUserByUsername } from './utils/userService' // 用户服务
-import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
-import clerkRoutes from './api/routes' // Clerk + Supabase 路由
+import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字符串
+import { createUser, deleteUser, findUserByEmail, findUserById, findUserByUsername, getAllUsers, updateUser, validateUserPassword } from './utils/userService' // 用户服务
 
 const app = express()
 const router = express.Router()
@@ -799,27 +799,6 @@ router.post('/verify', async (req, res) => {
 })
 
 // 用户认证相关 API
-const usersFilePath = join(process.cwd(), 'users.json')
-
-// 初始化用户文件
-if (!existsSync(usersFilePath))
-  writeFileSync(usersFilePath, JSON.stringify([]), 'utf-8')
-
-// 读取用户数据
-function readUsers() {
-  try {
-    const data = readFileSync(usersFilePath, 'utf-8')
-    return JSON.parse(data)
-  }
-  catch (error) {
-    return []
-  }
-}
-
-// 写入用户数据
-function writeUsers(users: any[]) {
-  writeFileSync(usersFilePath, JSON.stringify(users, null, 2), 'utf-8')
-}
 
 // 生成简单的 token（实际应用中应使用 JWT）
 function generateToken(userId: string): string {
@@ -829,7 +808,7 @@ function generateToken(userId: string): string {
 // 注册 API
 router.post('/auth/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body as { email: string; password: string; name?: string }
+    const { email, password, name } = req.body as { email: string, password: string, name?: string }
 
     if (!email || !password) {
       return res.status(400).send({
@@ -840,7 +819,7 @@ router.post('/auth/register', async (req, res) => {
     }
 
     // 验证邮箱格式
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailRegex = /^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/
     if (!emailRegex.test(email)) {
       return res.status(400).send({
         status: 'Fail',
@@ -900,7 +879,7 @@ router.post('/auth/register', async (req, res) => {
 // 登录 API
 router.post('/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body as { email: string; password: string }
+    const { email, password } = req.body as { email: string, password: string }
 
     if (!email || !password) {
       return res.status(400).send({
@@ -1161,7 +1140,7 @@ const distPath = join(process.cwd(), 'dist')
 if (existsSync(distPath)) {
   console.log('✅ [启动] 检测到 dist 目录，启用静态文件服务')
   app.use(express.static(distPath))
-  
+
   // Catch-all 路由：所有非 API 路由都返回 index.html（支持 History 模式）
   app.get('*', (req, res) => {
     // 排除 API 路由
@@ -1179,7 +1158,7 @@ else {
 async function initDatabase() {
   try {
     console.log('🔍 [启动] 初始化数据库...')
-    
+
     // 测试旧的数据库连接（如果配置了）
     const hasOldDb = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
     if (hasOldDb) {
@@ -1191,7 +1170,7 @@ async function initDatabase() {
       await testConnection()
       await initUserTable()
     }
-    
+
     console.log('✅ [启动] 数据库初始化完成')
   }
   catch (error: any) {

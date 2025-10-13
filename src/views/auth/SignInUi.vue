@@ -4,6 +4,49 @@ import { SignIn } from '@clerk/vue'
 const forceRedirectUrl = import.meta.env.VITE_CLERK_SIGN_IN_FORCE_REDIRECT_URL
 </script>
 
+<template>
+  <div class="flex items-center justify-center" style="background-color: #fff;">
+    <div class="w-full max-w-md" style="width: 400px; min-width: 300px;">
+      <!-- 尽量不要动下面这个，样式我改了三天！！ -->
+      <SignIn
+        :force-redirect-url="forceRedirectUrl"
+        :appearance="{
+          elements: {
+            rootBox: 'signin-root-box',
+            cardBox: 'signin-card-box',
+            card: 'signin-card',
+            footer: 'signin-footer',
+            headerTitle: 'signin-header-title',
+            headerSubtitle: 'signin-header-subtitle',
+            socialButtonsRoot: 'signin-social-buttons-root',
+            socialButtonsProviderIcon: 'signin-social-icon',
+            socialButtonsBlockButtonText__github: 'signin-social-text',
+            socialButtonsBlockButtonText__google: 'signin-social-text',
+            socialButtonsBlockButtonText__oauth_apple: 'signin-social-text',
+            formFieldLabelRow: 'signin-form-field-label-row',
+            socialButtonsBlockButton: 'signin-social-button',
+            socialButtonsBlockButtonText: 'signin-social-button-text',
+            formButtonPrimary: 'signin-primary-button',
+            formFieldInput: 'signin-input',
+            dividerLine: 'signin-divider-line',
+            dividerText: 'signin-divider-text',
+            formFieldLabel: 'signin-field-label',
+            footerActionLink: 'signin-footer-link',
+            footerActionText: 'signin-footer-text',
+            identityPreviewEditButton: 'signin-link-button',
+            identityPreviewText: 'signin-identity-preview',
+            formResendCodeLink: 'signin-link-button',
+            otpCodeFieldInput: 'signin-input',
+            buttonArrowIcon: 'signin-button-arrow-icon',
+            footerAction: 'signin-footer-action',
+            alert: 'signin-alert',
+          },
+        }"
+      />
+    </div>
+  </div>
+</template>
+
 <style>
 /* 自定义样式类 - 用于 :appearance 配置 - SignIn 页面专用 */
 
@@ -43,7 +86,7 @@ const forceRedirectUrl = import.meta.env.VITE_CLERK_SIGN_IN_FORCE_REDIRECT_URL
 }
 
 .signin-header-title::before {
-  content: "Log into your account" !important;
+  content: 'Log into your account' !important;
   font-size: 1.875rem;
   display: block;
   letter-spacing: -0.025em;
@@ -127,7 +170,7 @@ const forceRedirectUrl = import.meta.env.VITE_CLERK_SIGN_IN_FORCE_REDIRECT_URL
 }
 
 .signin-primary-button span::after {
-  content: "Next";
+  content: 'Next';
   font-size: 0.95rem;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -247,48 +290,4 @@ svg.signin-button-arrow-icon,
 .signin {
   display: none;
 }
-
 </style>
-
-<template>
-  <div class="flex items-center justify-center" style="background-color: #fff;">
-    <div class="w-full max-w-md" style="width: 400px; min-width: 300px;">
-            <!-- 尽量不要动下面这个，样式我改了三天！！ -->
-      <SignIn
-        :forceRedirectUrl="forceRedirectUrl"
-        :appearance="{
-          elements: {
-            rootBox: 'signin-root-box',
-            cardBox: 'signin-card-box',
-            card: 'signin-card',
-            footer: 'signin-footer',
-            headerTitle: 'signin-header-title',
-            headerSubtitle: 'signin-header-subtitle',
-            socialButtonsRoot: 'signin-social-buttons-root',
-            socialButtonsProviderIcon: 'signin-social-icon',
-            socialButtonsBlockButtonText__github: 'signin-social-text',
-            socialButtonsBlockButtonText__google: 'signin-social-text',
-            socialButtonsBlockButtonText__oauth_apple: 'signin-social-text',
-            formFieldLabelRow: 'signin-form-field-label-row',
-            socialButtonsBlockButton: 'signin-social-button',
-            socialButtonsBlockButtonText: 'signin-social-button-text',
-            formButtonPrimary: 'signin-primary-button',
-            formFieldInput: 'signin-input',
-            dividerLine: 'signin-divider-line',
-            dividerText: 'signin-divider-text',
-            formFieldLabel: 'signin-field-label',
-            footerActionLink: 'signin-footer-link',
-            footerActionText: 'signin-footer-text',
-            identityPreviewEditButton: 'signin-link-button',
-            identityPreviewText: 'signin-identity-preview',
-            formResendCodeLink: 'signin-link-button',
-            otpCodeFieldInput: 'signin-input',
-            buttonArrowIcon: 'signin-button-arrow-icon',
-            footerAction: 'signin-footer-action',
-            alert: 'signin-alert',
-          },
-        }"
-      />
-    </div>
-  </div>
-</template>

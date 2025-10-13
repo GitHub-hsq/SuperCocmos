@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia'
 import type { AuthState, UserInfo } from './helper'
-import { getLocalState, setLocalState } from './helper'
+import { defineStore } from 'pinia'
 import { store } from '@/store/helper'
+import { getLocalState, setLocalState } from './helper'
 
 export const useAuthStore = defineStore('auth-store', {
   state: (): AuthState => getLocalState(),

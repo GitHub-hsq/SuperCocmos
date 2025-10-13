@@ -1,13 +1,13 @@
 <script setup lang='ts'>
-import { computed, ref, watch } from 'vue'
 import { NModal, NTabPane, NTabs } from 'naive-ui'
-import General from './General.vue'
-import Advanced from './Advanced.vue'
-import About from './About.vue'
-import WorkflowModel from './WorkflowModel.vue'
-import ProviderConfig from './ProviderConfig.vue'
-import { useAuthStore } from '@/store'
+import { computed, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
+import { useAuthStore } from '@/store'
+import About from './About.vue'
+import Advanced from './Advanced.vue'
+import General from './General.vue'
+import ProviderConfig from './ProviderConfig.vue'
+import WorkflowModel from './WorkflowModel.vue'
 
 interface Props {
   visible: boolean

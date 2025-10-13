@@ -1,5 +1,5 @@
 // 测试服务是否启动
-const http = require('http')
+const http = require('node:http')
 
 function testServer() {
   const options = {
@@ -8,32 +8,31 @@ function testServer() {
     path: '/api/session',
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
-    }
+      'Content-Type': 'application/json',
+    },
   }
 
   const req = http.request(options, (res) => {
-    console.log(`✅ 服务响应: ${res.statusCode}`)
-    
+    console.warn(`✅ 服务响应: ${res.statusCode}`)
+
     let data = ''
     res.on('data', (chunk) => {
       data += chunk
     })
-    
+
     res.on('end', () => {
-      console.log('响应数据:', data)
-      console.log('\n✅ 后端服务启动成功！')
+      console.warn('响应数据:', data)
+      console.warn('\n✅ 后端服务启动成功！')
     })
   })
 
   req.on('error', (error) => {
     console.error('❌ 服务未启动或无法连接:', error.message)
-    console.log('\n请确保在 service 目录运行了: pnpm start')
+    console.warn('\n请确保在 service 目录运行了: pnpm start')
   })
 
   req.end()
 }
 
 setTimeout(testServer, 2000)
-console.log('⏳ 等待服务启动...')
-
+console.warn('⏳ 等待服务启动...')

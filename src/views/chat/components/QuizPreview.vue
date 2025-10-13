@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import { NButton, NCard, NCheckbox, NCheckboxGroup, NInput, NRadio, NRadioGroup, NSpace, NTag } from 'naive-ui'
+import { computed, ref } from 'vue'
 import { SvgIcon } from '@/components/common'
 
 interface Question {
@@ -13,9 +13,9 @@ interface Question {
 }
 
 interface ScoreDistribution {
-  single_choice?: { perQuestion: number; total: number }
-  multiple_choice?: { perQuestion: number; total: number }
-  true_false?: { perQuestion: number; total: number }
+  single_choice?: { perQuestion: number, total: number }
+  multiple_choice?: { perQuestion: number, total: number }
+  true_false?: { perQuestion: number, total: number }
 }
 
 interface QuizPreviewProps {
@@ -71,7 +71,7 @@ const groupedQuestions = computed(() => {
     type: 'single_choice' | 'multiple_choice' | 'true_false'
     typeName: string
     description: string
-    questions: Array<{ question: any; globalIndex: number }>
+    questions: Array<{ question: any, globalIndex: number }>
   }> = []
 
   const chineseNumbers = ['一', '二', '三', '四', '五']

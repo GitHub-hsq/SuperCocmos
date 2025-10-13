@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<RadioProps>(), {
 
 const emit = defineEmits<RadioEmits>()
 
-const handleChange = () => {
+function handleChange() {
   if (!props.disabled && !props.modelValue) {
     emit('update:modelValue', true)
     if (props.value)
@@ -41,61 +41,6 @@ const sizeMap = {
 const svgSize = computed(() => sizeMap[props.size])
 </script>
 
-<style scoped>
-  .container {
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    user-select: none;
-  }
-
-  .container.disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-
-  .container svg {
-    overflow: visible;
-    flex-shrink: 0;
-  }
-
-  .radio-circle {
-    fill: none;
-    stroke: #333333;
-    stroke-width: 3;
-    transition: all 0.3s ease;
-  }
-
-  :deep(.dark) .radio-circle {
-    stroke: #ffffff;
-  }
-
-  .radio-dot {
-    fill: #333333;
-    transform-origin: center;
-    transition: all 0.3s ease;
-    transform: scale(0);
-  }
-
-  :deep(.dark) .radio-dot {
-    fill: #ffffff;
-  }
-
-  .container.checked .radio-dot {
-    transform: scale(1);
-  }
-
-  .label-text {
-    font-size: 14px;
-    color: #333;
-  }
-
-  :deep(.dark) .label-text {
-    color: #e5e5e5;
-  }
-</style>
-
 <template>
   <label class="container" :class="{ disabled, checked: modelValue }" @click="handleChange">
     <svg viewBox="0 0 64 64" :height="svgSize" :width="svgSize">
@@ -107,3 +52,57 @@ const svgSize = computed(() => sizeMap[props.size])
   </label>
 </template>
 
+<style scoped>
+  .container {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.container.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.container svg {
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.radio-circle {
+  fill: none;
+  stroke: #333333;
+  stroke-width: 3;
+  transition: all 0.3s ease;
+}
+
+:deep(.dark) .radio-circle {
+  stroke: #ffffff;
+}
+
+.radio-dot {
+  fill: #333333;
+  transform-origin: center;
+  transition: all 0.3s ease;
+  transform: scale(0);
+}
+
+:deep(.dark) .radio-dot {
+  fill: #ffffff;
+}
+
+.container.checked .radio-dot {
+  transform: scale(1);
+}
+
+.label-text {
+  font-size: 14px;
+  color: #333;
+}
+
+:deep(.dark) .label-text {
+  color: #e5e5e5;
+}
+</style>

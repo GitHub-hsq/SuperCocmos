@@ -1,16 +1,5 @@
-<template>
-  <div 
-    ref="containerRef" 
-    class="pointer-events-none w-full h-full" 
-    aria-hidden="true"
-    :class="className"
-  >
-    <canvas ref="canvasRef" class="w-full h-full" />
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 interface MousePosition {
   x: number
@@ -54,7 +43,7 @@ const props = withDefaults(defineProps<ParticlesProps>(), {
   color: '#ffffff',
   vx: 0,
   vy: 0,
-  colors: () => ['#ffffff']
+  colors: () => ['#ffffff'],
 })
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -70,8 +59,9 @@ const resizeTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
 function hexToRgb(hex: string): number[] {
   hex = hex.replace('#', '')
-  if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('')
-  const hexInt = parseInt(hex, 16)
+  if (hex.length === 3)
+    hex = hex.split('').map(c => c + c).join('')
+  const hexInt = Number.parseInt(hex, 16)
   return [(hexInt >> 16) & 255, (hexInt >> 8) & 255, hexInt & 255]
 }
 
@@ -91,8 +81,9 @@ function useMousePosition() {
   return mousePosition
 }
 
-const onMouseMove = () => {
-  if (!canvasRef.value) return
+function onMouseMove() {
+  if (!canvasRef.value)
+    return
   const rect = canvasRef.value.getBoundingClientRect()
   const { w, h } = canvasSize.value
   const x = mousePosition.value.x - rect.left - w / 2
@@ -102,7 +93,7 @@ const onMouseMove = () => {
   }
 }
 
-const resizeCanvas = () => {
+function resizeCanvas() {
   if (containerRef.value && canvasRef.value && ctx.value) {
     canvasSize.value = {
       w: containerRef.value.offsetWidth,
@@ -118,23 +109,25 @@ const resizeCanvas = () => {
   }
 }
 
-const circleParams = (): Circle => ({
-  x: Math.random() * canvasSize.value.w,
-  y: Math.random() * canvasSize.value.h,
-  translateX: 0,
-  translateY: 0,
-  size: Math.random() * 2 + (props.size || 0.4),
-  alpha: 0,
-  targetAlpha: Math.random() * 0.6 + 0.1,
-  dx: (Math.random() - 0.5) * 0.1,
-  dy: (Math.random() - 0.5) * 0.1,
-  magnetism: 0.1 + Math.random() * 4,
-  color: (props.colors || ['#ffffff'])[Math.floor(Math.random() * (props.colors || ['#ffffff']).length)],
-})
+function circleParams(): Circle {
+  return {
+    x: Math.random() * canvasSize.value.w,
+    y: Math.random() * canvasSize.value.h,
+    translateX: 0,
+    translateY: 0,
+    size: Math.random() * 2 + (props.size || 0.4),
+    alpha: 0,
+    targetAlpha: Math.random() * 0.6 + 0.1,
+    dx: (Math.random() - 0.5) * 0.1,
+    dy: (Math.random() - 0.5) * 0.1,
+    magnetism: 0.1 + Math.random() * 4,
+    color: (props.colors || ['#ffffff'])[Math.floor(Math.random() * (props.colors || ['#ffffff']).length)],
+  }
+}
 
-
-const drawCircle = (circle: Circle, update = false) => {
-  if (!ctx.value) return
+function drawCircle(circle: Circle, update = false) {
+  if (!ctx.value)
+    return
   const { x, y, translateX, translateY, size, alpha, color } = circle
   const circleRgb = hexToRgb(color)
   ctx.value.translate(translateX, translateY)
@@ -143,20 +136,22 @@ const drawCircle = (circle: Circle, update = false) => {
   ctx.value.fillStyle = `rgba(${circleRgb.join(', ')}, ${alpha})`
   ctx.value.fill()
   ctx.value.setTransform(dpr, 0, 0, dpr, 0, 0)
-  if (!update) circles.value.push(circle)
+  if (!update)
+    circles.value.push(circle)
 }
 
 const clearCtx = () => ctx.value?.clearRect(0, 0, canvasSize.value.w, canvasSize.value.h)
 
-const drawParticles = () => {
+function drawParticles() {
   clearCtx()
   for (let i = 0; i < (props.quantity || 100); i++) drawCircle(circleParams())
 }
 
-const remapValue = (v: number, s1: number, e1: number, s2: number, e2: number) =>
-  Math.max(((v - s1) * (e2 - s2)) / (e1 - s1) + s2, 0)
+function remapValue(v: number, s1: number, e1: number, s2: number, e2: number) {
+  return Math.max(((v - s1) * (e2 - s2)) / (e1 - s1) + s2, 0)
+}
 
-const animate = () => {
+function animate() {
   clearCtx()
   circles.value.forEach((c, i) => {
     const edges = [
@@ -174,10 +169,10 @@ const animate = () => {
     c.translateY += (mouse.value.y / ((props.staticity || 50) / c.magnetism) - c.translateY) / (props.ease || 50)
     drawCircle(c, true)
     if (
-      c.x < -c.size ||
-      c.x > canvasSize.value.w + c.size ||
-      c.y < -c.size ||
-      c.y > canvasSize.value.h + c.size
+      c.x < -c.size
+      || c.x > canvasSize.value.w + c.size
+      || c.y < -c.size
+      || c.y > canvasSize.value.h + c.size
     ) {
       circles.value.splice(i, 1)
       drawCircle(circleParams())
@@ -186,13 +181,14 @@ const animate = () => {
   rafID.value = requestAnimationFrame(animate)
 }
 
-const initCanvas = () => {
+function initCanvas() {
   resizeCanvas()
   drawParticles()
 }
 
-const handleResize = () => {
-  if (resizeTimeout.value) clearTimeout(resizeTimeout.value)
+function handleResize() {
+  if (resizeTimeout.value)
+    clearTimeout(resizeTimeout.value)
   resizeTimeout.value = setTimeout(() => initCanvas(), 200)
 }
 
@@ -221,13 +217,26 @@ onMounted(async () => {
     initCanvas()
     animate()
   }
-  
+
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
-  if (rafID.value) cancelAnimationFrame(rafID.value)
-  if (resizeTimeout.value) clearTimeout(resizeTimeout.value)
+  if (rafID.value)
+    cancelAnimationFrame(rafID.value)
+  if (resizeTimeout.value)
+    clearTimeout(resizeTimeout.value)
   window.removeEventListener('resize', handleResize)
 })
 </script>
+
+<template>
+  <div
+    ref="containerRef"
+    class="pointer-events-none w-full h-full"
+    aria-hidden="true"
+    :class="className"
+  >
+    <canvas ref="canvasRef" class="w-full h-full" />
+  </div>
+</template>

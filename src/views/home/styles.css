@@ -5,7 +5,7 @@
   margin: 0;
   border: none;
   outline: none;
-  font-family: "Inter", sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 body {
@@ -90,7 +90,6 @@ nav:hover > a:not(:hover) {
   top: 40%;
   right: 50%;
   transform: translate(50%, -50%);
-  
 }
 
 .title h3 {
@@ -161,7 +160,7 @@ p {
 
 .cta button:hover {
   background-color: rgba(255, 255, 255, 0.8);
-  color:rgb(53, 53, 53);
+  color: rgb(53, 53, 53);
 }
 
 .slider {
@@ -257,7 +256,7 @@ nav {
   animation: topIn 1.2s ease-out forwards;
 }
 
-@keyframes zoomOut{
+@keyframes zoomOut {
   from {
     transform: scale(1.5);
     opacity: 0;

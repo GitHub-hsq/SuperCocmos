@@ -1,10 +1,11 @@
-import { ss } from '@/utils/storage'
+import { nanoid } from 'nanoid'
 import { t } from '@/locales'
+import { ss } from '@/utils/storage'
 
 const LOCAL_NAME = 'chatStorage'
 
 export function defaultState(): Chat.ChatState {
-  const uuid = 1002
+  const uuid = nanoid()
   return {
     active: uuid,
     usingContext: true,

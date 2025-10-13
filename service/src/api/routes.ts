@@ -1,11 +1,10 @@
-/* eslint-disable no-console */
 /**
  * API 路由配置
  * 集成 Clerk + Supabase
  */
 
 import express from 'express'
-import { clerkAuth, requireAuth, requireAdmin } from '../middleware/clerkAuth'
+import { clerkAuth, requireAdmin, requireAuth } from '../middleware/clerkAuth'
 import * as authController from './authController'
 import * as roleController from './roleController'
 
@@ -71,4 +70,3 @@ router.post('/user-roles/remove', clerkAuth, requireAdmin, roleController.remove
 router.get('/user-roles/:userId', clerkAuth, requireAuth, roleController.getUserRoles)
 
 export default router
-

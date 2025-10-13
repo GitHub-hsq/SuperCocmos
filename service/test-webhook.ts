@@ -23,7 +23,7 @@ let allConfigured = true
 
 for (const check of checks) {
   if (check.value) {
-    const maskedValue = check.value.substring(0, 10) + '...'
+    const maskedValue = `${check.value.substring(0, 10)}...`
     console.log(`✅ ${check.name}: ${maskedValue}`)
   }
   else {
@@ -32,7 +32,7 @@ for (const check of checks) {
   }
 }
 
-console.log('\n' + '='.repeat(50))
+console.log(`\n${'='.repeat(50)}`)
 
 if (allConfigured) {
   console.log('✅ 所有必需的环境变量都已配置')
@@ -48,4 +48,3 @@ else {
 }
 
 console.log('='.repeat(50))
-

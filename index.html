@@ -1,27 +1,28 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-	<meta charset="UTF-8">
-	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-	<meta content="yes" name="apple-mobile-web-app-capable"/>
-	<link rel="apple-touch-icon" href="/favicon.ico">
-	<meta name="viewport"
-		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover" />
-	<!-- Clerk Styles -->
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta content="yes" name="apple-mobile-web-app-capable" />
+    <link rel="apple-touch-icon" href="/favicon.ico" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover"
+    />
+    <!-- Clerk Styles -->
 
-	<title>SuperCocmos</title>
-</head>
+    <title>SuperCocmos</title>
+  </head>
 
-<body class="dark:bg-black">
-	<div id="app"></div>
-	<script
-  async
-  crossorigin="anonymous"
-  data-clerk-publishable-key="%VITE_CLERK_PUBLISHABLE_KEY%"
-  src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js">
-</script>
+  <body class="dark:bg-black">
+    <div id="app"></div>
+    <script
+      async
+      crossorigin="anonymous"
+      data-clerk-publishable-key="%VITE_CLERK_PUBLISHABLE_KEY%"
+      src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    ></script>
 
-	<script type="module" src="/src/main.ts"></script>
-</body>
-
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

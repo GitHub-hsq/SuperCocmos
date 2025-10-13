@@ -3,8 +3,8 @@
  * 负责底层的 HTTP 请求逻辑
  */
 
-import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({
@@ -83,4 +83,3 @@ export const request = {
 }
 
 export default apiClient
-

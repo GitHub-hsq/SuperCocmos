@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import { NButton, NCard, NInputNumber, NSpace, NSpin, NText } from 'naive-ui'
+import { computed, ref } from 'vue'
 import { SvgIcon } from '@/components/common'
 
 interface QuizConfigProps {
@@ -8,7 +8,7 @@ interface QuizConfigProps {
 }
 
 interface QuizConfigEmits {
-  (e: 'submit', config: { single_choice: number; multiple_choice: number; true_false: number }): void
+  (e: 'submit', config: { single_choice: number, multiple_choice: number, true_false: number }): void
 }
 
 defineProps<QuizConfigProps>()

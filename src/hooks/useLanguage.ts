@@ -1,7 +1,7 @@
-import { computed } from 'vue'
 import { enUS, zhCN } from 'naive-ui'
-import { useAppStore } from '@/store'
+import { computed } from 'vue'
 import { setLocale } from '@/locales'
+import { useAppStore } from '@/store'
 
 export function useLanguage() {
   const appStore = useAppStore()

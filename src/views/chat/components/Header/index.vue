@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import { computed, nextTick, ref } from 'vue'
-import ModelSelectors from './ModelSelector.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
-import { useAppStore, useChatStore } from '@/store'
 import ModelSelector from '@/components/common/ModelSelector/index.vue'
+import { useAppStore, useChatStore } from '@/store'
+import ModelSelectors from './ModelSelector.vue'
 
 interface Props {
   usingContext: boolean

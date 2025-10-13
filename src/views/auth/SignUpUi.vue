@@ -4,6 +4,49 @@ import { SignUp } from '@clerk/vue'
 const forceRedirectUrl = import.meta.env.VITE_CLERK_SIGN_UP_FORCE_REDIRECT_URL
 </script>
 
+<template>
+  <div class="flex items-center justify-center" style="background-color: #fff;">
+    <div class="w-full max-w-md" style="width: 400px; min-width: 300px;">
+      <!-- 尽量不要动下面这个，样式我改了三天！！ -->
+      <SignUp
+        :force-redirect-url="forceRedirectUrl"
+        :appearance="{
+          elements: {
+            rootBox: 'signup-root-box',
+            cardBox: 'signup-card-box',
+            card: 'signup-card',
+            footer: 'signup-footer',
+            headerTitle: 'signup-header-title',
+            headerSubtitle: 'signup-header-subtitle',
+            socialButtonsRoot: 'signup-social-buttons-root',
+            socialButtonsProviderIcon: 'signup-social-icon',
+            socialButtonsBlockButtonText__github: 'signup-social-text',
+            socialButtonsBlockButtonText__google: 'signup-social-text',
+            socialButtonsBlockButtonText__oauth_apple: 'signup-social-text',
+            formFieldLabelRow: 'signup-form-field-label-row',
+            socialButtonsBlockButton: 'signup-social-button',
+            socialButtonsBlockButtonText: 'signup-social-button-text',
+            formButtonPrimary: 'signup-primary-button',
+            formFieldInput: 'signup-input',
+            dividerLine: 'signup-divider-line',
+            dividerText: 'signup-divider-text',
+            formFieldLabel: 'signup-field-label',
+            footerActionLink: 'signup-footer-link',
+            footerActionText: 'signup-footer-text',
+            identityPreviewEditButton: 'signup-link-button',
+            identityPreviewText: 'signup-identity-preview',
+            formResendCodeLink: 'signup-link-button',
+            otpCodeFieldInput: 'signup-input',
+            buttonArrowIcon: 'signup-button-arrow-icon',
+            footerAction: 'signup-footer-action',
+            alert: 'signup-alert',
+          },
+        }"
+      />
+    </div>
+  </div>
+</template>
+
 <style>
 /* 自定义样式类 - 用于 :appearance 配置 - SignUp 页面专用 */
 
@@ -43,7 +86,7 @@ const forceRedirectUrl = import.meta.env.VITE_CLERK_SIGN_UP_FORCE_REDIRECT_URL
 }
 
 .signup-header-title::before {
-  content: "Create your account";
+  content: 'Create your account';
   font-size: 1.875rem;
   display: block;
   letter-spacing: -0.025em;
@@ -127,7 +170,7 @@ const forceRedirectUrl = import.meta.env.VITE_CLERK_SIGN_UP_FORCE_REDIRECT_URL
 }
 
 .signup-primary-button span::after {
-  content: "Next";
+  content: 'Next';
   font-size: 0.95rem;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -247,48 +290,4 @@ svg.signup-button-arrow-icon,
 .signin {
   display: none;
 }
-
 </style>
-
-<template>
-  <div class="flex items-center justify-center" style="background-color: #fff;">
-    <div class="w-full max-w-md" style="width: 400px; min-width: 300px;">
-      <!-- 尽量不要动下面这个，样式我改了三天！！ -->
-      <SignUp
-        :forceRedirectUrl="forceRedirectUrl"
-        :appearance="{
-          elements: {
-            rootBox: 'signup-root-box',
-            cardBox: 'signup-card-box',
-            card: 'signup-card',
-            footer: 'signup-footer',
-            headerTitle: 'signup-header-title',
-            headerSubtitle: 'signup-header-subtitle',
-            socialButtonsRoot: 'signup-social-buttons-root',
-            socialButtonsProviderIcon: 'signup-social-icon',
-            socialButtonsBlockButtonText__github: 'signup-social-text',
-            socialButtonsBlockButtonText__google: 'signup-social-text',
-            socialButtonsBlockButtonText__oauth_apple: 'signup-social-text',
-            formFieldLabelRow: 'signup-form-field-label-row',
-            socialButtonsBlockButton: 'signup-social-button',
-            socialButtonsBlockButtonText: 'signup-social-button-text',
-            formButtonPrimary: 'signup-primary-button',
-            formFieldInput: 'signup-input',
-            dividerLine: 'signup-divider-line',
-            dividerText: 'signup-divider-text',
-            formFieldLabel: 'signup-field-label',
-            footerActionLink: 'signup-footer-link',
-            footerActionText: 'signup-footer-text',
-            identityPreviewEditButton: 'signup-link-button',
-            identityPreviewText: 'signup-identity-preview',
-            formResendCodeLink: 'signup-link-button',
-            otpCodeFieldInput: 'signup-input',
-            buttonArrowIcon: 'signup-button-arrow-icon',
-            footerAction: 'signup-footer-action',
-            alert: 'signup-alert',
-          },
-        }"
-      />
-    </div>
-  </div>
-</template>

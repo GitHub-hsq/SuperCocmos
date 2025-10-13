@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
 import { NConfigProvider } from 'naive-ui'
-import { NaiveProvider, Loading } from '@/components/common'
-import { useTheme } from '@/hooks/useTheme'
+import { onMounted, ref } from 'vue'
+import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useTheme } from '@/hooks/useTheme'
 import { useModelStore } from '@/store'
 
 const { theme, themeOverrides } = useTheme()
@@ -25,7 +25,7 @@ onMounted(async () => {
     // 确保至少显示Loading一段时间，提供更好的用户体验
     setTimeout(() => {
       isAppLoading.value = false
-    }, 1000)
+    }, 500)
   }
 })
 </script>

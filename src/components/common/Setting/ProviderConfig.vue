@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
-import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { SvgIcon } from '@/components/common'
+import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
+import { computed, h, ref, watch } from 'vue'
 import { addModel, deleteModel, fetchModels, testModel, updateModel } from '@/api'
+import { SvgIcon } from '@/components/common'
 import { useModelStore } from '@/store'
 
 interface Props {
@@ -45,7 +45,7 @@ const addModelForm = ref({
 
 // 测试模型相关
 const testingModel = ref(false)
-const testResult = ref<{ success: boolean; message: string; response?: string } | null>(null)
+const testResult = ref<{ success: boolean, message: string, response?: string } | null>(null)
 
 // 记录上一次的模型ID，用于判断是否自动同步
 const oldModelId = ref('')

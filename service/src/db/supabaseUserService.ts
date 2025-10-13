@@ -4,8 +4,8 @@
  * 提供用户的 CRUD 操作（基于 Supabase）
  */
 
+import { comparePassword, hashPassword } from '../utils/password'
 import { supabase } from './supabaseClient'
-import { hashPassword, comparePassword } from '../utils/password'
 
 export interface SupabaseUser {
   user_id: number
@@ -343,4 +343,3 @@ export async function upsertUserFromOAuth(input: {
     throw new Error(`OAuth 用户同步失败: ${error.message}`)
   }
 }
-

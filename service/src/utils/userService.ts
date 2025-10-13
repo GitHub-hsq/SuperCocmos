@@ -1,6 +1,5 @@
 import supabase from './db'
 import { hashPassword, verifyPassword } from './password'
-import { nanoid } from 'nanoid'
 
 export interface User {
   user_id: number
@@ -26,11 +25,11 @@ export async function findUserByEmail(email: string): Promise<User | null> {
       .select('*')
       .eq('email', email)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') {
       throw error
     }
-    
+
     return data || null
   }
   catch (error: any) {
@@ -49,11 +48,11 @@ export async function findUserByUsername(username: string): Promise<User | null>
       .select('*')
       .eq('username', username)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') {
       throw error
     }
-    
+
     return data || null
   }
   catch (error: any) {
@@ -72,11 +71,11 @@ export async function findUserById(id: number): Promise<User | null> {
       .select('*')
       .eq('user_id', id)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') {
       throw error
     }
-    
+
     return data || null
   }
   catch (error: any) {
@@ -89,11 +88,11 @@ export async function findUserById(id: number): Promise<User | null> {
  * 创建新用户
  */
 export async function createUser(
-  email: string, 
-  password: string, 
-  username?: string, 
+  email: string,
+  password: string,
+  username?: string,
   loginMethod: string = 'email',
-  phone?: string
+  phone?: string,
 ): Promise<User> {
   try {
     const hashedPassword = await hashPassword(password)
@@ -106,7 +105,7 @@ export async function createUser(
         username: username || null,
         phone: phone || null,
         login_method: loginMethod,
-        status: 1
+        status: 1,
       })
       .select()
       .single()
@@ -259,11 +258,11 @@ export async function findUserByPhone(phone: string): Promise<User | null> {
       .select('*')
       .eq('phone', phone)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') {
       throw error
     }
-    
+
     return data || null
   }
   catch (error: any) {
@@ -278,7 +277,7 @@ export async function findUserByPhone(phone: string): Promise<User | null> {
 export async function findUserByLoginMethod(identifier: string, loginMethod: string): Promise<User | null> {
   try {
     let query = supabase.from('users').select('*')
-    
+
     switch (loginMethod) {
       case 'email':
         query = query.eq('email', identifier)
@@ -292,13 +291,13 @@ export async function findUserByLoginMethod(identifier: string, loginMethod: str
       default:
         throw new Error(`不支持的登录方式: ${loginMethod}`)
     }
-    
+
     const { data, error } = await query.single()
-    
+
     if (error && error.code !== 'PGRST116') {
       throw error
     }
-    
+
     return data || null
   }
   catch (error: any) {
@@ -326,4 +325,3 @@ export async function updateLastLoginTime(userId: number): Promise<void> {
     throw error
   }
 }
-

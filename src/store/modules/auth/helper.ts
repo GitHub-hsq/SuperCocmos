@@ -6,6 +6,7 @@ export interface UserInfo {
   email: string
   id: string
   createdAt: string
+  role?: 'user' | 'admin' // 用户角色
 }
 
 export interface AuthState {

@@ -22,7 +22,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "common:cleanup": "rimraf node_modules && rimraf pnpm-lock.yaml",
-    "test:db": "esno ./src/test-db.ts"
+    "test:db": "esno ./src/test-db.ts",
+    "test:redis": "esno ./src/test-redis.ts",
+    "test:clerk": "esno ./src/test-clerk-auth.ts"
   },
   "dependencies": {
     "@clerk/express": "^1.3.7",
@@ -39,6 +41,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^6.7.0",
     "https-proxy-agent": "^5.0.1",
+    "ioredis": "^5.8.1",
     "isomorphic-fetch": "^3.0.0",
     "langchain": "^0.3.35",
     "mammoth": "^1.6.0",

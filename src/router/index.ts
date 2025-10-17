@@ -1,6 +1,7 @@
 import type { App } from 'vue'
 import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
+import Login from '@/views/auth/Login.vue'
 import { ChatLayout } from '@/views/chat/layout'
 
 const routes: RouteRecordRaw[] = [
@@ -28,7 +29,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/signin',
     name: 'Login',
-    component: () => import('@/views/auth/Login.vue'),
+    component: Login,
     meta: { public: true },
   },
   {

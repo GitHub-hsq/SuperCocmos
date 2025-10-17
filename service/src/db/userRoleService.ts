@@ -8,13 +8,13 @@ import { supabase } from './supabaseClient'
 
 export interface UserRole {
   user_role_id: number
-  user_id: number
+  user_id: string // UUID
   role_id: number
   created_at: string
 }
 
 export interface UserWithRoles {
-  user_id: number
+  user_id: string // UUID
   username: string
   email: string
   phone?: string
@@ -33,7 +33,7 @@ export interface UserWithRoles {
 /**
  * 为用户分配角色
  */
-export async function assignRoleToUser(userId: number, roleId: number): Promise<UserRole> {
+export async function assignRoleToUser(userId: string, roleId: number): Promise<UserRole> {
   try {
     const { data, error } = await supabase
       .from('user_roles')
@@ -59,7 +59,7 @@ export async function assignRoleToUser(userId: number, roleId: number): Promise<
 /**
  * 移除用户的角色
  */
-export async function removeRoleFromUser(userId: number, roleId: number): Promise<boolean> {
+export async function removeRoleFromUser(userId: string, roleId: number): Promise<boolean> {
   try {
     const { error } = await supabase
       .from('user_roles')
@@ -82,7 +82,7 @@ export async function removeRoleFromUser(userId: number, roleId: number): Promis
 /**
  * 获取用户的所有角色
  */
-export async function getUserRoles(userId: number): Promise<UserRole[]> {
+export async function getUserRoles(userId: string): Promise<UserRole[]> {
   try {
     const { data, error } = await supabase
       .from('user_roles')
@@ -103,7 +103,7 @@ export async function getUserRoles(userId: number): Promise<UserRole[]> {
 /**
  * 获取拥有特定角色的所有用户
  */
-export async function getUsersByRole(roleId: number): Promise<number[]> {
+export async function getUsersByRole(roleId: number): Promise<string[]> {
   try {
     const { data, error } = await supabase
       .from('user_roles')
@@ -124,7 +124,7 @@ export async function getUsersByRole(roleId: number): Promise<number[]> {
 /**
  * 获取用户及其角色详情（使用视图）
  */
-export async function getUserWithRoles(userId: number): Promise<UserWithRoles | null> {
+export async function getUserWithRoles(userId: string): Promise<UserWithRoles | null> {
   try {
     const { data, error } = await supabase
       .from('v_users_with_roles')
@@ -170,7 +170,7 @@ export async function getAllUsersWithRoles(): Promise<UserWithRoles[]> {
 /**
  * 检查用户是否拥有某个角色
  */
-export async function userHasRole(userId: number, roleName: string): Promise<boolean> {
+export async function userHasRole(userId: string, roleName: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
       .from('user_roles')
@@ -192,10 +192,10 @@ export async function userHasRole(userId: number, roleName: string): Promise<boo
 
 /**
  * 批量更新用户角色
- * @param userId 用户 ID
+ * @param userId 用户 ID (UUID)
  * @param roleIds 新的角色 ID 列表
  */
-export async function updateUserRoles(userId: number, roleIds: number[]): Promise<boolean> {
+export async function updateUserRoles(userId: string, roleIds: number[]): Promise<boolean> {
   try {
     // 1. 删除现有角色
     const { error: deleteError } = await supabase

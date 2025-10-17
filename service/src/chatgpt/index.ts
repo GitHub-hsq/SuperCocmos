@@ -6,6 +6,7 @@ import * as dotenv from 'dotenv'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import { SocksProxyAgent } from 'socks-proxy-agent'
+import { getProviderById } from '../db/providerService' // 🔥 导入供应商服务
 import { sendResponse } from '../utils'
 import { isNotEmptyString } from '../utils/is'
 import 'isomorphic-fetch'
@@ -140,17 +141,103 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
   }
 })()
 
+// 判断模型是否为 Kriora 供应商
+function isKrioraModel(modelId: string): boolean {
+  return modelId.includes('moonshotai/') || modelId.includes('qwen/')
+}
+
+// 为特定供应商创建 API 实例
+function createApiForProvider(modelId: string, maxTokens?: number): ChatGPTAPI {
+  if (isKrioraModel(modelId)) {
+    // 使用 Kriora API 配置
+    const krioraApiKey = process.env.KRIORA_API_KEY || process.env.OPENAI_API_KEY
+    const krioraApiUrl = process.env.KRIORA_API_URL || 'https://api.kriora.com'
+
+    const options: ChatGPTAPIOptions = {
+      apiKey: krioraApiKey,
+      completionParams: { model: modelId },
+      debug: !disableDebug,
+      messageStore: undefined,
+      apiBaseUrl: `${krioraApiUrl}/v1`,
+      maxModelTokens: 128000,
+      maxResponseTokens: maxTokens || 8192, // 使用配置的 maxTokens，默认 8192
+    }
+
+    setupProxy(options)
+    return new ChatGPTAPI({ ...options })
+  }
+
+  // 默认使用全局 API 实例
+  return api
+}
+
 async function chatReplyProcess(options: RequestOptions) {
-  const { message, lastContext, process, systemMessage, temperature, top_p, model: requestModel } = options
+  const { message, lastContext, process, systemMessage, temperature, top_p, model: requestModel, maxTokens, providerId } = options
   try {
     let options: SendMessageOptions = { timeoutMs }
+    const selectedModel = requestModel || model
+
+    // 🔥 根据 providerId 动态获取供应商配置
+    let apiInstance = api
+    let providerInfo: { baseUrl: string, apiKey: string, name: string } | null = null
+
+    if (lastContext?.providerId || providerId) {
+      const currentProviderId = lastContext?.providerId || providerId
+      console.warn('🔍 [ChatGPT] 查找供应商:', currentProviderId)
+
+      try {
+        const provider = await getProviderById(currentProviderId!)
+        if (provider) {
+          providerInfo = {
+            baseUrl: provider.base_url,
+            apiKey: provider.api_key,
+            name: provider.name,
+          }
+          console.warn('✅ [ChatGPT] 找到供应商:', {
+            name: providerInfo.name,
+            baseUrl: providerInfo.baseUrl,
+          })
+
+          // 🔥 使用供应商配置创建新的 API 实例
+          if (apiModel === 'ChatGPTAPI') {
+            const providerOptions: ChatGPTAPIOptions = {
+              apiKey: providerInfo.apiKey,
+              completionParams: { model: selectedModel },
+              debug: !disableDebug,
+              messageStore: undefined,
+              apiBaseUrl: `${providerInfo.baseUrl}/v1`,
+              maxModelTokens: 128000,
+              maxResponseTokens: maxTokens || 8192,
+            }
+
+            setupProxy(providerOptions)
+            apiInstance = new ChatGPTAPI({ ...providerOptions })
+            console.warn('🔧 [ChatGPT] 已创建供应商专用 API 实例')
+          }
+        }
+        else {
+          console.warn('⚠️ [ChatGPT] 未找到供应商，使用默认配置')
+        }
+      }
+      catch (error) {
+        console.error('❌ [ChatGPT] 查找供应商失败:', error)
+        // 降级到默认实例
+      }
+    }
+
+    // 如果没有使用供应商配置，则使用原有逻辑
+    if (!providerInfo && isNotEmptyString(selectedModel) && apiModel === 'ChatGPTAPI') {
+      apiInstance = createApiForProvider(selectedModel, maxTokens)
+    }
 
     if (apiModel === 'ChatGPTAPI') {
       if (isNotEmptyString(systemMessage))
         options.systemMessage = systemMessage
       // 使用请求中的模型参数，如果没有则使用默认模型
-      const selectedModel = requestModel || model
       options.completionParams = { model: selectedModel, temperature, top_p }
+      // 如果提供了 maxTokens，设置 maxResponseTokens
+      if (maxTokens && apiInstance.maxResponseTokens !== maxTokens)
+        apiInstance.maxResponseTokens = maxTokens
     }
 
     if (lastContext != null) {
@@ -160,22 +247,8 @@ async function chatReplyProcess(options: RequestOptions) {
         options = { ...lastContext }
     }
 
-    // 添加调试信息
-    // eslint-disable-next-line no-console
-    console.log('🚀 [ChatGPT] 开始调用 API')
-    // eslint-disable-next-line no-console
-    console.log('📝 [ChatGPT] 消息内容:', message)
-    // eslint-disable-next-line no-console
-    console.log('⚙️ [ChatGPT] 请求选项:', {
-      model: options.completionParams?.model || '未指定',
-      systemMessage: options.systemMessage || '无',
-      temperature: options.completionParams?.temperature,
-      top_p: options.completionParams?.top_p,
-      parentMessageId: options.parentMessageId || '无上下文',
-    })
-
     const startTime = Date.now()
-    const response = await api.sendMessage(message, {
+    const response = await apiInstance.sendMessage(message, {
       ...options,
       onProgress: (partialResponse) => {
         process?.(partialResponse)

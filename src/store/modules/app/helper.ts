@@ -19,6 +19,8 @@ export interface AppState {
   rightSiderWidth: number
   theme: Theme
   language: Language
+  showSettingsPage: boolean // 是否显示设置页面
+  activeSettingTab: string // 当前激活的设置选项卡
 }
 
 export function defaultSetting(): AppState {
@@ -29,6 +31,8 @@ export function defaultSetting(): AppState {
     rightSiderWidth: 30, // 默认30%
     theme: 'light',
     language,
+    showSettingsPage: false, // 默认不显示设置页面
+    activeSettingTab: 'General', // 默认显示通用设置
   }
 }
 

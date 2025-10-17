@@ -3,7 +3,7 @@
 declare global {
   namespace Model {
   // 供应商类型
-    type ProviderType = 'openai' | 'deepseek' | 'anthropic' | 'google' | 'xai' | 'doubao' | 'qwen'
+    type ProviderType = 'openai' | 'deepseek' | 'anthropic' | 'google' | 'xai' | 'doubao' | 'qwen' | 'kriora'
 
     // 学科门类
     type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'chinese' | 'english'
@@ -19,10 +19,12 @@ declare global {
 
     // 模型信息
     interface ModelInfo {
-      id: string // 模型唯一标识
+      id: string // 模型唯一标识（UUID 或组合键）
+      modelId?: string // 模型ID（如：gpt-4o）
       name: string // 模型名称
       displayName: string // 显示名称
-      provider: ProviderType // 所属供应商
+      provider: ProviderType // 所属供应商名称
+      providerId?: string // 供应商ID（UUID）
       enabled?: boolean // 是否启用
       description?: string // 描述
       capabilities?: string[] // 能力标签（如：推理、数学、语言等）
@@ -62,6 +64,8 @@ declare global {
       providers: ProviderInfo[]
       // 工作流节点配置
       workflowNodes: WorkflowNodeConfig[]
+      // 模型列表是否已加载（防止重复加载）
+      isProvidersLoaded: boolean
     }
   }
 }

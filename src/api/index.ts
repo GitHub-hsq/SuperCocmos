@@ -33,7 +33,7 @@ export function fetchChatConfig<T = any>() {
 export function fetchChatAPIProcess<T = any>(
   params: {
     prompt: string
-    options?: { conversationId?: string, parentMessageId?: string, model?: string }
+    options?: Chat.ConversationRequest
     signal?: GenericAbortSignal
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void
   },
@@ -41,23 +41,29 @@ export function fetchChatAPIProcess<T = any>(
   const settingStore = useSettingStore()
   const authStore = useAuthStore()
 
+  // 🔥 构建请求数据，避免参数重复
   let data: Record<string, any> = {
     prompt: params.prompt,
-    options: params.options,
   }
 
-  if (authStore.isChatGPTAPI) {
+  // 🔥 如果有 options，直接使用 options 中的参数，避免重复
+  if (params.options) {
+    // 直接使用 options 中的所有参数
     data = {
       ...data,
-      systemMessage: settingStore.systemMessage,
-      temperature: settingStore.temperature,
-      top_p: settingStore.top_p,
+      ...params.options,
     }
   }
 
-  // 如果 options 中包含模型信息，将其提取到顶层
-  if (params.options?.model)
-    data.model = params.options.model
+  // 🔥 只有在没有 options 或 options 中没有这些参数时，才使用 settingStore 的默认值
+  if (authStore.isChatGPTAPI) {
+    if (!data.systemMessage)
+      data.systemMessage = settingStore.systemMessage
+    if (data.temperature === undefined)
+      data.temperature = settingStore.temperature
+    if (data.top_p === undefined)
+      data.top_p = settingStore.top_p
+  }
 
   return post<T>({
     url: '/chat-process',
@@ -136,38 +142,71 @@ export function fetchAPIUsage<T = any>() {
   })
 }
 
-// 模型管理 API
-export function fetchModels<T = any>() {
+// ==================== 供应商管理 API ====================
+// 获取所有供应商及其模型
+export function fetchProviders<T = any>() {
   return get<T>({
-    url: '/api/models',
+    url: '/providers',
   })
 }
 
-export function addModel<T = any>(data: { id: string, provider: string, displayName: string, enabled?: boolean }) {
+// 创建供应商
+export function addProvider<T = any>(data: { name: string, baseUrl: string, apiKey: string }) {
   return post<T>({
-    url: '/api/models/add',
+    url: '/providers',
     data,
   })
 }
 
-export function updateModel<T = any>(data: { id: string, provider?: string, displayName?: string, enabled?: boolean }) {
+// 更新供应商
+export function updateProvider<T = any>(id: string, data: { name?: string, baseUrl?: string, apiKey?: string }) {
   return post<T>({
-    url: '/api/models/update',
+    url: `/providers/${id}`,
+    data,
+    method: 'PUT',
+  })
+}
+
+// 删除供应商
+export function deleteProvider<T = any>(id: string) {
+  return post<T>({
+    url: `/providers/${id}`,
+    method: 'DELETE',
+  })
+}
+
+// ==================== 模型管理 API ====================
+// 创建模型
+export function addModel<T = any>(data: { modelId: string, displayName: string, enabled?: boolean, providerId: string }) {
+  return post<T>({
+    url: '/models',
     data,
   })
 }
 
+// 更新模型
+export function updateModel<T = any>(id: string, data: { modelId?: string, displayName?: string, enabled?: boolean }) {
+  return post<T>({
+    url: `/models/${id}`,
+    data,
+    method: 'PUT',
+  })
+}
+
+// 删除模型
 export function deleteModel<T = any>(id: string) {
   return post<T>({
-    url: '/api/models/delete',
-    data: { id },
+    url: `/models/${id}`,
+    method: 'DELETE',
   })
 }
 
-export function testModel<T = any>(modelId: string) {
+// 切换模型启用状态
+export function toggleModelEnabled<T = any>(id: string, enabled: boolean) {
   return post<T>({
-    url: '/api/models/test',
-    data: { modelId },
+    url: `/models/${id}/toggle`,
+    data: { enabled },
+    method: 'PATCH',
   })
 }
 

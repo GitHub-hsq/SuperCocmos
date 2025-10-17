@@ -3,5 +3,6 @@
  */
 
 export * from './authService'
+export * from './configService'
 export * from './roleService'
 export * from './userService'

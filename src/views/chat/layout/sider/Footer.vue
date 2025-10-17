@@ -2,7 +2,11 @@
 import { defineAsyncComponent, ref } from 'vue'
 import { HoverButton, SvgIcon, UserAvatar } from '@/components/common'
 
-const Setting = defineAsyncComponent(() => import('@/components/common/Setting/index.vue'))
+// 🔥 使用新的 SettingV2 组件（左右结构，支持权限控制）
+const Setting = defineAsyncComponent(() => import('@/components/common/Setting/SettingV2.vue'))
+
+// 💡 如果需要使用旧版本，取消注释下面这行：
+// const Setting = defineAsyncComponent(() => import('@/components/common/Setting/index.vue'))
 
 const show = ref(false)
 </script>

@@ -1,6 +1,14 @@
 -- ================================================
 -- 用户角色权限系统 Schema
 -- ================================================
+--
+-- ⚠️ 执行顺序：步骤 3
+-- 请先执行：
+-- 1. 00-init-users.sql (创建 users 表)
+-- 2. provider-model-schema.sql (创建 providers 和 models 表)
+-- 然后再执行本文件
+--
+-- ================================================
 
 -- 1. 角色表 (roles)
 create table if not exists public.roles (
@@ -27,7 +35,7 @@ on conflict (role_name) do nothing;
 -- 2. 用户-角色关联表 (user_roles)
 create table if not exists public.user_roles (
   user_role_id bigserial not null,
-  user_id bigint not null,
+  user_id uuid not null,
   role_id bigint not null,
   created_at timestamp with time zone null default now(),
   constraint user_roles_pkey primary key (user_role_id),

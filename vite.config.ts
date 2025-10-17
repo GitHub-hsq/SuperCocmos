@@ -39,7 +39,7 @@ export default defineConfig((env) => {
         '/api': {
           target: viteEnv.VITE_APP_API_BASE_URL || 'http://127.0.0.1:3002',
           changeOrigin: true, // 允许跨域
-          rewrite: path => path.replace('/api/', '/'),
+          // 不需要 rewrite，因为后端路由就是 /api/xxx
         },
       },
     },

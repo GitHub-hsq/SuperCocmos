@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import signinui from './SignInUi.vue'
+import SignInUi from './SignInUi.vue'
 </script>
 
 <template>
@@ -44,7 +44,7 @@ import signinui from './SignInUi.vue'
 
       <!-- 中间内容 -->
       <div class="flex h-full flex-grow flex-col items-center justify-center px-5 py-4">
-        <signinui />
+        <SignInUi />
       </div>
 
       <!-- 底部条款 -->

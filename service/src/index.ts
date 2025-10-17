@@ -15,7 +15,7 @@ import { nanoid } from 'nanoid'
 import clerkRoutes from './api/routes' // Clerk + Supabase 路由
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
 import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
-import { auth } from './middleware/auth' // 身份认证中间件
+import { clerkAuth, requireAuth } from './middleware/clerkAuth' // Clerk 认证中间件
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
 import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
@@ -31,19 +31,56 @@ let workflowConfig: import('./quiz/types').WorkflowNodeConfig[] = []
 
 app.use(express.static('public'))
 app.use(express.json())
-// 全局 CORS 配置：允许所有来源跨域访问（开发环境常用，生产环境应限制）
-app.all('*', (_, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*')
-  res.header('Access-Control-Allow-Headers', 'authorization, Content-Type')
-  res.header('Access-Control-Allow-Methods', '*')
+
+// 全局 CORS 配置：支持 Clerk 认证
+app.all('*', (req, res, next) => {
+  // 允许的来源（开发环境）
+  const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3002']
+  const origin = req.headers.origin
+
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+  }
+
+  res.header('Access-Control-Allow-Headers', 'authorization, Content-Type, clerk-session-id, x-clerk-auth-status, x-clerk-auth-message')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
+
+  // 处理 OPTIONS 预检请求
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200)
+  }
+
   next()
 })
+
 // 流式返回 LLM 的回复内容
-router.post('/chat-process', [auth, limiter], async (req, res) => {
+router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
   try {
-    const { prompt, options = {}, systemMessage, temperature, top_p, model } = req.body as RequestProps
+    console.log('前端传入的请求参数:', req.body)
+    const { prompt, options = {}, systemMessage, temperature, top_p, model, providerId } = req.body as RequestProps
+
+    // 从模型配置中获取参数，如果请求中没有指定的话
+    const modelConfig = model ? getModelConfig(model) : null
+    const finalTemperature = temperature !== undefined ? temperature : modelConfig?.temperature
+    const finalTopP = top_p !== undefined ? top_p : modelConfig?.topP
+    const maxTokens = modelConfig?.maxTokens
+
+    const TestBody = {
+      message: prompt,
+      lastContext: options,
+      systemMessage,
+      temperature: finalTemperature,
+      top_p: finalTopP,
+      model,
+      maxTokens,
+      providerId: providerId || options.providerId, // 🔥 传递 providerId 参数
+    }
+
+    console.log('📝 [Chat Process] chat参数:', TestBody)
+
     let firstChunk = true
     await chatReplyProcess({
       message: prompt,
@@ -53,9 +90,11 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
         firstChunk = false
       },
       systemMessage,
-      temperature,
-      top_p,
+      temperature: finalTemperature,
+      top_p: finalTopP,
       model,
+      maxTokens,
+      providerId: providerId || options.providerId, // 🔥 传递 providerId 参数
     })
   }
   catch (error) {
@@ -91,7 +130,7 @@ const upload = multer({
 })
 
 // Upload endpoint: returns saved filePath and starts classification
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', clerkAuth, requireAuth, upload.single('file'), async (req, res) => {
   console.log('📤 [上传] 接收到文件上传请求')
 
   if (!req.file) {
@@ -170,7 +209,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 })
 
 // Delete uploaded file
-router.post('/upload/delete', async (req, res) => {
+router.post('/upload/delete', clerkAuth, requireAuth, async (req, res) => {
   try {
     const { filePath } = req.body as { filePath: string }
     if (!filePath)
@@ -194,7 +233,7 @@ router.post('/upload/delete', async (req, res) => {
 })
 
 // Quiz workflow: run
-router.post('/quiz/run', [auth, limiter], async (req, res) => {
+router.post('/quiz/run', clerkAuth, requireAuth, limiter, async (req, res) => {
   try {
     const { filePath, numQuestions, workflowConfig: customConfig } = req.body as {
       filePath: string
@@ -215,7 +254,7 @@ router.post('/quiz/run', [auth, limiter], async (req, res) => {
 })
 
 // Quiz generate: generate questions from note with specific types
-router.post('/quiz/generate', [auth, limiter], async (req, res) => {
+router.post('/quiz/generate', clerkAuth, requireAuth, limiter, async (req, res) => {
   try {
     const { filePath, questionTypes } = req.body as {
       filePath: string
@@ -239,7 +278,7 @@ router.post('/quiz/generate', [auth, limiter], async (req, res) => {
 })
 
 // Quiz feedback: submit user feedback
-router.post('/quiz/feedback', [auth, limiter], async (req, res) => {
+router.post('/quiz/feedback', clerkAuth, requireAuth, limiter, async (req, res) => {
   try {
     const { workflowId, feedback, revision_note } = req.body as {
       workflowId: string
@@ -261,7 +300,7 @@ router.post('/quiz/feedback', [auth, limiter], async (req, res) => {
 })
 
 // Quiz save: after user confirmation
-router.post('/quiz/save', [auth, limiter], async (req, res) => {
+router.post('/quiz/save', clerkAuth, requireAuth, limiter, async (req, res) => {
   try {
     const payload = req.body as SavePayload
     if (!payload || !Array.isArray(payload.questions))
@@ -327,7 +366,6 @@ router.post('/models/list', async (req, res) => {
 
     // 调用模型列表 API
     const modelsURL = `${baseURL}/v1/models`
-    console.log('🔍 [API] 调用模型列表:', modelsURL)
 
     const response = await fetch(modelsURL, {
       headers: {
@@ -352,7 +390,6 @@ router.post('/models/list', async (req, res) => {
     })
   }
   catch (error: any) {
-    console.error('❌ [API] 获取模型列表失败:', error)
     res.status(500).send({
       status: 'Fail',
       message: error?.message || String(error),
@@ -377,7 +414,6 @@ router.post('/usage', async (req, res) => {
 
     // 调用使用量 API
     const usageURL = `${baseURL}/api/usage/token`
-    console.log('🔍 [API] 调用使用量查询:', usageURL)
 
     const response = await fetch(usageURL, {
       headers: {
@@ -419,6 +455,9 @@ interface ModelInfo {
   provider: string
   displayName: string
   enabled: boolean
+  maxTokens?: number // 最大输出 tokens
+  temperature?: number // 温度参数 0-2
+  topP?: number // top_p 参数 0-1
   createdAt: string
   updatedAt: string
 }
@@ -430,6 +469,9 @@ const modelsData: ModelInfo[] = [
     provider: 'OpenAI',
     displayName: 'GPT-4o',
     enabled: true,
+    maxTokens: 4096,
+    temperature: 0.7,
+    topP: 1,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -438,10 +480,52 @@ const modelsData: ModelInfo[] = [
     provider: 'OpenAI',
     displayName: 'GPT-4o Mini',
     enabled: true,
+    maxTokens: 16384,
+    temperature: 0.7,
+    topP: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // Kriora 模型
+  {
+    id: 'moonshotai/kimi-k2-0905',
+    provider: 'Kriora',
+    displayName: 'Kimi K2 (0905)',
+    enabled: true,
+    maxTokens: 8192,
+    temperature: 0.7,
+    topP: 0.95,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'qwen/qwen3-coder',
+    provider: 'Kriora',
+    displayName: 'Qwen 3 Coder',
+    enabled: true,
+    maxTokens: 8192,
+    temperature: 0.7,
+    topP: 0.95,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'qwen/qwen3-next-80b-a3b-instruct',
+    provider: 'Kriora',
+    displayName: 'Qwen 3 Next 80B Instruct',
+    enabled: true,
+    maxTokens: 8192,
+    temperature: 0.7,
+    topP: 0.95,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
 ]
+
+// 获取模型配置的辅助函数
+function getModelConfig(modelId: string) {
+  return modelsData.find(m => m.id === modelId)
+}
 
 // 获取所有模型
 router.get('/models', async (req, res) => {
@@ -464,11 +548,14 @@ router.get('/models', async (req, res) => {
 // 添加模型（临时移除认证以便测试）
 router.post('/models/add', async (req, res) => {
   try {
-    const { id, provider, displayName, enabled = true } = req.body as {
+    const { id, provider, displayName, enabled = true, maxTokens, temperature, topP } = req.body as {
       id: string
       provider: string
       displayName: string
       enabled?: boolean
+      maxTokens?: number
+      temperature?: number
+      topP?: number
     }
 
     if (!id || !provider || !displayName) {
@@ -494,6 +581,9 @@ router.post('/models/add', async (req, res) => {
       provider,
       displayName,
       enabled,
+      maxTokens,
+      temperature,
+      topP,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -518,11 +608,14 @@ router.post('/models/add', async (req, res) => {
 // 更新模型（临时移除认证以便测试）
 router.post('/models/update', async (req, res) => {
   try {
-    const { id, provider, displayName, enabled } = req.body as {
+    const { id, provider, displayName, enabled, maxTokens, temperature, topP } = req.body as {
       id: string
       provider?: string
       displayName?: string
       enabled?: boolean
+      maxTokens?: number
+      temperature?: number
+      topP?: number
     }
 
     if (!id) {
@@ -549,6 +642,12 @@ router.post('/models/update', async (req, res) => {
       model.displayName = displayName
     if (enabled !== undefined)
       model.enabled = enabled
+    if (maxTokens !== undefined)
+      model.maxTokens = maxTokens
+    if (temperature !== undefined)
+      model.temperature = temperature
+    if (topP !== undefined)
+      model.topP = topP
     model.updatedAt = new Date().toISOString()
 
     res.send({
@@ -733,7 +832,7 @@ router.get('/workflow/config', async (req, res) => {
 })
 
 // 更新工作流配置
-router.post('/workflow/config', [auth], async (req, res) => {
+router.post('/workflow/config', clerkAuth, requireAuth, async (req, res) => {
   try {
     const config = req.body as import('./quiz/types').WorkflowNodeConfig[]
     if (!Array.isArray(config)) {
@@ -761,7 +860,7 @@ router.post('/workflow/config', [auth], async (req, res) => {
 })
 
 ////////////////////////////////////////////////////////////////
-router.post('/config', auth, async (req, res) => {
+router.post('/config', clerkAuth, requireAuth, async (req, res) => {
   try {
     const response = await chatConfig()
     res.send(response)
@@ -930,7 +1029,7 @@ router.post('/auth/login', async (req, res) => {
 })
 
 // 获取用户信息 API
-router.get('/user/:id', [auth], async (req, res) => {
+router.get('/user/:id', clerkAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
 
@@ -969,7 +1068,7 @@ router.get('/user/:id', [auth], async (req, res) => {
 })
 
 // 更新用户信息 API
-router.put('/user/:id', [auth], async (req, res) => {
+router.put('/user/:id', clerkAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
     const { username, nickname, email, password } = req.body as {
@@ -1056,7 +1155,7 @@ router.put('/user/:id', [auth], async (req, res) => {
 })
 
 // 删除用户 API
-router.delete('/user/:id', [auth], async (req, res) => {
+router.delete('/user/:id', clerkAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
 
@@ -1098,7 +1197,7 @@ router.delete('/user/:id', [auth], async (req, res) => {
 })
 
 // 获取用户列表 API
-router.get('/users', [auth], async (req, res) => {
+router.get('/users', clerkAuth, requireAuth, async (req, res) => {
   try {
     const users = await getAllUsers()
 

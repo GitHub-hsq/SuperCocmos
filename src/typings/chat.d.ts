@@ -56,6 +56,10 @@ declare namespace Chat {
     conversationId?: string
     parentMessageId?: string
     model?: string
+    providerId?: string // 供应商 ID
+    systemMessage?: string // 系统提示词
+    temperature?: number // 温度参数
+    top_p?: number // Top P 参数
   }
 
   interface ConversationResponse {

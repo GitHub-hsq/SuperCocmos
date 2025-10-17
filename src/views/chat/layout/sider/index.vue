@@ -1,22 +1,59 @@
 <script setup lang='ts'>
 import type { CSSProperties } from 'vue'
-import { NButton, NLayoutSider, useDialog } from 'naive-ui'
+import { UserButton } from '@clerk/vue'
+import { NButton, NLayoutSider, NTag, useDialog } from 'naive-ui'
 import { nanoid } from 'nanoid'
 import { computed, ref, watch } from 'vue'
 import { PromptStore, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { useAppStore, useChatStore } from '@/store'
-import Footer from './Footer.vue'
+import { useAppStore, useAuthStore, useChatStore } from '@/store'
 import List from './List.vue'
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
+const authStore = useAuthStore()
 
 const dialog = useDialog()
 
 const { isMobile } = useBasicLayout()
 const show = ref(false)
+
+const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
+
+// 获取用户角色
+const userRole = computed(() => authStore.userInfo?.role || 'user')
+
+// 用户角色显示文本
+const roleText = computed(() => {
+  return userRole.value === 'admin' ? '超级管理员' : '普通用户'
+})
+
+// 角色标签类型
+const roleTagType = computed(() => {
+  return userRole.value === 'admin' ? 'error' : 'info'
+})
+
+// 计算属性：从 store 获取设置页面状态
+const showSettingsPage = computed(() => appStore.showSettingsPage)
+const activeSettingTab = computed(() => appStore.activeSettingTab)
+
+// 设置导航项列表
+const settingItems = computed(() => {
+  const items = [
+    { key: 'General', label: t('modelsSetting.general'), icon: 'ri:file-user-line' },
+    { key: 'Config', label: t('modelsSetting.config'), icon: 'ri:list-settings-line' },
+    { key: 'WorkflowModel', label: t('modelsSetting.workflowModel'), icon: 'ri:git-branch-line' },
+    { key: 'ProviderConfig', label: t('modelsSetting.providerConfig'), icon: 'ri:settings-3-line' },
+  ]
+
+  // 如果是 ChatGPT API，添加高级设置
+  if (isChatGPTAPI.value) {
+    items.splice(1, 0, { key: 'Advanced', label: t('modelsSetting.advanced'), icon: 'ri:equalizer-line' })
+  }
+
+  return items
+})
 
 const collapsed = computed(() => appStore.siderCollapsed)
 
@@ -77,6 +114,22 @@ function handleModeChange(mode: 'noteToQuestion' | 'noteToStory') {
     appStore.setSiderCollapsed(true)
 }
 
+// 切换到设置页面
+function handleShowSettings() {
+  appStore.setShowSettingsPage(true)
+  appStore.setActiveSettingTab('General')
+}
+
+// 返回菜单
+function handleBackToMenu() {
+  appStore.setShowSettingsPage(false)
+}
+
+// 选择设置项
+function handleSelectSettingItem(key: string) {
+  appStore.setActiveSettingTab(key)
+}
+
 const getMobileClass = computed<CSSProperties>(() => {
   if (isMobile.value) {
     return {
@@ -120,56 +173,105 @@ watch(
     :style="getMobileClass"
     @update-collapsed="handleUpdateCollapsed"
   >
-    <div class="flex flex-col h-full" :style="mobileSafeArea">
-      <main class="flex flex-col flex-1 min-h-0">
-        <!-- 聊天模式切换组件 -->
-        <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-          <div class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
-            {{ $t('chat.mode') }}
-          </div>
-          <div class="flex flex-col space-y-2">
-            <NButton
-              :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
-              block
-              @click="handleModeChange('noteToQuestion')"
-            >
-              <template #icon>
-                <SvgIcon icon="ri:file-text-line" />
-              </template>
-              {{ $t('chat.modeNoteToQuestion') }}
-            </NButton>
-            <NButton
-              :type="chatStore.chatMode === 'noteToStory' ? 'primary' : 'default'"
-              block
-              @click="handleModeChange('noteToStory')"
-            >
-              <template #icon>
-                <SvgIcon icon="ri:book-open-line" />
-              </template>
-              {{ $t('chat.modeNoteToStory') }}
-            </NButton>
-          </div>
+    <div class="flex flex-col h-full overflow-hidden" :style="mobileSafeArea">
+      <!-- 双层容器实现滑动切换 -->
+      <div class="relative flex-1 overflow-hidden">
+        <!-- 菜单面板 -->
+        <div
+          class="absolute inset-0 flex flex-col sider-panel-transition"
+          :class="showSettingsPage ? '-translate-x-full' : 'translate-x-0'"
+        >
+          <main class="flex flex-col flex-1 min-h-0">
+            <!-- 聊天模式切换组件 -->
+            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+              <div class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
+                {{ $t('chat.mode') }}
+              </div>
+              <div class="flex flex-col space-y-2">
+                <NButton
+                  :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
+                  block
+                  @click="handleModeChange('noteToQuestion')"
+                >
+                  <template #icon>
+                    <SvgIcon icon="ri:file-text-line" />
+                  </template>
+                  {{ $t('chat.modeNoteToQuestion') }}
+                </NButton>
+                <NButton
+                  :type="chatStore.chatMode === 'noteToStory' ? 'primary' : 'default'"
+                  block
+                  @click="handleModeChange('noteToStory')"
+                >
+                  <template #icon>
+                    <SvgIcon icon="ri:book-open-line" />
+                  </template>
+                  {{ $t('chat.modeNoteToStory') }}
+                </NButton>
+              </div>
+            </div>
+            <div class="p-4">
+              <NButton dashed block @click="handleAdd">
+                {{ $t('chat.newChatButton') }}
+              </NButton>
+            </div>
+            <div class="flex-1 min-h-0 pb-4 overflow-hidden">
+              <List />
+            </div>
+            <div class="flex items-center p-4 space-x-4">
+              <div class="flex-1">
+                <NButton block @click="show = true">
+                  {{ $t('store.siderButton') }}
+                </NButton>
+              </div>
+              <NButton @click="handleClearAll">
+                <SvgIcon icon="ri:close-circle-line" />
+              </NButton>
+            </div>
+          </main>
         </div>
-        <div class="p-4">
-          <NButton dashed block @click="handleAdd">
-            {{ $t('chat.newChatButton') }}
-          </NButton>
+
+        <!-- 设置导航面板 -->
+        <div
+          class="absolute inset-0 flex flex-col sider-panel-transition bg-white dark:bg-[#18181c]"
+          :class="showSettingsPage ? 'translate-x-0' : 'translate-x-full'"
+        >
+          <!-- 设置导航列表 -->
+          <main class="flex-1 overflow-y-auto p-2">
+            <div class="space-y-1">
+              <div
+                v-for="item in settingItems"
+                :key="item.key"
+                class="setting-nav-item"
+                :class="{ active: activeSettingTab === item.key }"
+                @click="handleSelectSettingItem(item.key)"
+              >
+                <SvgIcon :icon="item.icon" class="text-lg" />
+                <span class="ml-3">{{ item.label }}</span>
+              </div>
+            </div>
+          </main>
         </div>
-        <div class="flex-1 min-h-0 pb-4 overflow-hidden">
-          <List />
+      </div>
+
+      <!-- Footer - 独立于面板切换，根据状态显示不同图标 -->
+      <footer class="flex items-center justify-between min-w-0 p-4 overflow-hidden border-t dark:border-neutral-800">
+        <div class="flex items-center space-x-2 flex-1 min-w-0">
+          <!-- Clerk UserButton -->
+          <UserButton />
+          <!-- 用户角色标签 -->
+          <NTag :type="roleTagType" size="small" round>
+            {{ roleText }}
+          </NTag>
         </div>
-        <div class="flex items-center p-4 space-x-4">
-          <div class="flex-1">
-            <NButton block @click="show = true">
-              {{ $t('store.siderButton') }}
-            </NButton>
-          </div>
-          <NButton @click="handleClearAll">
-            <SvgIcon icon="ri:close-circle-line" />
-          </NButton>
-        </div>
-      </main>
-      <Footer />
+        <NButton quaternary circle @click="showSettingsPage ? handleBackToMenu() : handleShowSettings()">
+          <template #icon>
+            <span class="text-xl text-[#4f555e] dark:text-white">
+              <SvgIcon :icon="showSettingsPage ? 'ri:arrow-left-line' : 'ri:settings-4-line'" />
+            </span>
+          </template>
+        </NButton>
+      </footer>
     </div>
   </NLayoutSider>
   <template v-if="isMobile">
@@ -177,3 +279,45 @@ watch(
   </template>
   <PromptStore v-model:visible="show" />
 </template>
+
+<style scoped>
+/* 侧边栏面板滑动过渡效果 - 使用流畅的缓动函数 */
+.sider-panel-transition {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 设置导航项样式 */
+.setting-nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #666;
+}
+
+.setting-nav-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:deep(.dark) .setting-nav-item {
+  color: #999;
+}
+
+:deep(.dark) .setting-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.setting-nav-item.active {
+  background-color: rgba(0, 0, 0, 0.08);
+  color: #333;
+  font-weight: 500;
+}
+
+:deep(.dark) .setting-nav-item.active {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+</style>

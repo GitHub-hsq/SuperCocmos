@@ -78,9 +78,6 @@ defineExpose({
     <!-- API 使用量信息 -->
     <div v-if="isChatGPTAPI" class="space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">
-          API 使用量
-        </h3>
         <NButton
           size="small"
           :loading="loadingUsage"

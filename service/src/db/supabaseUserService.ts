@@ -4,11 +4,11 @@
  * 提供用户的 CRUD 操作（基于 Supabase）
  */
 
-import { comparePassword, hashPassword } from '../utils/password'
+import { hashPassword, verifyPassword } from '../utils/password'
 import { supabase } from './supabaseClient'
 
 export interface SupabaseUser {
-  user_id: number
+  user_id: string // UUID
   username: string
   password?: string
   email: string
@@ -44,6 +44,9 @@ export interface UpdateUserInput {
   avatar_url?: string
   last_login_at?: string
   department_id?: number
+  clerk_id?: string
+  provider?: string
+  login_method?: string
 }
 
 /**
@@ -160,7 +163,7 @@ export async function findUserByUsername(username: string): Promise<SupabaseUser
 /**
  * 根据 ID 查找用户
  */
-export async function findUserById(userId: number): Promise<SupabaseUser | null> {
+export async function findUserById(userId: string): Promise<SupabaseUser | null> {
   try {
     const { data, error } = await supabase
       .from('users')
@@ -191,7 +194,7 @@ export async function validateUserPassword(email: string, password: string): Pro
     if (!user || !user.password)
       return null
 
-    const isValid = await comparePassword(password, user.password)
+    const isValid = await verifyPassword(user.password, password)
     if (!isValid)
       return null
 
@@ -211,7 +214,7 @@ export async function validateUserPassword(email: string, password: string): Pro
 /**
  * 更新用户信息
  */
-export async function updateUser(userId: number, input: UpdateUserInput): Promise<SupabaseUser | null> {
+export async function updateUser(userId: string, input: UpdateUserInput): Promise<SupabaseUser | null> {
   try {
     const updateData: any = {
       updated_at: new Date().toISOString(),
@@ -259,13 +262,14 @@ export async function updateUser(userId: number, input: UpdateUserInput): Promis
 }
 
 /**
- * 删除用户
+ * 删除用户（软删除）
  */
-export async function deleteUser(userId: number): Promise<boolean> {
+export async function deleteUser(userId: string): Promise<boolean> {
   try {
+    // 软删除：将状态设置为0
     const { error } = await supabase
       .from('users')
-      .delete()
+      .update({ status: 0 })
       .eq('user_id', userId)
 
     if (error)
@@ -312,31 +316,78 @@ export async function upsertUserFromOAuth(input: {
   provider: string
 }): Promise<SupabaseUser> {
   try {
-    // 先尝试查找用户
+    // 先通过 clerk_id 查找用户
     let user = await findUserByClerkId(input.clerk_id)
 
     if (user) {
-      // 更新现有用户
+      // 用户已存在，更新信息
+      const wasDeleted = user.status === 0
+      if (wasDeleted) {
+        console.log(`🔄 [SupabaseUserService] 恢复已删除用户: ${input.email}`)
+      }
+      else {
+        console.log(`📝 [SupabaseUserService] 更新现有用户: ${input.email}`)
+      }
+
       const updated = await updateUser(user.user_id, {
         email: input.email,
         username: input.username,
         avatar_url: input.avatar_url,
+        status: 1, // 确保用户状态为激活
         last_login_at: new Date().toISOString(),
       })
       return updated!
     }
-    else {
-      // 创建新用户
-      user = await createUser({
+
+    // 通过 email 查找用户（可能是已存在的邮箱注册用户）
+    user = await findUserByEmail(input.email)
+
+    if (user) {
+      // 用户已存在，更新 clerk_id 和其他信息
+      const wasDeleted = user.status === 0
+      if (wasDeleted) {
+        console.log(`🔄 [SupabaseUserService] 恢复已删除用户并关联到 Clerk: ${input.email}`)
+      }
+      else {
+        console.log(`🔗 [SupabaseUserService] 关联现有用户到 Clerk: ${input.email}`)
+      }
+
+      const updated = await updateUser(user.user_id, {
         clerk_id: input.clerk_id,
-        email: input.email,
-        username: input.username || input.email.split('@')[0],
-        avatar_url: input.avatar_url,
+        username: input.username || user.username,
+        avatar_url: input.avatar_url || user.avatar_url,
         provider: input.provider,
         login_method: input.provider,
+        status: 1, // 确保用户状态为激活
+        last_login_at: new Date().toISOString(),
       })
-      return user
+      return updated!
     }
+
+    // 用户不存在，创建新用户
+    console.log(`➕ [SupabaseUserService] 创建新用户: ${input.email}`)
+
+    // 生成唯一的用户名
+    let username = input.username || input.email.split('@')[0]
+
+    // 检查用户名是否已存在，如果存在则添加随机后缀
+    const existingUser = await findUserByUsername(username)
+    if (existingUser) {
+      const randomSuffix = Math.random().toString(36).substring(2, 8)
+      username = `${username}_${randomSuffix}`
+      console.log(`⚠️  [SupabaseUserService] 用户名已存在，使用新用户名: ${username}`)
+    }
+
+    user = await createUser({
+      clerk_id: input.clerk_id,
+      email: input.email,
+      username,
+      avatar_url: input.avatar_url,
+      provider: input.provider,
+      login_method: input.provider,
+    })
+
+    return user
   }
   catch (error: any) {
     console.error('❌ [SupabaseUserService] upsertUserFromOAuth 失败:', error.message)

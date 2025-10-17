@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell -Command \"Stop-Process -Id 25108 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 22860 -Force\")",
+      "Bash(tasklist:*)",
+      "Bash(dir:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(cmd /c \"tasklist | findstr node\")",
+      "Bash(pnpm dev)",
+      "Bash(nslookup:*)",
+      "Read(//c/Windows/System32/drivers/etc/**)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

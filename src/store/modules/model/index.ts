@@ -1,27 +1,42 @@
 /// <reference path="../../../typings/model.d.ts" />
 import { defineStore } from 'pinia'
-import { fetchModels } from '@/api'
+import { fetchProviders } from '@/api'
 import { store } from '@/store/helper'
-import { defaultModelState, getLocalWorkflowConfig, setLocalWorkflowConfig } from './helper'
+import { clearCurrentModelId, clearProvidersCache, defaultModelState, getCurrentModelId, getLocalWorkflowConfig, getProvidersCache, saveCurrentModelId, saveProvidersCache, setLocalWorkflowConfig } from './helper'
+
+// 后端供应商数据格式
+interface BackendProviderInfo {
+  id: string
+  name: string
+  baseUrl: string
+  apiKey: string
+  models: BackendModelInfo[]
+  createdAt?: string
+  updatedAt?: string
+}
 
 // 后端模型数据格式
 interface BackendModelInfo {
   id: string
-  provider: string
+  modelId: string
   displayName: string
   enabled: boolean
-  createdAt: string
-  updatedAt: string
+  providerId: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export const useModelStore = defineStore('model-store', {
   state: (): Model.ModelState => {
     const defaultState = defaultModelState()
-    // 只从本地存储读取工作流配置，模型列表从后端获取
+    // 从本地存储读取工作流配置和当前模型ID
     const localWorkflowConfig = getLocalWorkflowConfig()
+    const cachedModelId = getCurrentModelId()
+    
     return {
       ...defaultState,
       workflowNodes: localWorkflowConfig || defaultState.workflowNodes,
+      currentModelId: cachedModelId || defaultState.currentModelId, // 🔥 优先使用缓存的模型ID
     }
   },
 
@@ -65,58 +80,107 @@ export const useModelStore = defineStore('model-store', {
   },
 
   actions: {
-    // 从后端加载模型列表
-    async loadModelsFromBackend() {
+    // 从后端加载模型列表（使用新的 Provider 结构，支持缓存优先）
+    async loadModelsFromBackend(forceRefresh = false) {
       try {
-        const response = await fetchModels<BackendModelInfo[]>()
+        // 🔥 如果不是强制刷新且已经加载过，直接返回
+        if (!forceRefresh && this.isProvidersLoaded) {
+          console.log('ℹ️ [ModelStore] 供应商列表已加载，跳过重复加载')
+          return true
+        }
+
+        // 🔥 如果不是强制刷新，先尝试从缓存加载
+        if (!forceRefresh) {
+          const cachedProviders = getProvidersCache()
+          if (cachedProviders && cachedProviders.length > 0) {
+            this.providers = cachedProviders
+            this.isProvidersLoaded = true // 标记已加载
+            console.log('✅ [ModelStore] 使用缓存的供应商列表:', {
+              供应商数量: this.providers.length,
+              启用的模型: this.enabledModels.length,
+            })
+
+            // 验证当前模型是否存在
+            this.validateCurrentModel()
+            return true
+          }
+          else {
+            console.log('ℹ️ [ModelStore] 缓存不存在或已过期，从后端加载...')
+          }
+        }
+        else {
+          console.log('🔄 [ModelStore] 强制刷新，清除缓存并从后端加载...')
+          clearProvidersCache()
+          this.isProvidersLoaded = false // 重置加载状态
+        }
+
+        // 从后端加载
+        const response = await fetchProviders<BackendProviderInfo[]>()
         if (response.status === 'Success' && response.data) {
           // 将后端数据转换为前端格式
-          const modelsData = response.data
-
-          // 按供应商分组
-          const providerMap = new Map<string, BackendModelInfo[]>()
-          modelsData.forEach((model: any) => {
-            if (!providerMap.has(model.provider))
-              providerMap.set(model.provider, [])
-
-            providerMap.get(model.provider)!.push(model)
-          })
+          const providersData = response.data
 
           // 构建providers数组
-          this.providers = Array.from(providerMap.entries()).map(([providerName, models]: [string, any[]]) => {
-            const providerId = providerName.toLowerCase() as Model.ProviderType
-            const hasEnabledModel = models.some((m: any) => m.enabled)
+          this.providers = providersData.map((provider) => {
+            // 🔥 修复：使用后端提供的 UUID 作为 providerId，而不是 name.toLowerCase()
+            const providerId = provider.id as Model.ProviderType
+            const hasEnabledModel = provider.models.some(m => m.enabled)
 
             return {
-              id: providerId,
-              name: providerId,
-              displayName: providerName,
+              id: providerId, // 使用 UUID
+              name: provider.name, // 使用原始名称
+              displayName: provider.name, // 显示名称就是供应商名称
               enabled: hasEnabledModel, // 如果有任何模型启用，则供应商启用
-              models: models.map((m: any) => ({
-                id: m.id,
-                name: m.id,
-                displayName: m.displayName,
-                provider: providerId,
+              models: provider.models.map(m => ({
+                id: m.id, // 模型的 UUID（用于前端标识）
+                modelId: m.modelId, // 🔥 实际的模型ID（发送给后端，如：basic/gpt-4.1）
+                name: m.modelId, // 原始模型ID
+                displayName: m.displayName, // 显示名称
+                provider: providerId, // 关联到供应商 UUID
+                providerId: provider.id, // 🔥 供应商 UUID（用于查找 baseUrl）
                 enabled: m.enabled,
               })),
             }
           })
 
-          // 如果当前选中的模型不在列表中，选择第一个启用的模型
-          const currentModelExists = this.enabledModels.some((m: any) => m.id === this.currentModelId)
-          if (!currentModelExists && this.enabledModels.length > 0) {
-            const firstModel = this.enabledModels[0]
-            this.currentModelId = firstModel.id
-            this.currentProviderId = firstModel.provider
-          }
+          // 🔥 保存到缓存
+          saveProvidersCache(this.providers)
+
+          // 🔥 标记已加载
+          this.isProvidersLoaded = true
+
+          // 验证当前模型是否存在
+          this.validateCurrentModel()
+
+          console.log('✅ [ModelStore] 模型从后端加载成功:', {
+            供应商数量: this.providers.length,
+            启用的模型: this.enabledModels.length,
+            供应商列表: this.providers.map(p => ({ id: p.id, name: p.name, 模型数: p.models.length })),
+          })
 
           return true
         }
         return false
       }
       catch (error) {
-        console.error('从后端加载模型失败:', error)
+        console.error('❌ [ModelStore] 从后端加载模型失败:', error)
         return false
+      }
+    },
+
+    // 验证当前模型是否存在，不存在则选择第一个可用模型
+    validateCurrentModel() {
+      const currentModelExists = this.enabledModels.some((m: any) => m.id === this.currentModelId)
+      if (!currentModelExists && this.enabledModels.length > 0) {
+        const firstModel = this.enabledModels[0]
+        this.currentModelId = firstModel.id
+        this.currentProviderId = firstModel.provider
+        saveCurrentModelId(this.currentModelId)
+        console.log('⚠️ [ModelStore] 当前模型不存在，已切换到:', firstModel.displayName)
+      }
+      else if (!currentModelExists && this.enabledModels.length === 0) {
+        console.warn('⚠️ [ModelStore] 没有可用的模型')
+        clearCurrentModelId()
       }
     },
 
@@ -127,7 +191,8 @@ export const useModelStore = defineStore('model-store', {
       if (model) {
         this.currentModelId = modelId
         this.currentProviderId = model.provider
-        // 不再保存到localStorage
+        // 🔥 保存到 localStorage
+        saveCurrentModelId(modelId)
       }
     },
 

@@ -22,10 +22,22 @@ export function useTheme() {
   const themeOverrides = computed<GlobalThemeOverrides>(() => {
     if (isDark.value) {
       return {
-        common: {},
+        common: {
+          primaryColor: '#ffffff',
+          primaryColorHover: '#f5f5f5',
+          primaryColorPressed: '#e0e0e0',
+          primaryColorSuppl: '#ffffff',
+        },
       }
     }
-    return {}
+    return {
+      common: {
+        primaryColor: '#080808',
+        primaryColorHover: '#333333',
+        primaryColorPressed: '#000000',
+        primaryColorSuppl: '#080808',
+      },
+    }
   })
 
   watch(
@@ -41,3 +53,4 @@ export function useTheme() {
 
   return { theme, themeOverrides }
 }
+

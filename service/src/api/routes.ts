@@ -6,6 +6,8 @@
 import express from 'express'
 import { clerkAuth, requireAdmin, requireAuth } from '../middleware/clerkAuth'
 import * as authController from './authController'
+import * as configController from './configController'
+import * as providerController from './providerController'
 import * as roleController from './roleController'
 
 const router = express.Router()
@@ -68,5 +70,103 @@ router.post('/user-roles/remove', clerkAuth, requireAdmin, roleController.remove
  * 获取用户的角色（需要登录）
  */
 router.get('/user-roles/:userId', clerkAuth, requireAuth, roleController.getUserRoles)
+
+// ==============================================
+// 供应商和模型管理路由
+// ==============================================
+
+/**
+ * 获取所有供应商及其模型
+ */
+router.get('/providers', clerkAuth, requireAuth, providerController.getProviders)
+
+/**
+ * 创建供应商
+ */
+router.post('/providers', clerkAuth, requireAuth, providerController.addProvider)
+
+/**
+ * 更新供应商
+ */
+router.put('/providers/:id', clerkAuth, requireAuth, providerController.editProvider)
+
+/**
+ * 删除供应商
+ */
+router.delete('/providers/:id', clerkAuth, requireAuth, providerController.removeProvider)
+
+/**
+ * 创建模型
+ */
+router.post('/models', clerkAuth, requireAuth, providerController.addModel)
+
+/**
+ * 更新模型
+ */
+router.put('/models/:id', clerkAuth, requireAuth, providerController.editModel)
+
+/**
+ * 删除模型
+ */
+router.delete('/models/:id', clerkAuth, requireAuth, providerController.removeModel)
+
+/**
+ * 切换模型启用状态
+ */
+router.patch('/models/:id/toggle', clerkAuth, requireAuth, providerController.toggleModel)
+
+// ==============================================
+// 用户配置路由
+// ==============================================
+
+/**
+ * 获取用户完整配置
+ */
+router.get('/config', clerkAuth, requireAuth, configController.getConfig)
+
+/**
+ * 获取用户设置
+ */
+router.get('/config/user-settings', clerkAuth, requireAuth, configController.getUserSettingsHandler)
+
+/**
+ * 更新用户设置
+ */
+router.patch('/config/user-settings', clerkAuth, requireAuth, configController.patchUserSettings)
+
+/**
+ * 获取聊天配置
+ */
+router.get('/config/chat', clerkAuth, requireAuth, configController.getChatConfigHandler)
+
+/**
+ * 更新聊天配置
+ */
+router.patch('/config/chat', clerkAuth, requireAuth, configController.patchChatConfig)
+
+/**
+ * 获取工作流配置
+ */
+router.get('/config/workflow', clerkAuth, requireAuth, configController.getWorkflowConfigHandler)
+
+/**
+ * 更新工作流配置
+ */
+router.patch('/config/workflow', clerkAuth, requireAuth, configController.patchWorkflowConfig)
+
+/**
+ * 获取额外配置
+ */
+router.get('/config/additional', clerkAuth, requireAuth, configController.getAdditionalConfigHandler)
+
+/**
+ * 更新额外配置
+ */
+router.patch('/config/additional', clerkAuth, requireAuth, configController.patchAdditionalConfig)
+
+/**
+ * 重置配置为默认值
+ */
+router.post('/config/reset', clerkAuth, requireAuth, configController.resetConfig)
 
 export default router

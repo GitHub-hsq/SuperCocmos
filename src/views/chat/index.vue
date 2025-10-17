@@ -7,13 +7,19 @@ import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
 import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { HoverButton, SvgIcon } from '@/components/common'
+import About from '@/components/common/Setting/About.vue'
+import Advanced from '@/components/common/Setting/Advanced.vue'
+// 🔥 使用新的配置面板组件
+import ProviderConfigPanel from '@/components/common/Setting/panels/ProviderConfigPanel.vue'
+import UserSettingsPanel from '@/components/common/Setting/panels/UserSettingsPanel.vue'
+import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConfigPanel.vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { useAppStore, useChatStore, useModelStore, usePromptStore } from '@/store'
+import { useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore, useUserStore } from '@/store'
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
 import HeaderComponent from './components/Header/index.vue'
 import { useChat } from './hooks/useChat'
@@ -32,8 +38,11 @@ const dialog = useDialog()
 const ms = useMessage()
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const chatStore = useChatStore()
+const configStore = useConfigStore()
 const modelStore = useModelStore()
+const userStore = useUserStore()
 
 const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
@@ -41,6 +50,13 @@ const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
 
 const currentSelectedModel = ref<ModelItem | null>(null)
+
+// 设置页面相关
+const showSettingsPage = computed(() => appStore.showSettingsPage)
+const activeSettingTab = computed(() => appStore.activeSettingTab)
+const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
+const aboutRef = ref<InstanceType<typeof About> | null>(null)
+const hasLoadedUsage = ref(false)
 
 const { uuid } = route.params as { uuid: string }
 
@@ -56,17 +72,6 @@ const promptStore = usePromptStore()
 
 // 使用storeToRefs，保证store修改后，联想部分能够重新渲染
 const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
-
-// 供应商显示名称映射
-const providerDisplayNames: Record<string, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  deepseek: 'DeepSeek',
-  google: 'Google',
-  xai: 'xAI',
-  doubao: '豆包',
-  qwen: '通义千问',
-}
 
 // 未知原因刷新页面，loading 状态不会重置，手动重置
 dataSources.value.forEach((item, index) => {
@@ -120,9 +125,24 @@ async function onConversation() {
   // 添加当前选中的模型
   const selectedModel = currentSelectedModel.value || modelStore.currentModel
   if (selectedModel) {
-    options.model = selectedModel.id
-    console.log('🚀 [聊天] 使用模型:', selectedModel.displayName, '(ID:', selectedModel.id, ')')
+    // 🔥 发送 modelId 而不是 UUID
+    options.model = selectedModel.modelId || selectedModel.name
+    console.log('🚀 [聊天] 使用模型:', selectedModel.displayName, '(modelId:', options.model, ')')
+
+    // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
+    options.providerId = selectedModel.providerId
   }
+
+  // 🔥 添加用户配置的系统提示词、温度和 Top P 参数
+  const userInfo = userStore.userInfo
+  if (userInfo.systemPrompt)
+    options.systemMessage = userInfo.systemPrompt
+
+  if (userInfo.temperature !== undefined)
+    options.temperature = userInfo.temperature
+
+  if (userInfo.topP !== undefined)
+    options.top_p = userInfo.topP
 
   addChat(
     uuid,
@@ -256,9 +276,24 @@ async function onRegenerate(index: number) {
   // 添加当前选中的模型
   const selectedModel = currentSelectedModel.value || modelStore.currentModel
   if (selectedModel) {
-    options.model = selectedModel.id
-    console.log('🔄 [重新生成] 使用模型:', selectedModel.displayName, '(ID:', selectedModel.id, ')')
+    // 🔥 发送 modelId 而不是 UUID
+    options.model = selectedModel.modelId || selectedModel.name
+    console.log('🔄 [重新生成] 使用模型:', selectedModel.displayName, '(modelId:', options.model, ')')
+
+    // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
+    options.providerId = selectedModel.providerId
   }
+
+  // 🔥 添加用户配置的系统提示词、温度和 Top P 参数
+  const userInfo = userStore.userInfo
+  if (userInfo.systemPrompt)
+    options.systemMessage = userInfo.systemPrompt
+
+  if (userInfo.temperature !== undefined)
+    options.temperature = userInfo.temperature
+
+  if (userInfo.topP !== undefined)
+    options.top_p = userInfo.topP
 
   loading.value = true
 
@@ -779,14 +814,78 @@ function handleResizeEnd() {
   document.body.style.userSelect = ''
 }
 
+// 模型选择器状态（需要在 onMounted 之前定义）
+const showModelSelector = ref(false)
+const activeVendor = ref('') // 🔥 初始化为空，将在加载模型后自动设置
+const modelSearch = ref('')
+const selectedModelFromPopover = ref<string | null>(null)
+
+// 🔥 组件初始化状态标记（防止重复初始化）
+const isComponentInitialized = ref(false)
+
 // 监听鼠标事件
-onMounted(() => {
+onMounted(async () => {
+  // 🔥 防止重复初始化
+  if (isComponentInitialized.value) {
+    console.log('ℹ️ [Chat] 组件已初始化，跳过重复初始化')
+    return
+  }
+
   scrollToBottom()
   if (inputRef.value && !isMobile.value)
     inputRef.value?.focus()
 
-  // 加载当前选中的模型
+  // 🔥 加载模型列表（优先使用缓存，Store内部已做防重复加载处理）
+  try {
+    console.log('🔄 [Chat] 初始化模型列表...')
+    const success = await modelStore.loadModelsFromBackend() // Store 内部会处理缓存和防重复逻辑
+    if (success) {
+      console.log('✅ [Chat] 模型列表初始化完成:', {
+        供应商数量: modelStore.providers.length,
+        启用的模型: modelStore.enabledModels.length,
+      })
+    }
+    else {
+      console.warn('⚠️ [Chat] 模型列表初始化失败')
+      ms.warning('模型列表加载失败，请刷新页面重试')
+    }
+  }
+  catch (error) {
+    console.error('❌ [Chat] 模型列表初始化异常:', error)
+    ms.error('模型列表加载异常，请检查网络连接')
+  }
+
+  // 🔥 加载用户配置（V2 新增，带防重复加载）
+  if (!configStore.loaded) {
+    try {
+      // 使用类型断言调用action
+      const loadConfig = (configStore as any).loadAllConfig
+      if (typeof loadConfig === 'function')
+        await loadConfig()
+    }
+    catch (error) {
+      console.error('❌ [Chat] 用户配置初始化异常:', error)
+      // 配置加载失败不影响聊天功能，只记录错误
+    }
+  }
+  else {
+    console.log('ℹ️ [Chat] 用户配置已加载，跳过重复加载')
+  }
+
+  // 加载当前选中的模型（已从缓存恢复）
   loadCurrentModel()
+
+  // 🔥 设置默认的 activeVendor 为第一个可用供应商
+  if (modelStore.providers.length > 0) {
+    const firstEnabledProvider = modelStore.providers.find((p: any) => p.enabled && p.models.length > 0)
+    if (firstEnabledProvider) {
+      activeVendor.value = firstEnabledProvider.id
+      console.log('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
+    }
+  }
+
+  // 🔥 标记组件已初始化
+  isComponentInitialized.value = true
 
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
@@ -800,17 +899,24 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', handleResizeEnd)
 })
 
-// 模型选择器状态
-const showModelSelector = ref(false)
-const activeVendor = ref('openai')
-const modelSearch = ref('')
-const selectedModelFromPopover = ref<string | null>(null)
+// 监听设置选项卡切换，首次点击API使用量时自动加载
+watch(activeSettingTab, (newValue) => {
+  if (newValue === 'Config' && !hasLoadedUsage.value && isChatGPTAPI.value) {
+    hasLoadedUsage.value = true
+    setTimeout(() => {
+      if (aboutRef.value && typeof aboutRef.value.fetchUsage === 'function')
+        aboutRef.value.fetchUsage()
+    }, 100)
+  }
+})
 
 // 从 localStorage 获取模型数据
 interface ModelItem {
   id: string
   name: string
+  modelId?: string
   provider: string
+  providerId?: string
   displayName: string
   enabled: boolean
   deleted: boolean
@@ -820,19 +926,14 @@ interface ModelItem {
 // 获取供应商列表（只显示已启用的供应商）
 const availableVendors = computed(() => {
   try {
-    const vendors = new Map<string, number>()
-
     // 从ModelStore获取启用的供应商和模型
-    modelStore.providers.forEach((provider: any) => {
-      if (provider.enabled && provider.models.length > 0)
-        vendors.set(provider.id, provider.models.length)
-    })
-
-    return Array.from(vendors.entries()).map(([provider, count]) => ({
-      label: providerDisplayNames[provider] || provider,
-      key: provider,
-      count,
-    }))
+    return modelStore.providers
+      .filter((provider: any) => provider.enabled && provider.models.length > 0)
+      .map((provider: any) => ({
+        label: provider.displayName || provider.name, // 🔥 使用 provider 的 displayName
+        key: provider.id, // 🔥 使用 UUID 作为 key
+        count: provider.models.filter((m: any) => m.enabled).length,
+      }))
   }
   catch (error) {
     console.error('❌ [模型] 获取供应商列表失败:', error)
@@ -852,6 +953,7 @@ const currentVendorModels = computed(() => {
       id: model.id,
       name: model.name,
       provider: model.provider,
+      providerId: model.providerId, // 🔥 添加 providerId 字段
       displayName: model.displayName,
       enabled: true,
       deleted: false,
@@ -896,11 +998,19 @@ function loadCurrentModel() {
           id: currentModelFromStore.id,
           name: currentModelFromStore.name,
           provider: currentModelFromStore.provider,
+          providerId: currentModelFromStore.providerId, // 🔥 添加 providerId 字段
           displayName: currentModelFromStore.displayName,
           enabled: true,
           deleted: false,
         }
         selectedModelFromPopover.value = currentModelFromStore.id
+
+        // 🔥 自动绑定供应商信息
+        if (currentModelFromStore.providerId) {
+          modelStore.setCurrentProvider(currentModelFromStore.providerId as any)
+          console.log('🔗 [模型] 已绑定供应商:', currentModelFromStore.providerId)
+        }
+
         console.log('✅ [模型] 加载已保存的模型:', currentModelFromStore.displayName)
       }
       else {
@@ -934,7 +1044,14 @@ function resetToDefaultModel() {
 function handleSelectModel(model: ModelItem) {
   selectedModelFromPopover.value = model.id
   currentSelectedModel.value = model
-  console.log('✅ [模型] 已选择模型:', model.name, '供应商:', model.provider)
+  console.log('✅ [模型] 已选择模型:', model.name, '供应商:', model.provider, '供应商ID:', model.providerId)
+
+  // 🔥 自动绑定供应商信息，减少后续查询
+  if (model.providerId) {
+    // 更新当前供应商ID
+    modelStore.setCurrentProvider(model.providerId as any)
+    console.log('🔗 [模型] 已绑定供应商:', model.providerId)
+  }
 
   // 保存到ModelStore
   try {
@@ -954,337 +1071,388 @@ function handleSelectModel(model: ModelItem) {
 <template>
   <SignedIn>
     <div class="flex flex-col w-full h-full">
-      <HeaderComponent
-        v-if="isMobile"
-        :using-context="usingContext"
-        @export="handleExport"
-        @handle-clear="handleClear"
-      />
+      <transition name="fade" mode="out-in">
+        <!-- 设置页面 - 整体替换 -->
+        <div v-if="showSettingsPage" key="settings" class="flex-1 overflow-hidden flex flex-col">
+          <div class="flex-1 overflow-y-auto bg-white dark:bg-[#161618]" style="padding: 10px 30px;">
+            <div class="w-full max-w-full">
+              <transition name="fade-fast" mode="out-in">
+                <!-- 🔥 个人设置 - 使用新的 UserSettingsPanel -->
+                <UserSettingsPanel v-if="activeSettingTab === 'General'" key="general" />
 
-      <!-- Web端Header -->
-      <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#161618]">
-        <div class="flex items-center space-x-4">
-          <NPopover
-            v-model:show="showModelSelector"
-            trigger="click"
-            placement="bottom-start"
-            :show-arrow="false"
-            :width="700"
-            @update:show="(show) => show && loadCurrentModel()"
-          >
-            <template #trigger>
-              <NButton quaternary>
-                <template #icon>
-                  <SvgIcon icon="ri:openai-fill" />
-                </template>
-                {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
-              </NButton>
-            </template>
+                <!-- Advanced 设置 - 保持不变 -->
+                <Advanced v-else-if="activeSettingTab === 'Advanced' && isChatGPTAPI" key="advanced" />
 
-            <!-- 弹出内容 -->
-            <div v-if="availableVendors.length > 0" class="model-selector-popup">
-              <NLayout has-sider style="height: 400px">
-                <!-- 左侧供应商列表 -->
-                <NLayoutSider :width="180" bordered class="vendor-sidebar">
-                  <NScrollbar style="height: 100%">
-                    <div class="vendor-list">
-                      <div
-                        v-for="vendor in availableVendors"
-                        :key="vendor.key"
-                        class="vendor-item"
-                        :class="{ active: activeVendor === vendor.key }"
-                        @mouseenter="handleVendorHover(vendor.key)"
-                      >
-                        <span class="vendor-name">{{ vendor.label }}</span>
-                      </div>
-                    </div>
-                  </NScrollbar>
-                </NLayoutSider>
+                <!-- API 配置 - 保持 About 组件（API使用量） -->
+                <About v-else-if="activeSettingTab === 'Config'" key="config" ref="aboutRef" />
 
-                <!-- 右侧模型列表 -->
-                <NLayout class="model-content">
-                  <NLayoutHeader bordered class="search-header">
-                    <NInput
-                      v-model:value="modelSearch"
-                      placeholder="🔍 搜索模型名称..."
-                      clearable
-                      size="small"
-                    />
-                  </NLayoutHeader>
-                  <NLayoutContent>
-                    <NScrollbar style="height: 100%">
-                      <div v-if="currentVendorModels.length === 0" class="empty-state">
-                        {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
-                      </div>
-                      <NList v-else bordered>
-                        <NListItem
-                          v-for="model in currentVendorModels"
-                          :key="model.id"
-                          class="model-item"
-                          :class="{ selected: selectedModelFromPopover === model.id }"
-                          @click="handleSelectModel(model)"
-                        >
-                          <div class="model-item-content">
-                            <div class="model-info">
-                              <span class="model-name">{{ model.displayName }}</span>
-                              <span class="model-id">{{ model.id }}</span>
-                            </div>
-                            <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
-                              <CheckmarkOutline />
-                            </NIcon>
-                          </div>
-                        </NListItem>
-                      </NList>
-                    </NScrollbar>
-                  </NLayoutContent>
-                </NLayout>
-              </NLayout>
+                <!-- 🔥 工作流配置 - 使用新的 WorkflowConfigPanel -->
+                <WorkflowConfigPanel v-else-if="activeSettingTab === 'WorkflowModel'" key="workflow" />
+
+                <!-- 🔥 供应商管理 - 使用新的 ProviderConfigPanel 包装器 -->
+                <ProviderConfigPanel v-else-if="activeSettingTab === 'ProviderConfig'" key="provider" />
+              </transition>
             </div>
-            <div v-else class="empty-vendor">
-              <p>暂无可用模型</p>
-              <p class="text-sm text-gray-500 mt-2">
-                请先在设置中配置模型
-              </p>
-            </div>
-          </NPopover>
-        </div>
-        <div class="flex items-center space-x-2">
-          <UserButton />
-        </div>
-      </header>
-
-      <main class="flex-1 overflow-hidden flex flex-col relative">
-        <!-- 中间主聊天区域 -->
-        <div
-          class="flex-1 overflow-hidden transition-all duration-300"
-          :style="{
-            marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
-          }"
-        >
-          <article class="h-full overflow-hidden flex flex-col">
-            <div class="flex-1 overflow-hidden">
-              <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
-                <div
-                  class="w-full max-w-screen-xl m-auto dark:bg-[#161618]"
-                  :class="[isMobile ? 'p-2' : 'p-4']"
-                >
-                  <div id="image-wrapper" class="relative">
-                    <template v-if="!dataSources.length">
-                      <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
-                        <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
-                        <span>{{ t('chat.newChatTitle') }}</span>
-                      </div>
-                    </template>
-                    <template v-else>
-                      <div>
-                        <Message
-                          v-for="(item, index) of dataSources"
-                          :key="index"
-                          :date-time="item.dateTime"
-                          :text="item.text"
-                          :inversion="item.inversion"
-                          :error="item.error"
-                          :loading="item.loading"
-                          @regenerate="onRegenerate(index)"
-                          @delete="handleDelete(index)"
-                        />
-                        <div class="sticky bottom-0 left-0 flex justify-center">
-                          <NButton v-if="loading" type="warning" @click="handleStop">
-                            <template #icon>
-                              <SvgIcon icon="ri:stop-circle-line" />
-                            </template>
-                            {{ t('common.stopResponding') }}
-                          </NButton>
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Footer 固定在底部 -->
-            <footer :class="footerClass">
-              <div class="w-full max-w-screen-xl m-auto">
-                <div class="flex items-center justify-between space-x-2">
-                  <HoverButton v-if="!isMobile" @click="handleClear">
-                    <span class="text-xl text-[#4f555e] dark:text-white">
-                      <SvgIcon icon="ri:delete-bin-line" />
-                    </span>
-                  </HoverButton>
-                  <HoverButton v-if="!isMobile" @click="handleExport">
-                    <span class="text-xl text-[#4f555e] dark:text-white">
-                      <SvgIcon icon="ri:download-2-line" />
-                    </span>
-                  </HoverButton>
-                  <HoverButton @click="toggleUsingContext">
-                    <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
-                      <SvgIcon icon="ri:chat-history-line" />
-                    </span>
-                  </HoverButton>
-                  <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
-                    <template #default="{ handleInput, handleBlur, handleFocus }">
-                      <NInput
-                        ref="inputRef"
-                        v-model:value="prompt"
-                        type="textarea"
-                        :placeholder="placeholder"
-                        :autosize="{ minRows: 1, maxRows: isMobile ? 4 : 8 }"
-                        @input="handleInput"
-                        @focus="handleFocus"
-                        @blur="handleBlur"
-                        @keypress="handleEnter"
-                      />
-                    </template>
-                  </NAutoComplete>
-                  <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
-                    <template #icon>
-                      <span class="dark:text-black">
-                        <SvgIcon icon="ri:send-plane-fill" />
-                      </span>
-                    </template>
-                  </NButton>
-                </div>
-              </div>
-            </footer>
-          </article>
+          </div>
         </div>
 
-        <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
-        <div
-          v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
-          class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
-          @click="toggleRightSider"
-        >
-          <SvgIcon
-            icon="ri:arrow-left-s-line"
-            class="text-lg text-neutral-600 dark:text-neutral-400"
+        <!-- 聊天页面 - 包含Header -->
+        <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col">
+          <HeaderComponent
+            v-if="isMobile"
+            :using-context="usingContext"
+            @export="handleExport"
+            @handle-clear="handleClear"
           />
-        </div>
 
-        <!-- 右侧侧边栏 -->
-        <aside
-          v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
-          class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
-          :style="{
-            width: `${rightSiderWidth}%`,
-          }"
-        >
-          <!-- 拖拽调整宽度的分隔条 -->
-          <div
-            class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors group"
-            @mousedown="handleResizeStart"
-          >
-            <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-neutral-300 dark:bg-neutral-600 group-hover:bg-blue-500 rounded-full transition-colors" />
-          </div>
-
-          <!-- 收起按钮 -->
-          <div
-            class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
-            @click="toggleRightSider"
-          >
-            <SvgIcon
-              icon="ri:arrow-right-s-line"
-              class="text-lg text-neutral-600 dark:text-neutral-400"
-            />
-          </div>
-
-          <!-- 右侧内容区域 -->
-          <div class="flex-1 overflow-hidden flex flex-col">
-            <!-- 笔记转题目 -->
-            <div
-              v-if="chatStore.chatMode === 'noteToQuestion'"
-              class="flex-1 overflow-y-auto p-4"
-            >
-              <NUpload
-                directory-dnd
-                :show-file-list="true"
-                :default-upload="true"
-                action="/api/upload"
-                :max="1"
-                :on-before-upload="handleBeforeUpload"
-                :on-change="handleUploadChange"
-                :on-finish="handleUploadSuccess"
-                :on-error="handleUploadError"
-                :on-remove="handleUploadRemove"
+          <!-- Web端Header -->
+          <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#161618]">
+            <div class="flex items-center space-x-4">
+              <NPopover
+                v-model:show="showModelSelector"
+                trigger="click"
+                placement="bottom-start"
+                :show-arrow="false"
+                :width="700"
+                @update:show="(show) => show && loadCurrentModel()"
               >
-                <NUploadDragger>
-                  <div style="margin-bottom: 12px;">
-                    <SvgIcon icon="ri:folder-upload-fill" class="mx-auto text-3xl" />
-                  </div>
-                  <NText depth="3">
-                    将文件拖拽到此处，或点击选择文件
-                  </NText>
-                  <div style="margin-top: 8px;" class="text-xs text-neutral-500">
-                    支持TXT、PDF、Markdown、Word等纯文本文件
-                  </div>
-                </NUploadDragger>
-              </NUpload>
+                <template #trigger>
+                  <NButton quaternary>
+                    <template #icon>
+                      <SvgIcon icon="ri:openai-fill" />
+                    </template>
+                    {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
+                  </NButton>
+                </template>
 
-              <!-- 工作流阶段展示 -->
-              <div class="mt-4">
-                <!-- 题目配置阶段 -->
-                <QuizConfig
-                  v-if="workflowStage === 'config' || workflowStage === 'generating'"
-                  :loading="quizLoading || workflowStage === 'generating'"
-                  @submit="handleQuizConfigSubmit"
-                />
+                <!-- 弹出内容 -->
+                <div v-if="availableVendors.length > 0" class="model-selector-popup">
+                  <NLayout has-sider style="height: 400px">
+                    <!-- 左侧供应商列表 -->
+                    <NLayoutSider :width="180" bordered class="vendor-sidebar">
+                      <NScrollbar style="height: 100%">
+                        <div class="vendor-list">
+                          <div
+                            v-for="vendor in availableVendors"
+                            :key="vendor.key"
+                            class="vendor-item"
+                            :class="{ active: activeVendor === vendor.key }"
+                            @mouseenter="handleVendorHover(vendor.key)"
+                          >
+                            <span class="vendor-name">{{ vendor.label }}</span>
+                          </div>
+                        </div>
+                      </NScrollbar>
+                    </NLayoutSider>
 
-                <!-- 题目预览阶段 -->
-                <QuizPreview
-                  v-else-if="workflowStage === 'preview'"
-                  :questions="generatedQuestions"
-                  :score-distribution="scoreDistribution"
-                  @accept="handleQuizAccept"
-                  @reject="handleQuizReject"
-                  @revise="handleQuizRevise"
-                />
-
-                <!-- 答题阶段 -->
-                <QuizAnswer
-                  v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
-                  :questions="generatedQuestions"
-                  :score-distribution="scoreDistribution"
-                  @submit="handleQuizSubmit"
-                />
-
-                <!-- 空闲状态提示 -->
-                <div
-                  v-else-if="workflowStage === 'idle' && !uploadedFilePath"
-                  class="text-center text-neutral-500 dark:text-neutral-400"
-                >
-                  <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
-                  <p>笔记转题目功能</p>
-                  <p class="text-sm mt-1">
-                    请上传笔记文件
+                    <!-- 右侧模型列表 -->
+                    <NLayout class="model-content">
+                      <NLayoutHeader bordered class="search-header">
+                        <NInput
+                          v-model:value="modelSearch"
+                          placeholder="🔍 搜索模型名称..."
+                          clearable
+                          size="small"
+                        />
+                      </NLayoutHeader>
+                      <NLayoutContent>
+                        <NScrollbar style="height: 100%">
+                          <div v-if="currentVendorModels.length === 0" class="empty-state">
+                            {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
+                          </div>
+                          <NList v-else bordered>
+                            <NListItem
+                              v-for="model in currentVendorModels"
+                              :key="model.id"
+                              class="model-item"
+                              :class="{ selected: selectedModelFromPopover === model.id }"
+                              @click="handleSelectModel(model)"
+                            >
+                              <div class="model-item-content">
+                                <div class="model-info">
+                                  <span class="model-name">{{ model.displayName }}</span>
+                                  <span class="model-id">{{ model.id }}</span>
+                                </div>
+                                <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
+                                  <CheckmarkOutline />
+                                </NIcon>
+                              </div>
+                            </NListItem>
+                          </NList>
+                        </NScrollbar>
+                      </NLayoutContent>
+                    </NLayout>
+                  </NLayout>
+                </div>
+                <div v-else class="empty-vendor">
+                  <p>暂无可用模型</p>
+                  <p class="text-sm text-gray-500 mt-2">
+                    请先在设置中配置模型
                   </p>
                 </div>
-              </div>
+              </NPopover>
+            </div>
+            <div class="flex items-center space-x-2">
+              <UserButton />
+            </div>
+          </header>
+
+          <!-- 聊天区域主体 -->
+          <main class="flex-1 overflow-hidden flex flex-col relative">
+            <div
+              class="flex-1 overflow-hidden transition-all duration-300"
+              :style="{
+                marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
+              }"
+            >
+              <article class="h-full overflow-hidden flex flex-col">
+                <div class="flex-1 overflow-hidden">
+                  <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
+                    <div
+                      class="w-full max-w-screen-xl m-auto dark:bg-[#161618]"
+                      :class="[isMobile ? 'p-2' : 'p-4']"
+                    >
+                      <div id="image-wrapper" class="relative">
+                        <template v-if="!dataSources.length">
+                          <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
+                            <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
+                            <span>{{ t('chat.newChatTitle') }}</span>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <div>
+                            <Message
+                              v-for="(item, index) of dataSources"
+                              :key="index"
+                              :date-time="item.dateTime"
+                              :text="item.text"
+                              :inversion="item.inversion"
+                              :error="item.error"
+                              :loading="item.loading"
+                              @regenerate="onRegenerate(index)"
+                              @delete="handleDelete(index)"
+                            />
+                            <div class="sticky bottom-0 left-0 flex justify-center">
+                              <NButton v-if="loading" type="warning" @click="handleStop">
+                                <template #icon>
+                                  <SvgIcon icon="ri:stop-circle-line" />
+                                </template>
+                                {{ t('common.stopResponding') }}
+                              </NButton>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Footer 固定在底部 -->
+                <footer :class="footerClass">
+                  <div class="w-full max-w-screen-xl m-auto">
+                    <div class="flex items-center justify-between space-x-2">
+                      <HoverButton v-if="!isMobile" @click="handleClear">
+                        <span class="text-xl text-[#4f555e] dark:text-white">
+                          <SvgIcon icon="ri:delete-bin-line" />
+                        </span>
+                      </HoverButton>
+                      <HoverButton v-if="!isMobile" @click="handleExport">
+                        <span class="text-xl text-[#4f555e] dark:text-white">
+                          <SvgIcon icon="ri:download-2-line" />
+                        </span>
+                      </HoverButton>
+                      <HoverButton @click="toggleUsingContext">
+                        <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
+                          <SvgIcon icon="ri:chat-history-line" />
+                        </span>
+                      </HoverButton>
+                      <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
+                        <template #default="{ handleInput, handleBlur, handleFocus }">
+                          <NInput
+                            ref="inputRef"
+                            v-model:value="prompt"
+                            type="textarea"
+                            :placeholder="placeholder"
+                            :autosize="{ minRows: 1, maxRows: isMobile ? 4 : 8 }"
+                            @input="handleInput"
+                            @focus="handleFocus"
+                            @blur="handleBlur"
+                            @keypress="handleEnter"
+                          />
+                        </template>
+                      </NAutoComplete>
+                      <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
+                        <template #icon>
+                          <span class="dark:text-black">
+                            <SvgIcon icon="ri:send-plane-fill" />
+                          </span>
+                        </template>
+                      </NButton>
+                    </div>
+                  </div>
+                </footer>
+              </article>
             </div>
 
-            <!-- 笔记转故事 -->
+            <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
             <div
-              v-if="chatStore.chatMode === 'noteToStory'"
-              class="flex-1 overflow-y-auto p-4"
+              v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
+              class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
+              @click="toggleRightSider"
             >
-              <div class="text-center text-neutral-500 dark:text-neutral-400">
-                <SvgIcon icon="ri:book-open-line" class="mx-auto mb-2 text-4xl" />
-                <p>
-                  笔记转故事功能
-                </p>
-                <p class="text-sm mt-1">
-                  此功能正在开发中...
-                </p>
-              </div>
+              <SvgIcon
+                icon="ri:arrow-left-s-line"
+                class="text-lg text-neutral-600 dark:text-neutral-400"
+              />
             </div>
-          </div>
-        </aside>
-      </main>
+
+            <!-- 右侧侧边栏 -->
+            <aside
+              v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
+              class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
+              :style="{
+                width: `${rightSiderWidth}%`,
+              }"
+            >
+              <!-- 拖拽调整宽度的分隔条 -->
+              <div
+                class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors group"
+                @mousedown="handleResizeStart"
+              >
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-neutral-300 dark:bg-neutral-600 group-hover:bg-blue-500 rounded-full transition-colors" />
+              </div>
+
+              <!-- 收起按钮 -->
+              <div
+                class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
+                @click="toggleRightSider"
+              >
+                <SvgIcon
+                  icon="ri:arrow-right-s-line"
+                  class="text-lg text-neutral-600 dark:text-neutral-400"
+                />
+              </div>
+
+              <!-- 右侧内容区域 -->
+              <div class="flex-1 overflow-hidden flex flex-col">
+                <!-- 笔记转题目 -->
+                <div
+                  v-if="chatStore.chatMode === 'noteToQuestion'"
+                  class="flex-1 overflow-y-auto p-4"
+                >
+                  <NUpload
+                    directory-dnd
+                    :show-file-list="true"
+                    :default-upload="true"
+                    action="/api/upload"
+                    :max="1"
+                    :on-before-upload="handleBeforeUpload"
+                    :on-change="handleUploadChange"
+                    :on-finish="handleUploadSuccess"
+                    :on-error="handleUploadError"
+                    :on-remove="handleUploadRemove"
+                  >
+                    <NUploadDragger>
+                      <div style="margin-bottom: 12px;">
+                        <SvgIcon icon="ri:folder-upload-fill" class="mx-auto text-3xl" />
+                      </div>
+                      <NText depth="3">
+                        将文件拖拽到此处，或点击选择文件
+                      </NText>
+                      <div style="margin-top: 8px;" class="text-xs text-neutral-500">
+                        支持TXT、PDF、Markdown、Word等纯文本文件
+                      </div>
+                    </NUploadDragger>
+                  </NUpload>
+
+                  <!-- 工作流阶段展示 -->
+                  <div class="mt-4">
+                    <!-- 题目配置阶段 -->
+                    <QuizConfig
+                      v-if="workflowStage === 'config' || workflowStage === 'generating'"
+                      :loading="quizLoading || workflowStage === 'generating'"
+                      @submit="handleQuizConfigSubmit"
+                    />
+
+                    <!-- 题目预览阶段 -->
+                    <QuizPreview
+                      v-else-if="workflowStage === 'preview'"
+                      :questions="generatedQuestions"
+                      :score-distribution="scoreDistribution"
+                      @accept="handleQuizAccept"
+                      @reject="handleQuizReject"
+                      @revise="handleQuizRevise"
+                    />
+
+                    <!-- 答题阶段 -->
+                    <QuizAnswer
+                      v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
+                      :questions="generatedQuestions"
+                      :score-distribution="scoreDistribution"
+                      @submit="handleQuizSubmit"
+                    />
+
+                    <!-- 空闲状态提示 -->
+                    <div
+                      v-else-if="workflowStage === 'idle' && !uploadedFilePath"
+                      class="text-center text-neutral-500 dark:text-neutral-400"
+                    >
+                      <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
+                      <p>笔记转题目功能</p>
+                      <p class="text-sm mt-1">
+                        请上传笔记文件
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 笔记转故事 -->
+                <div
+                  v-if="chatStore.chatMode === 'noteToStory'"
+                  class="flex-1 overflow-y-auto p-4"
+                >
+                  <div class="text-center text-neutral-500 dark:text-neutral-400">
+                    <SvgIcon icon="ri:book-open-line" class="mx-auto mb-2 text-4xl" />
+                    <p>
+                      笔记转故事功能
+                    </p>
+                    <p class="text-sm mt-1">
+                      此功能正在开发中...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </main>
+        </div>
+      </transition>
     </div>
   </SignedIn>
 </template>
 
 <style scoped>
+/* 页面切换淡入淡出效果 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 设置内容快速切换效果 */
+.fade-fast-enter-active,
+.fade-fast-leave-active {
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-fast-enter-from,
+.fade-fast-leave-to {
+  opacity: 0;
+}
+
 /* 模型选择器弹出框样式 */
 .model-selector-popup {
   background: white;

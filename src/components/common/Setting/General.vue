@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Language, Theme } from '@/store/modules/app/helper'
 import type { UserInfo } from '@/store/modules/user/helper'
-import { NButton, NInput, NPopconfirm, NSelect, useMessage } from 'naive-ui'
+import { NButton, NInput, NInputNumber, NPopconfirm, NSelect, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
@@ -25,6 +25,12 @@ const avatar = ref(userInfo.value.avatar ?? '')
 const name = ref(userInfo.value.name ?? '')
 
 const description = ref(userInfo.value.description ?? '')
+
+const systemPrompt = ref(userInfo.value.systemPrompt ?? '')
+
+const temperature = ref(userInfo.value.temperature ?? 1)
+
+const topP = ref(userInfo.value.topP ?? 1)
 
 const language = computed({
   get() {
@@ -146,6 +152,54 @@ function handleImportButtonClick(): void {
           <NInput v-model:value="description" placeholder="" />
         </div>
         <NButton size="tiny" text type="primary" @click="updateUserInfo({ description })">
+          {{ $t('common.save') }}
+        </NButton>
+      </div>
+      <div class="flex items-start space-x-4">
+        <span class="flex-shrink-0 w-[100px] pt-2">{{ $t('setting.systemPrompt') }}</span>
+        <div class="flex-1">
+          <NInput
+            v-model:value="systemPrompt"
+            type="textarea"
+            :placeholder="$t('setting.systemPromptPlaceholder')"
+            :autosize="{ minRows: 2, maxRows: 6 }"
+          />
+        </div>
+        <NButton size="tiny" text type="primary" class="mt-2" @click="updateUserInfo({ systemPrompt })">
+          {{ $t('common.save') }}
+        </NButton>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span class="flex-shrink-0 w-[100px]">{{ $t('setting.temperature') }}</span>
+        <div class="flex-1">
+          <NInputNumber
+            v-model:value="temperature"
+            :min="0"
+            :max="2"
+            :step="0.1"
+            :precision="1"
+            style="width: 200px"
+          />
+          <span class="ml-2 text-xs text-gray-500">{{ $t('setting.temperatureDesc') }}</span>
+        </div>
+        <NButton size="tiny" text type="primary" @click="updateUserInfo({ temperature })">
+          {{ $t('common.save') }}
+        </NButton>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span class="flex-shrink-0 w-[100px]">{{ $t('setting.topP') }}</span>
+        <div class="flex-1">
+          <NInputNumber
+            v-model:value="topP"
+            :min="0"
+            :max="1"
+            :step="0.1"
+            :precision="1"
+            style="width: 200px"
+          />
+          <span class="ml-2 text-xs text-gray-500">{{ $t('setting.topPDesc') }}</span>
+        </div>
+        <NButton size="tiny" text type="primary" @click="updateUserInfo({ topP })">
           {{ $t('common.save') }}
         </NButton>
       </div>

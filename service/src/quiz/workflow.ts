@@ -9,17 +9,37 @@ import { ChatOpenAI } from '@langchain/openai'
 import { loadFile } from './loader'
 
 // ---------- LLM ----------
+// 判断模型是否为 Kriora 供应商
+function isKrioraModel(modelId: string): boolean {
+  return modelId.includes('moonshotai/') || modelId.includes('qwen/')
+}
+
 function makeLLM(modelInfo?: ModelInfo, config?: ModelConfig) {
   // 如果没有提供模型信息，使用环境变量
-  const apiKey = modelInfo?.apiKey || process.env.OPENAI_API_KEY
-  const baseURL = modelInfo?.baseURL || process.env.OPENAI_API_BASE_URL
   const model = modelInfo?.name || process.env.OPENAI_API_MODEL || 'gpt-4o-mini'
+
+  // 根据模型类型选择合适的 API 配置
+  let apiKey = modelInfo?.apiKey
+  let baseURL = modelInfo?.baseURL
+
+  if (!apiKey || !baseURL) {
+    if (isKrioraModel(model)) {
+      // 使用 Kriora API 配置
+      apiKey = apiKey || process.env.KRIORA_API_KEY || process.env.OPENAI_API_KEY
+      baseURL = baseURL || process.env.KRIORA_API_URL || 'https://api.kriora.com'
+    }
+    else {
+      // 使用默认 OpenAI API 配置
+      apiKey = apiKey || process.env.OPENAI_API_KEY
+      baseURL = baseURL || process.env.OPENAI_API_BASE_URL
+    }
+  }
 
   console.log('🔑 [LLM配置]', {
     model,
     baseURL,
     hasApiKey: !!apiKey,
-    provider: modelInfo?.provider || 'openai',
+    provider: isKrioraModel(model) ? 'kriora' : (modelInfo?.provider || 'openai'),
     config,
   })
 

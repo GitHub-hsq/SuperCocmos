@@ -34,3 +34,5 @@ coverage
 .env.*.local
 service/.env
 service/.env.local
+
+/docs

@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>模型管理面板</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #e0f7fa 0%, #bbdefb 100%);
+        padding: 20px;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        padding: 30px;
+      }
+
+      h1 {
+        margin-bottom: 30px;
+        color: #1a237e;
+        font-size: 28px;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+
+      .add-provider-btn {
+        background: rgba(41, 98, 255, 0.9);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-bottom: 20px;
+        font-size: 15px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(41, 98, 255, 0.2);
+        transition: all 0.3s ease;
+      }
+
+      .add-provider-btn:hover {
+        background: rgba(30, 70, 200, 0.9);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(41, 98, 255, 0.3);
+      }
+
+      .provider-section {
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.6);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease;
+      }
+
+      .provider-section:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+      }
+
+      .provider-header {
+        background: rgba(179, 229, 252, 0.4);
+        padding: 18px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+      }
+
+      .provider-info {
+        display: flex;
+        gap: 30px;
+        align-items: center;
+        flex: 1;
+      }
+
+      .provider-name {
+        font-weight: 700;
+        font-size: 17px;
+        color: #0d47a1;
+        letter-spacing: 0.2px;
+      }
+
+      .provider-baseurl {
+        color: #455a64;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .provider-actions {
+        display: flex;
+        gap: 12px;
+      }
+
+      .btn-icon {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(200, 200, 200, 0.3);
+        padding: 8px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+
+      .btn-edit {
+        color: #2962ff;
+      }
+
+      .btn-edit:hover {
+        background: rgba(41, 98, 255, 0.15);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(41, 98, 255, 0.15);
+      }
+
+      .btn-delete {
+        color: #ff5252;
+      }
+
+      .btn-delete:hover {
+        background: rgba(255, 82, 82, 0.15);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(255, 82, 82, 0.15);
+      }
+
+      .expand-icon {
+        transition: transform 0.3s ease;
+        color: #0d47a1;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .expand-icon.expanded {
+        transform: rotate(90deg);
+      }
+
+      .models-container {
+        display: none;
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .models-container.expanded {
+        display: block;
+      }
+
+      .models-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .models-table th {
+        background: rgba(179, 229, 252, 0.5);
+        padding: 14px;
+        text-align: left;
+        font-weight: 700;
+        color: #0d47a1;
+        border-bottom: 1px solid rgba(200, 200, 200, 0.3);
+      }
+
+      .models-table td {
+        padding: 14px;
+        border-bottom: 1px solid rgba(200, 200, 200, 0.3);
+        color: #37474f;
+        font-weight: 500;
+      }
+
+      .models-table tr:hover {
+        background: rgba(179, 229, 252, 0.2);
+      }
+
+      .add-model-btn {
+        background: rgba(0, 150, 136, 0.9);
+        color: white;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 14px;
+        box-shadow: 0 4px 10px rgba(0, 150, 136, 0.2);
+        transition: all 0.3s ease;
+      }
+
+      .add-model-btn:hover {
+        background: rgba(0, 130, 118, 0.9);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(0, 150, 136, 0.3);
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.4);
+        z-index: 1000;
+      }
+
+      .modal-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        padding: 30px;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+      }
+
+      .modal-header {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 25px;
+        color: #0d47a1;
+      }
+
+      .form-group {
+        margin-bottom: 22px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #455a64;
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid rgba(200, 200, 200, 0.4);
+        border-radius: 8px;
+        font-size: 15px;
+        background: rgba(255, 255, 255, 0.7);
+        transition: all 0.3s ease;
+      }
+
+      .form-group input:focus {
+        outline: none;
+        border-color: #2962ff;
+        box-shadow: 0 0 0 3px rgba(41, 98, 255, 0.2);
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 25px;
+      }
+
+      .btn-save {
+        background: rgba(41, 98, 255, 0.9);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(41, 98, 255, 0.25);
+        transition: all 0.3s ease;
+      }
+
+      .btn-save:hover {
+        background: rgba(30, 70, 200, 0.9);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(41, 98, 255, 0.35);
+      }
+
+      .btn-cancel {
+        background: rgba(200, 200, 200, 0.4);
+        color: #546e7a;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+
+      .btn-cancel:hover {
+        background: rgba(180, 180, 180, 0.5);
+        transform: translateY(-2px);
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 50px;
+        color: #78909c;
+        font-size: 16px;
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>模型管理面板</h1>
+      <button class="add-provider-btn" onclick="showProviderModal()">+ 添加供应商</button>
+
+      <div id="providersContainer"></div>
+
+      <div class="empty-state" id="emptyState" style="display: none">暂无供应商，请点击上方按钮添加</div>
+    </div>
+
+    <!-- 供应商模态框 -->
+    <div class="modal" id="providerModal">
+      <div class="modal-content">
+        <div class="modal-header" id="providerModalTitle">添加供应商</div>
+        <form id="providerForm">
+          <div class="form-group">
+            <label>显示名称</label>
+            <input type="text" id="providerName" required />
+          </div>
+          <div class="form-group">
+            <label>Base URL</label>
+            <input type="text" id="providerBaseUrl" required />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeProviderModal()">取消</button>
+            <button type="submit" class="btn-save">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 模型模态框 -->
+    <div class="modal" id="modelModal">
+      <div class="modal-content">
+        <div class="modal-header" id="modelModalTitle">添加模型</div>
+        <form id="modelForm">
+          <div class="form-group">
+            <label>模型ID</label>
+            <input type="text" id="modelId" required />
+          </div>
+          <div class="form-group">
+            <label>显示名称</label>
+            <input type="text" id="modelName" required />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeModelModal()">取消</button>
+            <button type="submit" class="btn-save">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      let providers = []
+      let currentProviderId = null
+      let editingProviderId = null
+      let editingModelId = null
+
+      function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2)
+      }
+
+      function renderProviders() {
+        const container = document.getElementById('providersContainer')
+        const emptyState = document.getElementById('emptyState')
+
+        if (providers.length === 0) {
+          container.innerHTML = ''
+          emptyState.style.display = 'block'
+          return
+        }
+
+        emptyState.style.display = 'none'
+        container.innerHTML = providers
+          .map(
+            (provider) => `
+                <div class="provider-section">
+                    <div class="provider-header" onclick="toggleProvider('${provider.id}')">
+                        <div class="provider-info">
+                            <div class="provider-name">${provider.name}</div>
+                            <div class="provider-baseurl">${provider.baseUrl}</div>
+                        </div>
+                        <div class="provider-actions">
+                            <button class="btn-icon btn-edit" onclick="editProvider('${provider.id}', event)">编辑</button>
+                            <button class="btn-icon btn-delete" onclick="deleteProvider('${provider.id}', event)">删除</button>
+                            <span class="expand-icon ${provider.expanded ? 'expanded' : ''}">▶</span>
+                        </div>
+                    </div>
+                    <div class="models-container ${provider.expanded ? 'expanded' : ''}">
+                        <table class="models-table">
+                            <thead>
+                                <tr>
+                                    <th>模型ID</th>
+                                    <th>显示名称</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${provider.models
+                                  .map(
+                                    (model) => `
+                                    <tr>
+                                        <td>${model.id}</td>
+                                        <td>${model.name}</td>
+                                        <td>
+                                            <button class="btn-icon btn-edit" onclick="editModel('${provider.id}', '${model.id}', event)">编辑</button>
+                                            <button class="btn-icon btn-delete" onclick="deleteModel('${provider.id}', '${model.id}', event)">删除</button>
+                                        </td>
+                                    </tr>
+                                `,
+                                  )
+                                  .join('')}
+                            </tbody>
+                        </table>
+                        <button class="add-model-btn" onclick="showModelModal('${provider.id}')">+ 添加模型</button>
+                    </div>
+                </div>
+            `,
+          )
+          .join('')
+      }
+
+      function toggleProvider(providerId) {
+        const provider = providers.find((p) => p.id === providerId)
+        if (provider) {
+          provider.expanded = !provider.expanded
+          renderProviders()
+        }
+      }
+
+      function showProviderModal() {
+        editingProviderId = null
+        document.getElementById('providerModalTitle').textContent = '添加供应商'
+        document.getElementById('providerForm').reset()
+        document.getElementById('providerModal').style.display = 'block'
+      }
+
+      function editProvider(providerId, event) {
+        event.stopPropagation()
+        const provider = providers.find((p) => p.id === providerId)
+        if (provider) {
+          editingProviderId = providerId
+          document.getElementById('providerModalTitle').textContent = '编辑供应商'
+          document.getElementById('providerName').value = provider.name
+          document.getElementById('providerBaseUrl').value = provider.baseUrl
+          document.getElementById('providerModal').style.display = 'block'
+        }
+      }
+
+      function closeProviderModal() {
+        document.getElementById('providerModal').style.display = 'none'
+      }
+
+      function deleteProvider(providerId, event) {
+        event.stopPropagation()
+        if (confirm('确定要删除这个供应商及其所有模型吗？')) {
+          providers = providers.filter((p) => p.id !== providerId)
+          renderProviders()
+        }
+      }
+
+      function showModelModal(providerId) {
+        currentProviderId = providerId
+        editingModelId = null
+        document.getElementById('modelModalTitle').textContent = '添加模型'
+        document.getElementById('modelForm').reset()
+        document.getElementById('modelModal').style.display = 'block'
+      }
+
+      function editModel(providerId, modelId, event) {
+        event.stopPropagation()
+        const provider = providers.find((p) => p.id === providerId)
+        const model = provider.models.find((m) => m.id === modelId)
+        if (model) {
+          currentProviderId = providerId
+          editingModelId = modelId
+          document.getElementById('modelModalTitle').textContent = '编辑模型'
+          document.getElementById('modelId').value = model.id
+          document.getElementById('modelName').value = model.name
+          document.getElementById('modelModal').style.display = 'block'
+        }
+      }
+
+      function closeModelModal() {
+        document.getElementById('modelModal').style.display = 'none'
+      }
+
+      function deleteModel(providerId, modelId, event) {
+        event.stopPropagation()
+        const provider = providers.find((p) => p.id === providerId)
+        if (provider && confirm('确定要删除这个模型吗？')) {
+          provider.models = provider.models.filter((m) => m.id !== modelId)
+          renderProviders()
+        }
+      }
+
+      document.getElementById('providerForm').addEventListener('submit', function (e) {
+        e.preventDefault()
+        const name = document.getElementById('providerName').value
+        const baseUrl = document.getElementById('providerBaseUrl').value
+
+        if (editingProviderId) {
+          const provider = providers.find((p) => p.id === editingProviderId)
+          if (provider) {
+            provider.name = name
+            provider.baseUrl = baseUrl
+          }
+        } else {
+          providers.push({
+            id: generateId(),
+            name: name,
+            baseUrl: baseUrl,
+            models: [],
+            expanded: true,
+          })
+        }
+
+        renderProviders()
+        closeProviderModal()
+      })
+
+      document.getElementById('modelForm').addEventListener('submit', function (e) {
+        e.preventDefault()
+        const id = document.getElementById('modelId').value
+        const name = document.getElementById('modelName').value
+
+        const provider = providers.find((p) => p.id === currentProviderId)
+        if (provider) {
+          if (editingModelId) {
+            const model = provider.models.find((m) => m.id === editingModelId)
+            if (model) {
+              model.id = id
+              model.name = name
+            }
+          } else {
+            provider.models.push({
+              id: id,
+              name: name,
+            })
+          }
+        }
+
+        renderProviders()
+        closeModelModal()
+      })
+
+      // 点击模态框外部关闭
+      window.onclick = function (event) {
+        if (event.target.classList.contains('modal')) {
+          event.target.style.display = 'none'
+        }
+      }
+
+      // 初始化
+      renderProviders()
+    </script>
+  </body>
+</html>

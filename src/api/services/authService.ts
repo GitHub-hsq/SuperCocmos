@@ -15,7 +15,8 @@ export interface User {
   avatarUrl?: string
   provider?: string
   status: number
-  roles?: string[]
+  role?: 'user' | 'admin' // 主要角色
+  roles?: string[] // 所有角色
   createdAt: string
   updatedAt: string
   lastLoginAt?: string

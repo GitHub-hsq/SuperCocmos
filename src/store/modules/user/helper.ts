@@ -6,6 +6,9 @@ export interface UserInfo {
   avatar: string
   name: string
   description: string
+  systemPrompt?: string // 系统提示词
+  temperature?: number // 温度参数 0-2
+  topP?: number // Top P 参数 0-1
 }
 
 export interface UserState {
@@ -18,6 +21,9 @@ export function defaultSetting(): UserState {
       avatar: 'https://raw.githubusercontent.com/Chanzhaoyu/chatgpt-web/main/src/assets/avatar.jpg',
       name: 'ChenZhaoYu',
       description: '<a href="/" class="text-blue-500">退出登录</a>',
+      systemPrompt: '', // 默认空，使用模型默认
+      temperature: 1, // 默认1（范围0-2）
+      topP: 1, // 默认1（范围0-1）
     },
   }
 }

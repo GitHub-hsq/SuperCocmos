@@ -36,6 +36,16 @@ export const useAppStore = defineStore('app-store', {
       }
     },
 
+    setShowSettingsPage(show: boolean) {
+      this.showSettingsPage = show
+      this.recordState()
+    },
+
+    setActiveSettingTab(tab: string) {
+      this.activeSettingTab = tab
+      this.recordState()
+    },
+
     recordState() {
       setLocalSetting(this.$state)
     },

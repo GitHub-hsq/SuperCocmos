@@ -1,6 +1,6 @@
 import type { AxiosProgressEvent, AxiosResponse, GenericAbortSignal } from 'axios'
+import apiClient from '@/api/client'
 import { useAuthStore } from '@/store'
-import request from './axios'
 
 export interface HttpOption {
   url: string
@@ -47,9 +47,21 @@ function http<T = any>(
 
   const params = Object.assign(typeof data === 'function' ? data() : data ?? {}, {})
 
-  return method === 'GET'
-    ? request.get(url, { params, signal, onDownloadProgress }).then(successHandler, failHandler)
-    : request.post(url, params, { headers, signal, onDownloadProgress }).then(successHandler, failHandler)
+  // 根据不同的 HTTP 方法调用对应的 axios 方法
+  switch (method.toUpperCase()) {
+    case 'GET':
+      return apiClient.get(url, { params, signal, onDownloadProgress }).then(successHandler, failHandler)
+    case 'POST':
+      return apiClient.post(url, params, { headers, signal, onDownloadProgress }).then(successHandler, failHandler)
+    case 'PUT':
+      return apiClient.put(url, params, { headers, signal, onDownloadProgress }).then(successHandler, failHandler)
+    case 'PATCH':
+      return apiClient.patch(url, params, { headers, signal, onDownloadProgress }).then(successHandler, failHandler)
+    case 'DELETE':
+      return apiClient.delete(url, { params, headers, signal, onDownloadProgress }).then(successHandler, failHandler)
+    default:
+      return apiClient.post(url, params, { headers, signal, onDownloadProgress }).then(successHandler, failHandler)
+  }
 }
 
 export function get<T = any>(
@@ -68,6 +80,51 @@ export function get<T = any>(
 
 export function post<T = any>(
   { url, data, method = 'POST', headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
+): Promise<Response<T>> {
+  return http<T>({
+    url,
+    method,
+    data,
+    headers,
+    onDownloadProgress,
+    signal,
+    beforeRequest,
+    afterRequest,
+  })
+}
+
+export function put<T = any>(
+  { url, data, method = 'PUT', headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
+): Promise<Response<T>> {
+  return http<T>({
+    url,
+    method,
+    data,
+    headers,
+    onDownloadProgress,
+    signal,
+    beforeRequest,
+    afterRequest,
+  })
+}
+
+export function patch<T = any>(
+  { url, data, method = 'PATCH', headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
+): Promise<Response<T>> {
+  return http<T>({
+    url,
+    method,
+    data,
+    headers,
+    onDownloadProgress,
+    signal,
+    beforeRequest,
+    afterRequest,
+  })
+}
+
+export function del<T = any>(
+  { url, data, method = 'DELETE', headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
 ): Promise<Response<T>> {
   return http<T>({
     url,

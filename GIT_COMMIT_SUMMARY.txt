@@ -1,0 +1,56 @@
+feat: 用户配置系统V2 + Clerk认证优化 + Redis缓存 + 角色系统
+
+## 核心功能
+
+### 1. 用户配置系统 V2
+- 创建 user_configs 数据库表（4个JSONB配置字段）
+- 实现配置 CRUD API（10个端点）+ Redis缓存
+- 创建配置面板组件（UserSettings, WorkflowConfig, ProviderConfig）
+
+### 2. Clerk 认证优化
+- 统一所有路由使用 Clerk 认证（14个路由迁移）
+- 扩展 Express Request 类型（userId + dbUserId）
+- 新增 requireAuthWithUser 中间件
+
+### 3. Redis 缓存集成
+- 统一缓存服务（cacheService + cacheKeys）
+- 配置 API 集成缓存（TTL 1小时）
+- 供应商 API 集成缓存（TTL 30分钟）
+
+### 4. 用户角色系统修复
+- 修复 UUID vs Number 类型不匹配（user_id: number → string）
+- 修复角色查询失败（8个函数类型修复）
+- 后端正确提取角色 + 前端显示角色标签
+
+### 5. UI 优化
+- 左下角替换为 UserButton + 角色标签（admin红色/user蓝色）
+- 添加 PATCH/PUT/DELETE HTTP 方法支持
+- 防重复加载（ConfigStore + ModelStore）
+
+## 新增文件（8个核心文件）
+
+**后端**
+- service/src/db/configService.ts
+- service/src/api/configController.ts
+- service/src/cache/cacheService.ts
+- service/src/cache/cacheKeys.ts
+
+**前端**
+- src/store/modules/config/* (ConfigStore)
+- src/components/common/Setting/panels/* (3个面板)
+
+## 性能优化
+- ConfigStore 防重复加载
+- Redis 缓存加速读取
+- 自动缓存失效机制
+
+## 安全增强
+- 统一 Clerk JWT 认证
+- 用户角色系统完整实现
+
+## 测试验证
+✅ 角色系统正常（管理员红色标签）
+✅ 配置API运行正常
+✅ Redis缓存连接成功
+✅ 防重复加载生效
+

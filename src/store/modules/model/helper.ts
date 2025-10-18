@@ -76,7 +76,6 @@ export function saveProvidersCache(providers: Model.ProviderInfo[]): void {
     const now = Date.now()
     ss.set(PROVIDERS_CACHE_KEY, providers)
     ss.set(CACHE_EXPIRY_KEY, now + CACHE_DURATION)
-    console.log('💾 [缓存] 供应商列表已保存到 localStorage，过期时间:', new Date(now + CACHE_DURATION).toLocaleString())
   }
   catch (error) {
     console.error('❌ [缓存] 保存供应商列表失败:', error)
@@ -91,19 +90,15 @@ export function getProvidersCache(): Model.ProviderInfo[] | null {
 
     if (!expiry || now > expiry) {
       // 缓存已过期或不存在
-      if (expiry) {
-        console.log('⏰ [缓存] 供应商列表缓存已过期')
+      if (expiry)
         clearProvidersCache()
-      }
+
       return null
     }
 
     const providers = ss.get(PROVIDERS_CACHE_KEY)
-    if (providers && Array.isArray(providers) && providers.length > 0) {
-      const remainingMinutes = Math.floor((expiry - now) / 1000 / 60)
-      console.log(`📦 [缓存] 读取供应商列表缓存，剩余有效期: ${remainingMinutes}分钟`)
+    if (providers && Array.isArray(providers) && providers.length > 0)
       return providers
-    }
 
     return null
   }
@@ -118,7 +113,6 @@ export function clearProvidersCache(): void {
   try {
     ss.remove(PROVIDERS_CACHE_KEY)
     ss.remove(CACHE_EXPIRY_KEY)
-    console.log('🗑️ [缓存] 供应商列表缓存已清除')
   }
   catch (error) {
     console.error('❌ [缓存] 清除供应商列表失败:', error)
@@ -130,7 +124,6 @@ export function clearProvidersCache(): void {
 export function saveCurrentModelId(modelId: string): void {
   try {
     ss.set(CURRENT_MODEL_ID_KEY, modelId)
-    console.log('💾 [缓存] 当前模型ID已保存:', modelId)
   }
   catch (error) {
     console.error('❌ [缓存] 保存模型ID失败:', error)
@@ -152,7 +145,6 @@ export function getCurrentModelId(): string | null {
 export function clearCurrentModelId(): void {
   try {
     ss.remove(CURRENT_MODEL_ID_KEY)
-    console.log('🗑️ [缓存] 当前模型ID已清除')
   }
   catch (error) {
     console.error('❌ [缓存] 清除模型ID失败:', error)

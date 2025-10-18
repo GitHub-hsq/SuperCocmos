@@ -92,10 +92,10 @@ declare namespace Config {
     workflowConfig?: Partial<WorkflowConfig>
   }
 
-  type UpdateConfigRequest =
-    | UpdateUserSettingsRequest
-    | UpdateChatConfigRequest
-    | UpdateWorkflowConfigRequest
+  type UpdateConfigRequest
+    = | UpdateUserSettingsRequest
+      | UpdateChatConfigRequest
+      | UpdateWorkflowConfigRequest
 
   // ============================================
   // 6. 配置预设
@@ -155,4 +155,3 @@ declare namespace Config {
     version: string // 缓存版本
   }
 }
-

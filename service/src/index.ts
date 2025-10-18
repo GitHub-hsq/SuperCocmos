@@ -3,7 +3,7 @@ import type { ChatMessage } from './chatgpt' // 聊天消息类型
 import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
 
 // 引入自定义类型和模块
-import type { RequestProps } from './types' // 请求参数类型
+// 请求参数类型
 // 引入 Node.js 内置模块：文件系统（fs）和路径（path）
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'

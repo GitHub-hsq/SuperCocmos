@@ -32,7 +32,7 @@ export const useModelStore = defineStore('model-store', {
     // 从本地存储读取工作流配置和当前模型ID
     const localWorkflowConfig = getLocalWorkflowConfig()
     const cachedModelId = getCurrentModelId()
-    
+
     return {
       ...defaultState,
       workflowNodes: localWorkflowConfig || defaultState.workflowNodes,
@@ -84,10 +84,8 @@ export const useModelStore = defineStore('model-store', {
     async loadModelsFromBackend(forceRefresh = false) {
       try {
         // 🔥 如果不是强制刷新且已经加载过，直接返回
-        if (!forceRefresh && this.isProvidersLoaded) {
-          console.log('ℹ️ [ModelStore] 供应商列表已加载，跳过重复加载')
+        if (!forceRefresh && this.isProvidersLoaded)
           return true
-        }
 
         // 🔥 如果不是强制刷新，先尝试从缓存加载
         if (!forceRefresh) {
@@ -95,21 +93,13 @@ export const useModelStore = defineStore('model-store', {
           if (cachedProviders && cachedProviders.length > 0) {
             this.providers = cachedProviders
             this.isProvidersLoaded = true // 标记已加载
-            console.log('✅ [ModelStore] 使用缓存的供应商列表:', {
-              供应商数量: this.providers.length,
-              启用的模型: this.enabledModels.length,
-            })
 
             // 验证当前模型是否存在
             this.validateCurrentModel()
             return true
           }
-          else {
-            console.log('ℹ️ [ModelStore] 缓存不存在或已过期，从后端加载...')
-          }
         }
         else {
-          console.log('🔄 [ModelStore] 强制刷新，清除缓存并从后端加载...')
           clearProvidersCache()
           this.isProvidersLoaded = false // 重置加载状态
         }
@@ -152,12 +142,6 @@ export const useModelStore = defineStore('model-store', {
           // 验证当前模型是否存在
           this.validateCurrentModel()
 
-          console.log('✅ [ModelStore] 模型从后端加载成功:', {
-            供应商数量: this.providers.length,
-            启用的模型: this.enabledModels.length,
-            供应商列表: this.providers.map(p => ({ id: p.id, name: p.name, 模型数: p.models.length })),
-          })
-
           return true
         }
         return false
@@ -176,10 +160,8 @@ export const useModelStore = defineStore('model-store', {
         this.currentModelId = firstModel.id
         this.currentProviderId = firstModel.provider
         saveCurrentModelId(this.currentModelId)
-        console.log('⚠️ [ModelStore] 当前模型不存在，已切换到:', firstModel.displayName)
       }
       else if (!currentModelExists && this.enabledModels.length === 0) {
-        console.warn('⚠️ [ModelStore] 没有可用的模型')
         clearCurrentModelId()
       }
     },

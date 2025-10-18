@@ -32,7 +32,7 @@ async function waitForClerk(maxWaitTime = 2000): Promise<boolean> {
   const checkInterval = 50 // 每50ms检查一次
 
   while (Date.now() - startTime < maxWaitTime) {
-    if (window.Clerk?.loaded) {
+    if (window.Clerk?.session) {
       return true
     }
     await new Promise(resolve => setTimeout(resolve, checkInterval))

@@ -47,23 +47,19 @@ export const useConfigStore = defineStore('config', {
      */
     async loadAllConfig() {
       // 🔥 如果已加载或正在加载，直接返回
-      if (this.loaded || this.loading) {
-        console.log('ℹ️ [ConfigStore] 配置已加载或正在加载，跳过重复请求')
+      if (this.loaded || this.loading)
         return
-      }
 
       this.loading = true
       try {
-        console.log('🔄 [ConfigStore] 开始加载用户配置...')
         const response = await fetchUserConfig<Config.UserConfig>()
 
         if (response.status === 'Success' && response.data) {
           // 从数据库字段映射到前端字段（snake_case -> camelCase）
-          this.userSettings = response.data.userSettings || response.data.user_settings || null
-          this.chatConfig = response.data.chatConfig || response.data.chat_config || null
-          this.workflowConfig = response.data.workflowConfig || response.data.workflow_config || null
+          this.userSettings = response.data.userSettings || null
+          this.chatConfig = response.data.chatConfig || null
+          this.workflowConfig = response.data.workflowConfig || null
           this.loaded = true
-          console.log('✅ [ConfigStore] 用户配置加载成功')
         }
       }
       catch (error) {
@@ -222,10 +218,4 @@ export const useConfigStore = defineStore('config', {
       this.loaded = false
     },
   },
-
-  // 持久化配置（可选）
-  persist: {
-    enabled: false, // 不持久化，每次从后端获取最新配置
-  },
 })
-

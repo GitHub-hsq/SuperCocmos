@@ -162,7 +162,7 @@ window.Clerk?.user
 **页面名称**：`个人设置` / `User Profile`
 
 ```typescript
-interface UserConfig {
+interface _UserConfig {
   // 个人信息
   avatar: string // 头像链接
   name: string // 显示名称
@@ -189,7 +189,7 @@ interface UserConfig {
 **页面名称**：`聊天配置` / `Chat Configuration`
 
 ```typescript
-interface ChatConfig {
+interface _ChatConfig {
   // 默认模型选择
   defaultModel: {
     providerId: string // 默认供应商ID
@@ -242,7 +242,7 @@ interface ChatConfig {
 **页面名称**：`题目工作流` / `Question Workflow`
 
 ```typescript
-interface WorkflowConfig {
+interface _WorkflowConfig {
   nodes: {
     [nodeType in WorkflowNodeType]: {
       // 节点名称和描述
@@ -514,7 +514,7 @@ export interface UserConfig {
 为不同使用场景提供预设配置：
 
 ```typescript
-const CHAT_PRESETS = {
+const _CHAT_PRESETS = {
   creative: { temperature: 1.5, topP: 0.95, name: '创意模式 🎨' },
   balanced: { temperature: 0.7, topP: 0.9, name: '平衡模式 ⚖️' },
   precise: { temperature: 0.3, topP: 0.8, name: '精确模式 🎯' },

@@ -121,4 +121,3 @@ export function importUserConfig<T = Config.UserConfig>(config: Config.UserConfi
     data: config,
   })
 }
-

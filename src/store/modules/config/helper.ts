@@ -13,7 +13,7 @@ export function useConfig() {
  */
 export function useUserSettings() {
   const configStore = useConfigStore()
-  return configStore.getUserSettings
+  return configStore.userSettings
 }
 
 /**
@@ -21,7 +21,7 @@ export function useUserSettings() {
  */
 export function useChatConfig() {
   const configStore = useConfigStore()
-  return configStore.getChatConfig
+  return configStore.chatConfig
 }
 
 /**
@@ -29,7 +29,7 @@ export function useChatConfig() {
  */
 export function useWorkflowConfig() {
   const configStore = useConfigStore()
-  return configStore.getWorkflowConfig
+  return configStore.workflowConfig
 }
 
 /**

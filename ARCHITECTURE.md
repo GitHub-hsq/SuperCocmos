@@ -185,12 +185,13 @@ export async function upsertUserFromOAuth(input: {
   provider: string
 }): Promise<SupabaseUser> {
   // 先尝试查找用户
-  let user = await findUserByClerkId(input.clerk_id)
+  const user = await findUserByClerkId(input.clerk_id)
 
   if (user) {
     // 更新现有用户
     return await updateUser(user.user_id, { ...input })
-  } else {
+  }
+  else {
     // 创建新用户（触发器会自动分配角色）
     return await createUser(input)
   }
@@ -296,7 +297,7 @@ VITE_CLERK_SIGN_IN_FORCE_REDIRECT_URL=/chat
 import { Webhook } from 'svix'
 
 const wh = new Webhook(CLERK_WEBHOOK_SECRET)
-const evt = wh.verify(payload, headers)
+const _evt = wh.verify(payload, headers)
 // 验证失败会抛出异常
 ```
 
@@ -304,13 +305,13 @@ const evt = wh.verify(payload, headers)
 
 ```typescript
 // service/src/db/providerService.ts
-import { encrypt, decrypt } from '../utils/crypto'
+import { decrypt, encrypt } from '../utils/crypto'
 
 // 存储时加密
 const encrypted = encrypt(api_key, ENCRYPTION_KEY)
 
 // 使用时解密
-const decrypted = decrypt(encrypted, ENCRYPTION_KEY)
+const _decrypted = decrypt(encrypted, ENCRYPTION_KEY)
 ```
 
 ---

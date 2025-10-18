@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { NButton, NCard, NCollapse, NCollapseItem, NDivider, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, useMessage } from 'naive-ui'
 import { computed, reactive } from 'vue'
-import { t } from '@/locales'
 import { useConfigStore, useModelStore } from '@/store'
 
 const configStore = useConfigStore()
@@ -44,11 +43,11 @@ const workflowNodes = [
 const formData = reactive<Record<string, any>>({})
 
 // 从 store 加载数据
-const loadData = () => {
-  const workflowConfig = configStore.getWorkflowConfig
+function loadData() {
+  const workflowConfig = configStore.workflowConfig
   if (workflowConfig) {
     workflowNodes.forEach((node) => {
-      const nodeConfig = workflowConfig[node.key]
+      const nodeConfig = workflowConfig[node.key as Config.WorkflowNodeType]
       if (nodeConfig) {
         formData[node.key] = {
           modelId: nodeConfig.modelId || null,
@@ -94,7 +93,7 @@ const modelOptions = computed(() => {
 const saving = computed(() => configStore.loading)
 
 // 保存设置
-const handleSave = async () => {
+async function handleSave() {
   try {
     const updates: Record<string, any> = {}
     workflowNodes.forEach((node) => {
@@ -112,7 +111,7 @@ const handleSave = async () => {
       }
     })
 
-    await configStore.updateWorkflowConfig(updates)
+    await configStore.updateWorkflowConfig(updates as Config.WorkflowConfig)
     ms.success('工作流配置已保存')
   }
   catch (error: any) {
@@ -121,7 +120,7 @@ const handleSave = async () => {
 }
 
 // 重置单个节点为推荐值
-const resetNode = (nodeKey: string) => {
+function resetNode(nodeKey: string) {
   const node = workflowNodes.find(n => n.key === nodeKey)
   if (node) {
     formData[nodeKey] = {
@@ -134,7 +133,7 @@ const resetNode = (nodeKey: string) => {
 }
 
 // 复制配置到其他节点
-const copyToOthers = (fromKey: string) => {
+function copyToOthers(fromKey: string) {
   const sourceData = formData[fromKey]
   workflowNodes.forEach((node) => {
     if (node.key !== fromKey) {
@@ -147,7 +146,7 @@ const copyToOthers = (fromKey: string) => {
 }
 
 // 节点状态指示
-const getNodeStatus = (nodeKey: string) => {
+function getNodeStatus(nodeKey: string) {
   const nodeData = formData[nodeKey]
   if (!nodeData)
     return '⚠️ 未配置'

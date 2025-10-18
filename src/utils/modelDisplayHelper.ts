@@ -201,12 +201,12 @@ export function generateModelOptions(
 /**
  * 从 localStorage 读取缓存的模型数据
  * @param cacheKey 缓存键名
- * @param ttl 过期时间（毫秒），默认30分钟
+ * @param _ttl 过期时间（毫秒），默认30分钟
  * @returns 缓存的模型数据，如果过期则返回 null
  */
 export function getCachedModels(
   cacheKey: string = 'model_cache',
-  ttl: number = 30 * 60 * 1000, // 30分钟
+  _ttl: number = 30 * 60 * 1000, // 30分钟
 ): Config.CachedModelData | null {
   try {
     const cached = localStorage.getItem(cacheKey)
@@ -264,4 +264,3 @@ export function clearCachedModels(cacheKey: string = 'model_cache'): void {
     console.error('[ModelCache] 清除缓存失败:', error)
   }
 }
-

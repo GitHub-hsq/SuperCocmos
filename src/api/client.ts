@@ -25,8 +25,6 @@ apiClient.interceptors.request.use(
         const clerkToken = await window.Clerk.session.getToken()
         if (clerkToken) {
           config.headers.Authorization = `Bearer ${clerkToken}`
-          if (import.meta.env.DEV)
-            console.log('✅ 使用 Clerk token')
           return config
         }
       }
@@ -40,8 +38,6 @@ apiClient.interceptors.request.use(
     const token = authStore.token || localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-      if (import.meta.env.DEV)
-        console.log('⚠️ 使用传统 token 存储')
     }
     else {
       if (import.meta.env.DEV)

@@ -1,13 +1,13 @@
 <script setup lang='ts'>
-import { NDrawer, NDrawerContent, NMenu } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
+import { NDrawer, NDrawerContent, NMenu } from 'naive-ui'
 import { computed, h, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useAuthStore } from '@/store'
-import UserSettingsPanel from './panels/UserSettingsPanel.vue'
 import ChatConfigPanel from './panels/ChatConfigPanel.vue'
-import WorkflowConfigPanel from './panels/WorkflowConfigPanel.vue'
 import ProviderConfigPanel from './panels/ProviderConfigPanel.vue'
+import UserSettingsPanel from './panels/UserSettingsPanel.vue'
+import WorkflowConfigPanel from './panels/WorkflowConfigPanel.vue'
 
 interface Props {
   visible: boolean
@@ -93,8 +93,8 @@ watch(() => props.visible, (visible) => {
 <template>
   <NDrawer
     v-model:show="show"
-    :width="'80vw'"
-    :height="'100vh'"
+    width="80vw"
+    height="100vh"
     placement="right"
     :auto-focus="false"
   >
@@ -131,4 +131,3 @@ watch(() => props.visible, (visible) => {
 <style scoped>
 /* 自定义样式 */
 </style>
-

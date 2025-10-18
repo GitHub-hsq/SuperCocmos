@@ -48,13 +48,13 @@ export const useConfigStore = defineStore('config', {
     async loadAllConfig() {
       // 🔥 如果已加载或正在加载，直接返回
       if (this.loaded || this.loading) {
-        console.log('ℹ️ [ConfigStore] 配置已加载或正在加载，跳过重复请求')
+        console.warn('ℹ️ [ConfigStore] 配置已加载或正在加载，跳过重复请求')
         return
       }
 
       this.loading = true
       try {
-        console.log('🔄 [ConfigStore] 开始加载用户配置...')
+        console.warn('🔄 [ConfigStore] 开始加载用户配置...')
         const response = await fetchUserConfig<Config.UserConfig>()
 
         if (response.status === 'Success' && response.data) {
@@ -63,7 +63,18 @@ export const useConfigStore = defineStore('config', {
           this.chatConfig = response.data.chatConfig || response.data.chat_config || null
           this.workflowConfig = response.data.workflowConfig || response.data.workflow_config || null
           this.loaded = true
-          console.log('✅ [ConfigStore] 用户配置加载成功')
+
+          // 🔥 同步用户设置到 appStore，使主题和语言立即生效
+          if (this.userSettings) {
+            const { useAppStore } = await import('@/store')
+            const appStore = useAppStore()
+            if (this.userSettings.theme)
+              appStore.setTheme(this.userSettings.theme)
+            if (this.userSettings.language)
+              appStore.setLanguage(this.userSettings.language)
+          }
+
+          console.warn('✅ [ConfigStore] 用户配置加载成功')
         }
       }
       catch (error) {
@@ -228,4 +239,3 @@ export const useConfigStore = defineStore('config', {
     enabled: false, // 不持久化，每次从后端获取最新配置
   },
 })
-

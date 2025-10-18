@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NSelect, NSpace, useMessage } from 'naive-ui'
 import { computed, reactive } from 'vue'
-import { useConfigStore } from '@/store'
+import { useAppStore, useConfigStore } from '@/store'
 
 const configStore = useConfigStore()
+const appStore = useAppStore()
 const ms = useMessage()
 
 // 表单数据
@@ -17,11 +18,18 @@ const formData = reactive({
 // 从 store 加载数据
 function loadData() {
   const userSettings = configStore.userSettings
+
+  // 🔥 优先从 configStore 加载，如果没有则从 appStore 加载（保证数据一致性）
   if (userSettings) {
     formData.avatar = userSettings.avatar || ''
     formData.name = userSettings.name || ''
-    formData.theme = userSettings.theme || 'auto'
-    formData.language = userSettings.language || 'zh-CN'
+    formData.theme = userSettings.theme || appStore.theme
+    formData.language = userSettings.language || appStore.language
+  }
+  else {
+    // 如果 configStore 中没有数据，则从 appStore 加载
+    formData.theme = appStore.theme
+    formData.language = appStore.language
   }
 }
 
@@ -53,6 +61,11 @@ async function handleSave() {
       theme: formData.theme as 'auto' | 'light' | 'dark',
       language: formData.language as 'zh-CN' | 'en-US',
     })
+
+    // 🔥 同步更新 appStore，使主题和语言立即生效
+    appStore.setTheme(formData.theme as 'auto' | 'light' | 'dark')
+    appStore.setLanguage(formData.language as 'zh-CN' | 'en-US')
+
     ms.success('用户设置已保存')
   }
   catch (error: any) {

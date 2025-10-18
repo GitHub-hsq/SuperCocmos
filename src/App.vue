@@ -26,25 +26,38 @@ if (import.meta.env.DEV) {
 // 启动Loading状态
 const isAppLoading = ref(true)
 
+// 🔥 等待 Clerk 加载完成（使用轮询，最多等待2秒）
+async function waitForClerk(maxWaitTime = 2000): Promise<boolean> {
+  const startTime = Date.now()
+  const checkInterval = 50 // 每50ms检查一次
+
+  while (Date.now() - startTime < maxWaitTime) {
+    if (window.Clerk?.loaded) {
+      return true
+    }
+    await new Promise(resolve => setTimeout(resolve, checkInterval))
+  }
+
+  // 超时，返回当前状态
+  return !!window.Clerk
+}
+
 // 应用启动时的初始化
 onMounted(async () => {
   try {
-    // 🔥 延迟一下，确保 Clerk 完全初始化
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // 🔥 智能等待 Clerk 初始化（最多2秒）
+    const clerkReady = await waitForClerk()
 
-    console.warn('🔍 [App] Clerk 状态检查:', {
-      hasClerk: !!window.Clerk,
-      hasSession: !!window.Clerk?.session,
-      hasUser: !!window.Clerk?.user,
-    })
+    if (!clerkReady) {
+      console.warn('⚠️ [App] Clerk 加载超时，跳过用户信息获取')
+      isAppLoading.value = false
+      return
+    }
 
     // 🔥 获取当前用户信息（包含角色）
     if (window.Clerk?.session && window.Clerk?.user) {
       try {
-        console.warn('🔄 [App] 开始调用 /api/auth/me...')
         const result = await getCurrentUser()
-
-        console.warn('📦 [App] API 返回结果:', result)
 
         // 🔥 getCurrentUser 返回 ApiResponse，需要访问 data.user
         const userData = (result as any)?.data?.user
@@ -56,35 +69,26 @@ onMounted(async () => {
             createdAt: userData.createdAt,
             role: userData.role || 'user', // 🔥 保存用户角色
           })
-          console.warn('✅ [App] 用户信息已加载:', {
-            email: userData.email,
-            role: userData.role,
-            roles: userData.roles,
-          })
 
-          // 🔥 验证保存成功
-          console.warn('💾 [App] authStore.userInfo =', authStore.userInfo)
-        }
-        else {
-          console.warn('⚠️ [App] API 返回数据格式异常:', result)
+          if (import.meta.env.DEV) {
+            console.warn('✅ [App] 用户信息已加载:', {
+              email: userData.email,
+              role: userData.role,
+            })
+          }
         }
       }
       catch (error) {
         console.error('❌ [App] 获取用户信息失败:', error)
       }
     }
-    else {
-      console.warn('⚠️ [App] Clerk 未登录或未初始化完成')
-    }
   }
   catch (error) {
     console.error('❌ [App] 初始化失败:', error)
   }
   finally {
-    // 确保至少显示Loading一段时间，提供更好的用户体验
-    setTimeout(() => {
-      isAppLoading.value = false
-    }, 200)
+    // 🔥 立即关闭 Loading（不再延迟）
+    isAppLoading.value = false
   }
 })
 </script>

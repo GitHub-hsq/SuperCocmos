@@ -42,6 +42,7 @@ const activeSettingTab = computed(() => appStore.activeSettingTab)
 const settingItems = computed(() => {
   const items = [
     { key: 'General', label: t('modelsSetting.general'), icon: 'ri:file-user-line' },
+    { key: 'ChatConfig', label: '聊天配置', icon: 'ri:chat-settings-line' },
     { key: 'Config', label: t('modelsSetting.config'), icon: 'ri:list-settings-line' },
     { key: 'WorkflowModel', label: t('modelsSetting.workflowModel'), icon: 'ri:git-branch-line' },
     { key: 'ProviderConfig', label: t('modelsSetting.providerConfig'), icon: 'ri:settings-3-line' },
@@ -49,7 +50,7 @@ const settingItems = computed(() => {
 
   // 如果是 ChatGPT API，添加高级设置
   if (isChatGPTAPI.value) {
-    items.splice(1, 0, { key: 'Advanced', label: t('modelsSetting.advanced'), icon: 'ri:equalizer-line' })
+    items.splice(2, 0, { key: 'Advanced', label: t('modelsSetting.advanced'), icon: 'ri:equalizer-line' })
   }
 
   return items

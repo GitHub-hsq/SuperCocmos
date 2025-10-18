@@ -14,12 +14,13 @@ import { HoverButton, SvgIcon } from '@/components/common'
 import About from '@/components/common/Setting/About.vue'
 import Advanced from '@/components/common/Setting/Advanced.vue'
 // 🔥 使用新的配置面板组件
+import ChatConfigPanel from '@/components/common/Setting/panels/ChatConfigPanel.vue'
 import ProviderConfigPanel from '@/components/common/Setting/panels/ProviderConfigPanel.vue'
 import UserSettingsPanel from '@/components/common/Setting/panels/UserSettingsPanel.vue'
 import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConfigPanel.vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore, useUserStore } from '@/store'
+import { useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore } from '@/store'
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
 import HeaderComponent from './components/Header/index.vue'
 import { useChat } from './hooks/useChat'
@@ -42,7 +43,6 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 const configStore = useConfigStore()
 const modelStore = useModelStore()
-const userStore = useUserStore()
 
 const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
@@ -133,16 +133,23 @@ async function onConversation() {
     options.providerId = selectedModel.providerId
   }
 
-  // 🔥 添加用户配置的系统提示词、温度和 Top P 参数
-  const userInfo = userStore.userInfo
-  if (userInfo.systemPrompt)
-    options.systemMessage = userInfo.systemPrompt
+  // 🔥 添加用户配置的参数（从 ConfigStore 获取）
+  const chatConfig = configStore.chatConfig
+  if (chatConfig) {
+    // 系统提示词
+    if (chatConfig.systemPrompt)
+      options.systemMessage = chatConfig.systemPrompt
 
-  if (userInfo.temperature !== undefined)
-    options.temperature = userInfo.temperature
-
-  if (userInfo.topP !== undefined)
-    options.top_p = userInfo.topP
+    // 模型参数
+    if (chatConfig.parameters) {
+      if (chatConfig.parameters.temperature !== undefined)
+        options.temperature = chatConfig.parameters.temperature
+      if (chatConfig.parameters.topP !== undefined)
+        options.top_p = chatConfig.parameters.topP
+      if (chatConfig.parameters.maxTokens !== undefined)
+        (options as any).maxTokens = chatConfig.parameters.maxTokens
+    }
+  }
 
   addChat(
     uuid,
@@ -284,16 +291,23 @@ async function onRegenerate(index: number) {
     options.providerId = selectedModel.providerId
   }
 
-  // 🔥 添加用户配置的系统提示词、温度和 Top P 参数
-  const userInfo = userStore.userInfo
-  if (userInfo.systemPrompt)
-    options.systemMessage = userInfo.systemPrompt
+  // 🔥 添加用户配置的参数（从 ConfigStore 获取）
+  const chatConfig = configStore.chatConfig
+  if (chatConfig) {
+    // 系统提示词
+    if (chatConfig.systemPrompt)
+      options.systemMessage = chatConfig.systemPrompt
 
-  if (userInfo.temperature !== undefined)
-    options.temperature = userInfo.temperature
-
-  if (userInfo.topP !== undefined)
-    options.top_p = userInfo.topP
+    // 模型参数
+    if (chatConfig.parameters) {
+      if (chatConfig.parameters.temperature !== undefined)
+        options.temperature = chatConfig.parameters.temperature
+      if (chatConfig.parameters.topP !== undefined)
+        options.top_p = chatConfig.parameters.topP
+      if (chatConfig.parameters.maxTokens !== undefined)
+        (options as any).maxTokens = chatConfig.parameters.maxTokens
+    }
+  }
 
   loading.value = true
 
@@ -820,14 +834,22 @@ const activeVendor = ref('') // 🔥 初始化为空，将在加载模型后自�
 const modelSearch = ref('')
 const selectedModelFromPopover = ref<string | null>(null)
 
-// 🔥 组件初始化状态标记（防止重复初始化）
-const isComponentInitialized = ref(false)
+// 🔥 全局初始化标记（防止多个 chat 实例重复初始化）
+const GLOBAL_INIT_KEY = '__chat_initialized__'
 
 // 监听鼠标事件
 onMounted(async () => {
-  // 🔥 防止重复初始化
-  if (isComponentInitialized.value) {
-    console.log('ℹ️ [Chat] 组件已初始化，跳过重复初始化')
+  // 🔥 检查是否已经初始化过（使用全局标记）
+  if ((window as any)[GLOBAL_INIT_KEY]) {
+    if (import.meta.env.DEV) {
+      console.warn('ℹ️ [Chat] 组件已初始化，跳过重复初始化')
+    }
+    // 只执行必要的操作
+    scrollToBottom()
+    if (inputRef.value && !isMobile.value)
+      inputRef.value?.focus()
+    document.addEventListener('mousemove', handleResizeMove)
+    document.addEventListener('mouseup', handleResizeEnd)
     return
   }
 
@@ -836,56 +858,53 @@ onMounted(async () => {
     inputRef.value?.focus()
 
   // 🔥 加载模型列表（优先使用缓存，Store内部已做防重复加载处理）
-  try {
-    console.log('🔄 [Chat] 初始化模型列表...')
-    const success = await modelStore.loadModelsFromBackend() // Store 内部会处理缓存和防重复逻辑
-    if (success) {
-      console.log('✅ [Chat] 模型列表初始化完成:', {
-        供应商数量: modelStore.providers.length,
-        启用的模型: modelStore.enabledModels.length,
-      })
+  if (!modelStore.isProvidersLoaded) {
+    try {
+      if (import.meta.env.DEV) {
+        console.warn('🔄 [Chat] 初始化模型列表...')
+      }
+      const success = await modelStore.loadModelsFromBackend()
+      if (success && import.meta.env.DEV) {
+        console.warn('✅ [Chat] 模型列表初始化完成:', {
+          供应商数量: modelStore.providers.length,
+          启用的模型: modelStore.enabledModels.length,
+        })
+      }
     }
-    else {
-      console.warn('⚠️ [Chat] 模型列表初始化失败')
-      ms.warning('模型列表加载失败，请刷新页面重试')
+    catch (error) {
+      console.error('❌ [Chat] 模型列表初始化异常:', error)
+      ms.error('模型列表加载异常，请检查网络连接')
     }
-  }
-  catch (error) {
-    console.error('❌ [Chat] 模型列表初始化异常:', error)
-    ms.error('模型列表加载异常，请检查网络连接')
   }
 
   // 🔥 加载用户配置（V2 新增，带防重复加载）
   if (!configStore.loaded) {
     try {
-      // 使用类型断言调用action
       const loadConfig = (configStore as any).loadAllConfig
       if (typeof loadConfig === 'function')
         await loadConfig()
     }
     catch (error) {
       console.error('❌ [Chat] 用户配置初始化异常:', error)
-      // 配置加载失败不影响聊天功能，只记录错误
     }
-  }
-  else {
-    console.log('ℹ️ [Chat] 用户配置已加载，跳过重复加载')
   }
 
   // 加载当前选中的模型（已从缓存恢复）
   loadCurrentModel()
 
-  // 🔥 设置默认的 activeVendor 为第一个可用供应商
-  if (modelStore.providers.length > 0) {
+  // 🔥 设置默认的 activeVendor（仅在没有保存的模型时）
+  if (modelStore.providers.length > 0 && !activeVendor.value) {
     const firstEnabledProvider = modelStore.providers.find((p: any) => p.enabled && p.models.length > 0)
     if (firstEnabledProvider) {
       activeVendor.value = firstEnabledProvider.id
-      console.log('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
+      if (import.meta.env.DEV) {
+        console.warn('✅ [Chat] 设置默认供应商（无保存的模型）:', firstEnabledProvider.displayName)
+      }
     }
   }
 
-  // 🔥 标记组件已初始化
-  isComponentInitialized.value = true
+  // 🔥 标记全局已初始化
+  (window as any)[GLOBAL_INIT_KEY] = true
 
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
@@ -1005,23 +1024,34 @@ function loadCurrentModel() {
         }
         selectedModelFromPopover.value = currentModelFromStore.id
 
-        // 🔥 自动绑定供应商信息
+        // 🔥 自动绑定供应商信息（同时设置 activeVendor 和 currentProviderId）
         if (currentModelFromStore.providerId) {
-          modelStore.setCurrentProvider(currentModelFromStore.providerId as any)
-          console.log('🔗 [模型] 已绑定供应商:', currentModelFromStore.providerId)
+          // 设置 ModelStore 的当前供应商
+          if (!modelStore.currentProviderId) {
+            modelStore.setCurrentProvider(currentModelFromStore.providerId as any)
+          }
+          // 🔥 同时设置模型选择器 UI 的激活供应商
+          activeVendor.value = currentModelFromStore.providerId
+
+          if (import.meta.env.DEV) {
+            console.warn('🔗 [模型] 已绑定供应商:', currentModelFromStore.providerId)
+          }
         }
 
-        console.log('✅ [模型] 加载已保存的模型:', currentModelFromStore.displayName)
+        if (import.meta.env.DEV) {
+          console.warn('✅ [模型] 加载已保存的模型:', currentModelFromStore.displayName)
+        }
       }
       else {
         // 模型不存在，重置为默认状态
-        console.warn('⚠️ [模型] 已保存的模型不存在，重置为默认状态')
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ [模型] 已保存的模型不存在，重置为默认状态')
+        }
         resetToDefaultModel()
       }
     }
     else {
       // 没有保存的模型，重置为默认状态
-      console.log('ℹ️ [模型] 没有保存的模型，重置为默认状态')
       resetToDefaultModel()
     }
   }
@@ -1044,19 +1074,18 @@ function resetToDefaultModel() {
 function handleSelectModel(model: ModelItem) {
   selectedModelFromPopover.value = model.id
   currentSelectedModel.value = model
-  console.log('✅ [模型] 已选择模型:', model.name, '供应商:', model.provider, '供应商ID:', model.providerId)
 
   // 🔥 自动绑定供应商信息，减少后续查询
-  if (model.providerId) {
-    // 更新当前供应商ID
+  if (model.providerId && model.providerId !== modelStore.currentProviderId) {
     modelStore.setCurrentProvider(model.providerId as any)
-    console.log('🔗 [模型] 已绑定供应商:', model.providerId)
+    if (import.meta.env.DEV) {
+      console.warn('🔗 [模型] 已绑定供应商:', model.providerId)
+    }
   }
 
   // 保存到ModelStore
   try {
     modelStore.setCurrentModel(model.id)
-    console.log('💾 [模型] 已保存模型选择到ModelStore')
   }
   catch (error) {
     console.error('❌ [模型] 保存模型选择失败:', error)
@@ -1079,6 +1108,9 @@ function handleSelectModel(model: ModelItem) {
               <transition name="fade-fast" mode="out-in">
                 <!-- 🔥 个人设置 - 使用新的 UserSettingsPanel -->
                 <UserSettingsPanel v-if="activeSettingTab === 'General'" key="general" />
+
+                <!-- 🔥 聊天配置 - 使用新的 ChatConfigPanel -->
+                <ChatConfigPanel v-else-if="activeSettingTab === 'ChatConfig'" key="chat-config" />
 
                 <!-- Advanced 设置 - 保持不变 -->
                 <Advanced v-else-if="activeSettingTab === 'Advanced' && isChatGPTAPI" key="advanced" />

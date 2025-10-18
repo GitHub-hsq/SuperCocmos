@@ -60,6 +60,7 @@ declare namespace Chat {
     systemMessage?: string // 系统提示词
     temperature?: number // 温度参数
     top_p?: number // Top P 参数
+    maxTokens?: number // 最大输出 tokens
   }
 
   interface ConversationResponse {

@@ -59,32 +59,52 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
   res.setHeader('Content-type', 'application/octet-stream')
 
   try {
-    console.log('前端传入的请求参数:', req.body)
-    const { prompt, options = {}, systemMessage, temperature, top_p, model, providerId } = req.body as RequestProps
+    const requestBody = req.body as any
+    console.log('前端传入的请求参数:', requestBody)
+
+    const {
+      prompt,
+      systemMessage,
+      temperature,
+      top_p,
+      model,
+      providerId,
+      maxTokens,
+      conversationId,
+      parentMessageId,
+    } = requestBody
+
+    // 🔥 构建 lastContext（用于上下文对话）
+    const lastContext: any = {}
+    if (conversationId)
+      lastContext.conversationId = conversationId
+    if (parentMessageId)
+      lastContext.parentMessageId = parentMessageId
 
     // 从模型配置中获取参数，如果请求中没有指定的话
     const modelConfig = model ? getModelConfig(model) : null
     const finalTemperature = temperature !== undefined ? temperature : modelConfig?.temperature
     const finalTopP = top_p !== undefined ? top_p : modelConfig?.topP
-    const maxTokens = modelConfig?.maxTokens
+    // 🔥 优先使用请求中的 maxTokens，其次使用模型配置，最后使用默认值
+    const finalMaxTokens = maxTokens !== undefined ? maxTokens : (modelConfig?.maxTokens || 4096)
 
-    const TestBody = {
+    const chatParams = {
       message: prompt,
-      lastContext: options,
+      lastContext,
       systemMessage,
       temperature: finalTemperature,
       top_p: finalTopP,
       model,
-      maxTokens,
-      providerId: providerId || options.providerId, // 🔥 传递 providerId 参数
+      maxTokens: finalMaxTokens,
+      providerId,
     }
 
-    console.log('📝 [Chat Process] chat参数:', TestBody)
+    console.log('📝 [Chat Process] 处理参数:', chatParams)
 
     let firstChunk = true
     await chatReplyProcess({
       message: prompt,
-      lastContext: options,
+      lastContext,
       process: (chat: ChatMessage) => {
         res.write(firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`)
         firstChunk = false
@@ -93,8 +113,8 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
       temperature: finalTemperature,
       top_p: finalTopP,
       model,
-      maxTokens,
-      providerId: providerId || options.providerId, // 🔥 传递 providerId 参数
+      maxTokens: finalMaxTokens,
+      providerId,
     })
   }
   catch (error) {

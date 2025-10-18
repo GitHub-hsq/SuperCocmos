@@ -1,52 +1,31 @@
 <script setup lang="ts">
-import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, NSwitch, useMessage } from 'naive-ui'
+import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpace, useMessage } from 'naive-ui'
 import { computed, reactive } from 'vue'
-import { useConfigStore, useModelStore } from '@/store'
+import { useConfigStore } from '@/store'
 
 const configStore = useConfigStore()
-const modelStore = useModelStore()
 const ms = useMessage()
 
 // 表单数据
 const formData = reactive({
-  defaultModel: null as { providerId: string, modelId: string } | null,
+  systemPrompt: '你是一个有帮助的AI助手。',
   temperature: 0.7,
   topP: 0.9,
   maxTokens: 4096,
-  systemPrompt: '你是一个有帮助的AI助手。',
-  streamEnabled: true,
 })
 
 // 从 store 加载数据
 function loadData() {
   const chatConfig = configStore.chatConfig
   if (chatConfig) {
-    formData.defaultModel = chatConfig.defaultModel || null
+    formData.systemPrompt = chatConfig.systemPrompt || '你是一个有帮助的AI助手。'
     formData.temperature = chatConfig.parameters?.temperature || 0.7
     formData.topP = chatConfig.parameters?.topP || 0.9
     formData.maxTokens = chatConfig.parameters?.maxTokens || 4096
-    formData.systemPrompt = chatConfig.systemPrompt || '你是一个有帮助的AI助手。'
-    formData.streamEnabled = chatConfig.streamEnabled !== false
   }
 }
 
 loadData()
-
-// 模型选项（从 ModelStore 获取）
-const modelOptions = computed(() => {
-  return modelStore.enabledModels.map((model: any) => ({
-    label: `${model.provider} - ${model.displayName}`,
-    value: JSON.stringify({ providerId: model.providerId, modelId: model.id }),
-  }))
-})
-
-// 当前选中的模型值（用于 NSelect）
-const selectedModelValue = computed({
-  get: () => formData.defaultModel ? JSON.stringify(formData.defaultModel) : null,
-  set: (val) => {
-    formData.defaultModel = val ? JSON.parse(val) : null
-  },
-})
 
 // 保存状态
 const saving = computed(() => configStore.loading)
@@ -56,14 +35,13 @@ async function handleSave() {
   try {
     // 直接调用 action
     await (configStore as any).updateChatConfig({
-      defaultModel: formData.defaultModel,
       parameters: {
         temperature: formData.temperature,
         topP: formData.topP,
         maxTokens: formData.maxTokens,
       },
       systemPrompt: formData.systemPrompt,
-      streamEnabled: formData.streamEnabled,
+      streamEnabled: true, // 默认启用打字机效果
     })
     ms.success('聊天配置已保存')
   }
@@ -74,12 +52,10 @@ async function handleSave() {
 
 // 重置为默认值
 function handleReset() {
-  formData.defaultModel = null
   formData.temperature = 0.7
   formData.topP = 0.9
   formData.maxTokens = 4096
   formData.systemPrompt = '你是一个有帮助的AI助手。'
-  formData.streamEnabled = true
   ms.info('已重置为默认值')
 }
 
@@ -113,24 +89,28 @@ function applyPreset(preset: typeof presets[0]) {
       </template>
 
       <NForm label-placement="left" label-width="120" :model="formData">
-        <!-- 默认模型 -->
+        <!-- 角色设定 -->
         <NDivider title-placement="left">
-          默认模型
+          🤖 AI 角色设定
         </NDivider>
 
-        <NFormItem label="默认模型" path="defaultModel">
-          <NSelect
-            v-model:value="selectedModelValue"
-            :options="modelOptions"
-            placeholder="选择对话时默认使用的AI模型"
-            filterable
-            clearable
-          />
+        <NFormItem label="系统提示词" path="systemPrompt">
+          <div class="w-full">
+            <NInput
+              v-model:value="formData.systemPrompt"
+              type="textarea"
+              placeholder="给AI设定一个身份或行为准则&#10;例如: '你是一个专业的编程助手'、'你是一个友善的老师'"
+              :autosize="{ minRows: 4, maxRows: 10 }"
+            />
+            <div class="text-xs text-gray-500 mt-1">
+              💡 系统提示词会影响AI的回复风格和行为。留空则使用默认设定。
+            </div>
+          </div>
         </NFormItem>
 
         <!-- 模型参数 -->
         <NDivider title-placement="left">
-          模型参数
+          ⚙️ 模型参数
         </NDivider>
 
         <!-- 预设按钮 -->
@@ -203,38 +183,16 @@ function applyPreset(preset: typeof presets[0]) {
           </div>
         </NFormItem>
 
-        <!-- 角色设定 -->
-        <NDivider title-placement="left">
-          角色设定
-        </NDivider>
-
-        <NFormItem label="系统提示词" path="systemPrompt">
-          <div class="w-full">
-            <NInput
-              v-model:value="formData.systemPrompt"
-              type="textarea"
-              placeholder="给AI设定一个身份或行为准则&#10;例如: '你是一个专业的编程助手'、'你是一个友善的老师'"
-              :autosize="{ minRows: 3, maxRows: 8 }"
-            />
-            <div class="text-xs text-gray-500 mt-1">
-              系统提示词会影响AI的回复风格和行为
-            </div>
+        <!-- 使用说明 -->
+        <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <div class="text-sm text-blue-600 dark:text-blue-400">
+            💡 <strong>配置说明</strong><br>
+            • 这些参数会在聊天时自动应用到所有对话<br>
+            • 模型会记住你上次使用的，无需设置默认模型<br>
+            • 打字机效果已默认启用，提供更流畅的体验<br>
+            • 如果你是管理员，你的配置会成为其他新用户的默认配置
           </div>
-        </NFormItem>
-
-        <!-- 其他设置 -->
-        <NDivider title-placement="left">
-          其他设置
-        </NDivider>
-
-        <NFormItem label="打字机效果" path="streamEnabled">
-          <div class="flex items-center space-x-3">
-            <NSwitch v-model:value="formData.streamEnabled" />
-            <span class="text-sm text-gray-500">
-              开启后，AI回复会逐字显示 (更流畅的体验)
-            </span>
-          </div>
-        </NFormItem>
+        </div>
       </NForm>
     </NCard>
   </div>

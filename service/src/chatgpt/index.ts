@@ -234,7 +234,14 @@ async function chatReplyProcess(options: RequestOptions) {
       if (isNotEmptyString(systemMessage))
         options.systemMessage = systemMessage
       // 使用请求中的模型参数，如果没有则使用默认模型
-      options.completionParams = { model: selectedModel, temperature, top_p }
+      options.completionParams = {
+        model: selectedModel,
+        temperature,
+        top_p,
+        // 🔥 OpenAI 默认值都是 0，我们保持默认即可
+        // presence_penalty: 0,
+        // frequency_penalty: 0,
+      }
       // 如果提供了 maxTokens，设置 maxResponseTokens
       if (maxTokens && apiInstance.maxResponseTokens !== maxTokens)
         apiInstance.maxResponseTokens = maxTokens

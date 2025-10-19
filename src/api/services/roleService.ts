@@ -76,3 +76,68 @@ export async function getUserRoles(userId: number) {
   const response = await request.get<ApiResponse<UserRole>>(`/user-roles/${userId}`)
   return response.data
 }
+
+// ============================================
+// 模型-角色权限管理接口
+// ============================================
+
+export interface ModelWithRoles {
+  id: string
+  model_id: string
+  display_name: string
+  enabled: boolean
+  provider_id: string
+  created_at: string
+  updated_at: string
+  accessible_roles: Array<{
+    roleId: number
+    roleName: string
+    roleDescription: string | null
+  }>
+}
+
+export interface ModelRoleInfo {
+  modelId: string
+  roleIds: number[]
+  isPublic: boolean
+}
+
+/**
+ * 获取所有模型及其可访问角色
+ */
+export async function getAllModelsWithRoles() {
+  const response = await request.get<ApiResponse<{ models: ModelWithRoles[] }>>('/model-roles/all')
+  return response.data
+}
+
+/**
+ * 获取指定模型的角色列表
+ */
+export async function getModelRoles(modelId: string) {
+  const response = await request.get<ApiResponse<ModelRoleInfo>>(`/model-roles/${modelId}`)
+  return response.data
+}
+
+/**
+ * 为模型分配角色
+ */
+export async function assignRoleToModel(modelId: string, roleId: number) {
+  const response = await request.post<ApiResponse<any>>('/model-roles/assign', { modelId, roleId })
+  return response.data
+}
+
+/**
+ * 移除模型的角色
+ */
+export async function removeRoleFromModel(modelId: string, roleId: number) {
+  const response = await request.post<ApiResponse<null>>('/model-roles/remove', { modelId, roleId })
+  return response.data
+}
+
+/**
+ * 批量设置模型的角色（覆盖现有设置）
+ */
+export async function setModelRoles(modelId: string, roleIds: number[]) {
+  const response = await request.post<ApiResponse<{ modelId: string, roleIds: number[], isPublic: boolean }>>('/model-roles/set', { modelId, roleIds })
+  return response.data
+}

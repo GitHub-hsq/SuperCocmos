@@ -144,7 +144,8 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     // ✅ 将数据库 user_id 附加到 req
     req.dbUserId = user.user_id
 
-    const isAdmin = await userHasRole(user.user_id, 'admin')
+    // 支持 admin 和 Admin（不区分大小写）
+    const isAdmin = await userHasRole(user.user_id, 'admin') || await userHasRole(user.user_id, 'Admin')
     if (!isAdmin) {
       return res.status(403).json({
         status: 'Fail',

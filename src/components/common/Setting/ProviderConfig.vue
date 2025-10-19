@@ -3,8 +3,11 @@ import type { DataTableColumns } from 'naive-ui'
 import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
 import { computed, h, ref, watch } from 'vue'
 import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, updateModel, updateProvider } from '@/api'
+import { getAllModelsWithRoles, getAllRoles, getModelRoles, setModelRoles } from '@/api/services/roleService'
+import type { Role } from '@/api/services/roleService'
 import { SvgIcon } from '@/components/common'
 import { useModelStore } from '@/store'
+import ModelRoleDialog from './ModelRoleDialog.vue'
 
 interface Props {
   visible?: boolean
@@ -32,6 +35,11 @@ interface ModelItem {
   providerId: string
   createdAt?: string
   updatedAt?: string
+  accessibleRoles?: Array<{
+    roleId: number
+    roleName: string
+    roleDescription: string | null
+  }>
 }
 
 const message = useMessage()
@@ -48,6 +56,12 @@ const providersList = ref<ProviderItem[]>([])
 
 // 展开的行keys
 const expandedRowKeys = ref<string[]>([])
+
+// ========== 角色权限相关 ==========
+const allRoles = ref<Role[]>([])
+const loadingRoles = ref(false)
+const roleDialogVisible = ref(false)
+const currentModel = ref<ModelItem | null>(null)
 
 // ========== 供应商相关 ==========
 // 新增供应商对话框
@@ -107,6 +121,36 @@ const disabledModels = computed(() => {
   return totalModels.value - enabledModels.value
 })
 
+// ========== 角色权限管理函数 ==========
+// 加载所有角色
+async function loadAllRoles() {
+  try {
+    loadingRoles.value = true
+    const response = await getAllRoles()
+    allRoles.value = response.data.roles || []
+  }
+  catch (error) {
+    console.error('加载角色列表失败:', error)
+    message.error('加载角色列表失败')
+  }
+  finally {
+    loadingRoles.value = false
+  }
+}
+
+// 处理编辑模型角色权限
+function handleEditModelRoles(model: ModelItem) {
+  currentModel.value = model
+  roleDialogVisible.value = true
+}
+
+// 处理角色权限更新成功
+function handleRoleUpdateSuccess() {
+  // 刷新数据
+  loadProviders()
+  message.success('角色权限更新成功')
+}
+
 // 模型子表格列定义
 const modelColumns: DataTableColumns<ModelItem> = [
   {
@@ -135,15 +179,44 @@ const modelColumns: DataTableColumns<ModelItem> = [
     },
   },
   {
+    title: '访问权限',
+    key: 'accessibleRoles',
+    width: 200,
+    render: (row) => {
+      const roles = row.accessibleRoles || []
+      if (roles.length === 0) {
+        return h(NTag, { type: 'info', size: 'small' }, { default: () => '所有人' })
+      }
+      
+      return h('div', { class: 'space-y-1' }, [
+        h('div', { class: 'text-xs text-gray-600' }, `限制访问 (${roles.length}个角色)`),
+        h('div', { class: 'flex flex-wrap gap-1' }, 
+          roles.slice(0, 2).map((role: any) => 
+            h(NTag, { 
+              size: 'small', 
+              type: 'success' 
+            }, { default: () => role.roleName })
+          )
+        ),
+        roles.length > 2 && h('div', { class: 'text-xs text-gray-500' }, `+${roles.length - 2} 更多`)
+      ])
+    },
+  },
+  {
     title: '操作',
     key: 'actions',
-    width: 150,
+    width: 200,
     render: (row) => {
       return h(NSpace, { size: 'small' }, [
         h(NButton, {
           size: 'small',
           onClick: () => editModel(row),
         }, { default: () => '编辑' }),
+        h(NButton, {
+          size: 'small',
+          type: 'info',
+          onClick: () => handleEditModelRoles(row),
+        }, { default: () => '权限' }),
         h(NPopconfirm, {
           onPositiveClick: () => handleDeleteModel(row.id, row.providerId),
         }, {
@@ -249,6 +322,9 @@ async function loadProviders(forceRefresh = false) {
       providersList.value = response.data
       hasLoaded.value = true
 
+      // 加载角色权限信息
+      await loadModelRolesForAllModels()
+
       // 🔥 同步数据到 modelStore（重要：让整个应用都能访问最新的模型数据）
       try {
         // 强制刷新时，清除缓存并从后端重新获取
@@ -276,6 +352,30 @@ async function loadProviders(forceRefresh = false) {
   }
   finally {
     loading.value = false
+  }
+}
+
+// 为所有模型加载角色权限信息
+async function loadModelRolesForAllModels() {
+  try {
+    // 获取所有模型及其角色权限
+    const response = await getAllModelsWithRoles()
+    if (response.status === 'Success' && response.data.models) {
+      const modelsWithRoles = response.data.models
+      
+      // 更新providersList中每个模型的角色权限信息
+      providersList.value.forEach(provider => {
+        provider.models.forEach(model => {
+          const modelWithRoles = modelsWithRoles.find(m => m.id === model.id)
+          if (modelWithRoles) {
+            model.accessibleRoles = modelWithRoles.accessible_roles
+          }
+        })
+      })
+    }
+  }
+  catch (error) {
+    console.error('加载模型角色权限失败:', error)
   }
 }
 
@@ -504,9 +604,13 @@ async function handleDeleteModel(id: string, _providerId: string) {
 }
 
 // 监听visible变化，只在第一次显示时加载数据
-watch(() => props.visible, (visible) => {
-  if (visible && !hasLoaded.value)
+watch(() => props.visible, async (visible) => {
+  if (visible && !hasLoaded.value) {
+    // 先加载角色数据
+    await loadAllRoles()
+    // 再加载供应商数据
     loadProviders()
+  }
 }, { immediate: true })
 </script>
 
@@ -751,6 +855,14 @@ watch(() => props.visible, (visible) => {
         </div>
       </template>
     </NModal>
+
+    <!-- 角色权限编辑对话框 -->
+    <ModelRoleDialog
+      v-model:visible="roleDialogVisible"
+      :model="currentModel"
+      :all-roles="allRoles"
+      @success="handleRoleUpdateSuccess"
+    />
   </div>
 </template>
 

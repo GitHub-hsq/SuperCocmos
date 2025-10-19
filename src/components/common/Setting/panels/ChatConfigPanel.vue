@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpace, useMessage } from 'naive-ui'
-import { computed, reactive } from 'vue'
+import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpace, useLoadingBar, useMessage } from 'naive-ui'
+import { computed, onMounted, reactive, watch } from 'vue'
 import { useConfigStore } from '@/store'
 
 const configStore = useConfigStore()
 const ms = useMessage()
+const loadingBar = useLoadingBar()
 
 // 表单数据
 const formData = reactive({
-  systemPrompt: '你是一个有帮助的AI助手。',
+  systemPrompt: '你是由SuperCocmos公司开发的新一代人工智能，你将与用户友好沟通。',
   temperature: 0.7,
   topP: 0.9,
   maxTokens: 4096,
@@ -17,21 +18,41 @@ const formData = reactive({
 // 从 store 加载数据
 function loadData() {
   const chatConfig = configStore.chatConfig
+
   if (chatConfig) {
-    formData.systemPrompt = chatConfig.systemPrompt || '你是一个有帮助的AI助手。'
+    formData.systemPrompt = chatConfig.systemPrompt || '你是由SuperCocmos公司开发的新一代人工智能，你将与用户友好沟通。'
     formData.temperature = chatConfig.parameters?.temperature || 0.7
     formData.topP = chatConfig.parameters?.topP || 0.9
     formData.maxTokens = chatConfig.parameters?.maxTokens || 4096
+    console.warn('✅ [ChatConfigPanel] 配置已加载到表单')
+  }
+  else {
+    console.warn('⚠️ [ChatConfigPanel] chatConfig 为空，使用默认值')
   }
 }
 
-loadData()
+// 🔥 监听配置变化，配置加载完成后自动更新表单
+watch(() => configStore.chatConfig, (newConfig) => {
+  if (newConfig) {
+    console.warn('🔄 [ChatConfigPanel] 检测到配置更新，重新加载表单')
+    loadData()
+  }
+}, { immediate: true })
+
+// 🔥 组件挂载时确保配置已加载
+onMounted(async () => {
+  if (!configStore.loaded && !configStore.loading) {
+    console.warn('🔄 [ChatConfigPanel] 配置未加载，触发加载...')
+    await (configStore as any).loadAllConfig()
+  }
+})
 
 // 保存状态
 const saving = computed(() => configStore.loading)
 
 // 保存设置
 async function handleSave() {
+  loadingBar.start()
   try {
     // 直接调用 action
     await (configStore as any).updateChatConfig({
@@ -43,9 +64,11 @@ async function handleSave() {
       systemPrompt: formData.systemPrompt,
       streamEnabled: true, // 默认启用打字机效果
     })
+    loadingBar.finish()
     ms.success('聊天配置已保存')
   }
   catch (error: any) {
+    loadingBar.error()
     ms.error(`保存失败: ${error?.message || '未知错误'}`)
   }
 }

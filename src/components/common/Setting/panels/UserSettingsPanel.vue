@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NSelect, NSpace, useMessage } from 'naive-ui'
-import { computed, reactive } from 'vue'
+import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NSelect, NSpace, useLoadingBar, useMessage } from 'naive-ui'
+import { computed, onMounted, reactive, watch } from 'vue'
 import { useConfigStore } from '@/store'
 
 const configStore = useConfigStore()
 const ms = useMessage()
+const loadingBar = useLoadingBar()
 
 // 表单数据
 const formData = reactive({
@@ -23,9 +24,24 @@ function loadData() {
     formData.theme = userSettings.theme || 'auto'
     formData.language = userSettings.language || 'zh-CN'
   }
+  else {
+    console.warn('⚠️ [UserSettings] userSettings 为空，使用默认值')
+  }
 }
 
-loadData()
+// 🔥 监听配置变化，配置加载完成后自动更新表单
+watch(() => configStore.userSettings, (newSettings) => {
+  if (newSettings) {
+    loadData()
+  }
+}, { immediate: true })
+
+// 🔥 组件挂载时确保配置已加载
+onMounted(async () => {
+  if (!configStore.loaded && !configStore.loading) {
+    await (configStore as any).loadAllConfig()
+  }
+})
 
 // 主题选项
 const themeOptions = [
@@ -45,6 +61,7 @@ const saving = computed(() => configStore.loading)
 
 // 保存设置
 async function handleSave() {
+  loadingBar.start()
   try {
     // 直接调用 action
     await (configStore as any).updateUserSettings({
@@ -53,9 +70,11 @@ async function handleSave() {
       theme: formData.theme as 'auto' | 'light' | 'dark',
       language: formData.language as 'zh-CN' | 'en-US',
     })
+    loadingBar.finish()
     ms.success('用户设置已保存')
   }
   catch (error: any) {
+    loadingBar.error()
     ms.error(`保存失败: ${error?.message || '未知错误'}`)
   }
 }

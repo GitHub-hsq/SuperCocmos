@@ -22,11 +22,22 @@ const emit = defineEmits<Emit>()
 
 const authStore = useAuthStore()
 
-// 判断是否为管理员（假设角色信息存储在 authStore 中）
+// 判断是否为管理员（兼容大小写，支持 roles 数组）
 const isAdmin = computed<boolean>(() => {
-  // 根据你的实际角色系统调整
-  // 例如：return authStore.userInfo?.role === 'admin'
-  return authStore.userInfo?.role === 'admin' || false
+  const roles = authStore.userInfo?.roles || []
+  const singleRole = authStore.userInfo?.role
+
+  // 检查 roles 数组中是否包含管理员角色（不区分大小写）
+  if (roles.some((r: string) => r.toLowerCase() === 'admin')) {
+    return true
+  }
+
+  // 检查单个 role 字段（不区分大小写）
+  if (singleRole && singleRole.toLowerCase() === 'admin') {
+    return true
+  }
+
+  return false
 })
 
 const show = computed({

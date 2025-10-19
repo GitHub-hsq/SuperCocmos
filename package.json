@@ -1,11 +1,11 @@
 {
-  "name": "chatgpt-web",
-  "version": "2.11.1",
+  "name": "SuperCocmos",
+  "version": "2.0.0",
   "private": false,
   "description": "ChatGPT Web",
-  "author": "ChenZhaoYu <chenzhaoyu1994@gmail.com>",
+  "author": "FWKT <fwkt110fwkt@gmail.com>",
   "keywords": [
-    "chatgpt-web",
+    "SuperCocmos",
     "chatgpt",
     "chatbot",
     "vue"

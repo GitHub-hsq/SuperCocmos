@@ -135,21 +135,36 @@ async function onConversation() {
 
   // 🔥 添加用户配置的参数（从 ConfigStore 获取）
   const chatConfig = configStore.chatConfig
+  console.log('📝 [聊天配置] chatConfig:', chatConfig)
+  console.log('📝 [聊天配置] configStore.loaded:', configStore.loaded)
   if (chatConfig) {
     // 系统提示词
-    if (chatConfig.systemPrompt)
+    if (chatConfig.systemPrompt) {
       options.systemMessage = chatConfig.systemPrompt
+      console.log('✅ [聊天配置] 添加系统提示词:', chatConfig.systemPrompt)
+    }
 
     // 模型参数
     if (chatConfig.parameters) {
-      if (chatConfig.parameters.temperature !== undefined)
+      if (chatConfig.parameters.temperature !== undefined) {
         options.temperature = chatConfig.parameters.temperature
-      if (chatConfig.parameters.topP !== undefined)
+        console.log('✅ [聊天配置] 添加 temperature:', chatConfig.parameters.temperature)
+      }
+      if (chatConfig.parameters.topP !== undefined) {
         options.top_p = chatConfig.parameters.topP
-      if (chatConfig.parameters.maxTokens !== undefined)
+        console.log('✅ [聊天配置] 添加 top_p:', chatConfig.parameters.topP)
+      }
+      if (chatConfig.parameters.maxTokens !== undefined) {
         (options as any).maxTokens = chatConfig.parameters.maxTokens
+        console.log('✅ [聊天配置] 添加 maxTokens:', chatConfig.parameters.maxTokens)
+      }
     }
   }
+  else {
+    console.warn('⚠️ [聊天配置] chatConfig 为空，使用默认配置')
+  }
+
+  console.log('📦 [聊天] 最终发送的 options:', options)
 
   addChat(
     uuid,
@@ -308,6 +323,8 @@ async function onRegenerate(index: number) {
         (options as any).maxTokens = chatConfig.parameters.maxTokens
     }
   }
+
+  console.log('📦 [重新生成] 最终发送的 options:', options)
 
   loading.value = true
 
@@ -1466,7 +1483,7 @@ function handleSelectModel(model: ModelItem) {
 /* 页面切换淡入淡出效果 */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-enter-from,
@@ -1477,7 +1494,7 @@ function handleSelectModel(model: ModelItem) {
 /* 设置内容快速切换效果 */
 .fade-fast-enter-active,
 .fade-fast-leave-active {
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-fast-enter-from,

@@ -21,7 +21,16 @@
       "Bash(pnpm lint:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(cat:*)",
+      "Read(//c/Users/Administrator/.claude/**)",
+      "WebSearch",
+      "Bash(ping:*)",
+      "Bash(claude mcp add:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(claude mcp remove:*)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": [],
     "ask": []

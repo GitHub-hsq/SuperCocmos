@@ -10,7 +10,9 @@ export interface RequestOptions {
   top_p?: number
   model?: string
   maxTokens?: number
-  providerId?: string // 🔥 供应商 ID
+  providerId?: string // 🔥 供应商 ID（旧方式，兼容）
+  baseURL?: string // 🔥 直接传递 API Base URL（新方式）
+  apiKey?: string // 🔥 直接传递 API Key（新方式）
 }
 
 export interface SetProxyOptions {

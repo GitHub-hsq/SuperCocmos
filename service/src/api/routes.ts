@@ -7,6 +7,7 @@ import express from 'express'
 import { clerkAuth, requireAdmin, requireAuth } from '../middleware/clerkAuth'
 import * as authController from './authController'
 import * as configController from './configController'
+import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
 
@@ -168,5 +169,34 @@ router.patch('/config/additional', clerkAuth, requireAuth, configController.patc
  * 重置配置为默认值
  */
 router.post('/config/reset', clerkAuth, requireAuth, configController.resetConfig)
+
+// ==============================================
+// 模型-角色权限管理路由（仅管理员）
+// ==============================================
+
+/**
+ * 获取所有模型及其可访问角色
+ */
+router.get('/model-roles/all', clerkAuth, requireAdmin, modelRoleController.getAllModelsWithRolesHandler)
+
+/**
+ * 获取指定模型的角色列表
+ */
+router.get('/model-roles/:modelId', clerkAuth, requireAdmin, modelRoleController.getModelRolesHandler)
+
+/**
+ * 为模型分配角色
+ */
+router.post('/model-roles/assign', clerkAuth, requireAdmin, modelRoleController.assignRoleHandler)
+
+/**
+ * 移除模型的角色
+ */
+router.post('/model-roles/remove', clerkAuth, requireAdmin, modelRoleController.removeRoleHandler)
+
+/**
+ * 批量设置模型的角色（覆盖现有设置）
+ */
+router.post('/model-roles/set', clerkAuth, requireAdmin, modelRoleController.setModelRolesHandler)
 
 export default router

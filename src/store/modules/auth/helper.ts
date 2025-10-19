@@ -6,7 +6,8 @@ export interface UserInfo {
   email: string
   id: string
   createdAt: string
-  role?: 'user' | 'admin' // 用户角色
+  role?: string // 用户主要角色（Admin, Pro, Ultra, Free 等）
+  roles?: string[] // 用户所有角色数组
 }
 
 export interface AuthState {

@@ -1,6 +1,6 @@
 <script setup lang='ts'>
 import { NModal, NTabPane, NTabs } from 'naive-ui'
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useAuthStore } from '@/store'
 import About from './About.vue'
@@ -29,6 +29,9 @@ const active = ref('General')
 const aboutRef = ref<InstanceType<typeof About> | null>(null)
 const hasLoadedUsage = ref(false)
 
+// 定时器ID，用于清理
+let timeoutId: NodeJS.Timeout | null = null
+
 const show = computed({
   get() {
     return props.visible
@@ -43,10 +46,18 @@ watch(active, (newValue) => {
   if (newValue === 'Config' && !hasLoadedUsage.value && isChatGPTAPI.value) {
     hasLoadedUsage.value = true
     // 延迟执行，确保组件已经渲染
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       if (aboutRef.value && typeof aboutRef.value.fetchUsage === 'function')
         aboutRef.value.fetchUsage()
     }, 100)
+  }
+})
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  if (timeoutId) {
+    clearTimeout(timeoutId)
+    timeoutId = null
   }
 })
 </script>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { NButton, NCard, NCollapse, NCollapseItem, NDivider, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, useMessage } from 'naive-ui'
-import { computed, reactive } from 'vue'
+import { NButton, NCard, NCollapse, NCollapseItem, NDivider, NForm, NFormItem, NInput, NInputNumber, NSelect, NSpace, useLoadingBar, useMessage } from 'naive-ui'
+import { computed, onMounted, reactive, watch } from 'vue'
 import { useConfigStore, useModelStore } from '@/store'
 
 const configStore = useConfigStore()
 const modelStore = useModelStore()
 const ms = useMessage()
+const loadingBar = useLoadingBar()
 
 // 工作流节点定义
 const workflowNodes = [
@@ -46,6 +47,7 @@ const formData = reactive<Record<string, any>>({})
 function loadData() {
   const workflowConfig = configStore.workflowConfig
   if (workflowConfig) {
+    console.warn('✅ [WorkflowConfig] 加载配置:', Object.keys(workflowConfig))
     workflowNodes.forEach((node) => {
       const nodeConfig = workflowConfig[node.key as Config.WorkflowNodeType]
       if (nodeConfig) {
@@ -68,6 +70,7 @@ function loadData() {
     })
   }
   else {
+    console.warn('⚠️ [WorkflowConfig] workflowConfig 为空，使用默认值')
     // 初始化默认值
     workflowNodes.forEach((node) => {
       formData[node.key] = {
@@ -79,12 +82,26 @@ function loadData() {
   }
 }
 
-loadData()
+// 🔥 监听配置变化，配置加载完成后自动更新表单
+watch(() => configStore.workflowConfig, (newConfig) => {
+  if (newConfig) {
+    console.warn('🔄 [WorkflowConfig] 检测到配置更新，重新加载表单')
+    loadData()
+  }
+}, { immediate: true })
 
-// 模型选项
+// 🔥 组件挂载时确保配置已加载
+onMounted(async () => {
+  if (!configStore.loaded && !configStore.loading) {
+    console.warn('🔄 [WorkflowConfig] 配置未加载，触发加载...')
+    await (configStore as any).loadAllConfig()
+  }
+})
+
+// 模型选项（只显示供应商_模型名称，不显示UUID）
 const modelOptions = computed(() => {
   return modelStore.enabledModels.map((model: any) => ({
-    label: `${model.provider} - ${model.displayName}`,
+    label: model.displayName, // 直接使用 displayName（格式：供应商_模型id）
     value: model.id,
   }))
 })
@@ -94,6 +111,7 @@ const saving = computed(() => configStore.loading)
 
 // 保存设置
 async function handleSave() {
+  loadingBar.start()
   try {
     const updates: Record<string, any> = {}
     workflowNodes.forEach((node) => {
@@ -112,9 +130,11 @@ async function handleSave() {
     })
 
     await configStore.updateWorkflowConfig(updates as Config.WorkflowConfig)
+    loadingBar.finish()
     ms.success('工作流配置已保存')
   }
   catch (error: any) {
+    loadingBar.error()
     ms.error(`保存失败: ${error?.message || '未知错误'}`)
   }
 }

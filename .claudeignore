@@ -1,0 +1,73 @@
+# Claude Code Ignore File
+# 这些文件/目录将被 Claude Code 忽略
+
+# 依赖
+node_modules/
+.pnpm-store/
+dist/
+build/
+
+# 日志
+*.log
+logs/
+*.log.*
+
+# 环境变量
+# 注意：.env 文件未被忽略，方便初学者检查配置
+# .env              # 主环境变量文件（允许 Claude 访问以帮助检查配置）
+.env.local          # 本地覆盖（忽略）
+.env.*.local        # 其他本地环境变量（忽略）
+.env.production     # 生产环境（忽略，包含敏感信息）
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 构建产物
+dist-ssr/
+*.local
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# 上传文件
+service/uploads/
+uploads/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 证书和密钥（安全敏感）
+*.pem
+*.key
+*.cert
+*.crt
+
+# Lock 文件（太大，影响性能）
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Git 相关
+.git/
+
+# 其他大文件
+*.zip
+*.tar
+*.tar.gz
+*.rar

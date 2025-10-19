@@ -2,7 +2,13 @@ import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { t } from '@/locales'
 import { router } from '@/router'
+import { debounce } from '@/utils/debounce'
 import { defaultState, getLocalState, setLocalState } from './helper'
+
+// 创建防抖的recordState函数
+const debouncedRecordState = debounce((state: Chat.ChatState) => {
+  setLocalState(state)
+}, 300)
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -33,12 +39,12 @@ export const useChatStore = defineStore('chat-store', {
   actions: {
     setUsingContext(context: boolean) {
       this.usingContext = context
-      this.recordState()
+      debouncedRecordState(this.$state)
     },
 
     setChatMode(mode: 'normal' | 'noteToQuestion' | 'noteToStory') {
       this.chatMode = mode
-      this.recordState()
+      debouncedRecordState(this.$state)
     },
 
     addHistory(history: Chat.History, chatData: Chat.Chat[] = []) {
@@ -53,7 +59,7 @@ export const useChatStore = defineStore('chat-store', {
       const index = this.history.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.history[index] = { ...this.history[index], ...edit }
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
 
@@ -119,13 +125,13 @@ export const useChatStore = defineStore('chat-store', {
           this.chat.push({ uuid, data: [chat] })
           this.active = uuid
           this.chatMode = 'normal'
-          this.recordState()
+          debouncedRecordState(this.$state)
         }
         else {
           this.chat[0].data.push(chat)
           if (this.history[0].title === t('chat.newChatTitle'))
             this.history[0].title = chat.text
-          this.recordState()
+          debouncedRecordState(this.$state)
         }
       }
 
@@ -134,7 +140,7 @@ export const useChatStore = defineStore('chat-store', {
         this.chat[index].data.push(chat)
         if (this.history[index].title === t('chat.newChatTitle'))
           this.history[index].title = chat.text
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
 
@@ -142,7 +148,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data[index] = chat
-          this.recordState()
+          debouncedRecordState(this.$state)
         }
         return
       }
@@ -150,7 +156,7 @@ export const useChatStore = defineStore('chat-store', {
       const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
       if (chatIndex !== -1) {
         this.chat[chatIndex].data[index] = chat
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
 
@@ -158,7 +164,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data[index] = { ...this.chat[0].data[index], ...chat }
-          this.recordState()
+          debouncedRecordState(this.$state)
         }
         return
       }
@@ -166,7 +172,7 @@ export const useChatStore = defineStore('chat-store', {
       const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
       if (chatIndex !== -1) {
         this.chat[chatIndex].data[index] = { ...this.chat[chatIndex].data[index], ...chat }
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
 
@@ -174,7 +180,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data.splice(index, 1)
-          this.recordState()
+          debouncedRecordState(this.$state)
         }
         return
       }
@@ -182,7 +188,7 @@ export const useChatStore = defineStore('chat-store', {
       const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
       if (chatIndex !== -1) {
         this.chat[chatIndex].data.splice(index, 1)
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
 
@@ -190,7 +196,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data = []
-          this.recordState()
+          debouncedRecordState(this.$state)
         }
         return
       }
@@ -198,21 +204,26 @@ export const useChatStore = defineStore('chat-store', {
       const index = this.chat.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.chat[index].data = []
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
 
     clearHistory() {
       this.$state = { ...defaultState() }
-      this.recordState()
+      debouncedRecordState(this.$state)
     },
 
     async reloadRoute(uuid?: string) {
-      this.recordState()
+      debouncedRecordState(this.$state)
       await router.push({ name: 'Chat', params: { uuid } })
     },
 
     recordState() {
+      setLocalState(this.$state)
+    },
+
+    // 立即保存状态（用于重要操作）
+    recordStateImmediate() {
       setLocalState(this.$state)
     },
 
@@ -224,7 +235,7 @@ export const useChatStore = defineStore('chat-store', {
       else
         this.workflowStates.push({ uuid, state })
 
-      this.recordState()
+      debouncedRecordState(this.$state)
     },
 
     updateWorkflowStateSome(uuid: string, state: Partial<Chat.WorkflowState>) {
@@ -244,14 +255,14 @@ export const useChatStore = defineStore('chat-store', {
           },
         })
       }
-      this.recordState()
+      debouncedRecordState(this.$state)
     },
 
     clearWorkflowState(uuid: string) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.workflowStates.splice(index, 1)
-        this.recordState()
+        debouncedRecordState(this.$state)
       }
     },
   },

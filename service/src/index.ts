@@ -54,25 +54,60 @@ app.all('*', (req, res, next) => {
   next()
 })
 
-// 流式返回 LLM 的回复内容
+// 🚀 流式返回 LLM 的回复内容 - 优化版：先响应后验证
 router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
   try {
     const requestBody = req.body as any
-    console.log('前端传入的请求参数:', requestBody)
-
     const {
       prompt,
       systemMessage,
       temperature,
       top_p,
-      model,
-      providerId,
+      model, // model 现在是 model_id
       maxTokens,
       conversationId,
       parentMessageId,
+      providerId, // 供应商 ID
     } = requestBody
+
+    const perfStart = Date.now()
+    console.log('📝 [后端] 快速模式:', { model, providerId })
+
+    if (!model || !providerId) {
+      res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '未指定模型或供应商' } }))
+      return res.end()
+    }
+
+    // 🚀 步骤1：快速从 Redis 获取模型配置（<10ms）
+    const step1Start = Date.now()
+    const { getModelFromCache } = await import('./cache/modelCache')
+    let modelConfig = await getModelFromCache(model, providerId)
+
+    // 降级：如果 Redis 没有，从数据库查询
+    if (!modelConfig) {
+      const { getModelsWithProviderByModelId } = await import('./db/providerService')
+      const models = await getModelsWithProviderByModelId(model)
+      modelConfig = models.find((m: any) => m.provider_id === providerId) || models[0]
+    }
+    console.log(`⏱️ [快速] 获取模型配置耗时: ${Date.now() - step1Start}ms`)
+
+    if (!modelConfig || !modelConfig.provider) {
+      res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '模型配置错误' } }))
+      return res.end()
+    }
+
+    // 🚀 步骤2：快速获取用户 ID（不验证权限）
+    const { getAuth } = await import('@clerk/express')
+    const auth = getAuth(req)
+    if (!auth?.userId) {
+      res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '认证失败' } }))
+      return res.end()
+    }
+
+    const clerkUserId = auth.userId
+    console.log(`⏱️ [快速] 前置处理完成，耗时: ${Date.now() - perfStart}ms，立即开始 LLM 调用`)
 
     // 🔥 构建 lastContext（用于上下文对话）
     const lastContext: any = {}
@@ -81,43 +116,83 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     if (parentMessageId)
       lastContext.parentMessageId = parentMessageId
 
-    // 从模型配置中获取参数，如果请求中没有指定的话
-    const modelConfig = model ? getModelConfig(model) : null
-    const finalTemperature = temperature !== undefined ? temperature : modelConfig?.temperature
-    const finalTopP = top_p !== undefined ? top_p : modelConfig?.topP
-    // 🔥 优先使用请求中的 maxTokens，其次使用模型配置，最后使用默认值
-    const finalMaxTokens = maxTokens !== undefined ? maxTokens : (modelConfig?.maxTokens || 4096)
+    // 使用请求参数或默认值
+    const finalTemperature = temperature !== undefined ? temperature : 0.7
+    const finalTopP = top_p !== undefined ? top_p : 1
+    const finalMaxTokens = maxTokens !== undefined ? maxTokens : 4096
 
-    const chatParams = {
-      message: prompt,
-      lastContext,
-      systemMessage,
-      temperature: finalTemperature,
-      top_p: finalTopP,
-      model,
-      maxTokens: finalMaxTokens,
-      providerId,
-    }
-
-    console.log('📝 [Chat Process] 处理参数:', chatParams)
-
+    // 🚀 步骤3：立即开始 LLM 调用（不等待权限验证）
+    let authCheckFailed = false
     let firstChunk = true
+
+    // 🔥 异步验证权限（不阻塞响应）
+    const authCheckPromise = (async () => {
+      try {
+        const { findUserByClerkId } = await import('./db/supabaseUserService')
+        const { userHasRole } = await import('./db/userRoleService')
+        const { userCanAccessModel } = await import('./db/modelRoleAccessService')
+
+        const user = await findUserByClerkId(clerkUserId)
+        if (!user) {
+          console.error(`❌ [异步验证] 用户不存在: ${clerkUserId}`)
+          authCheckFailed = true
+          return
+        }
+
+        const isAdmin = await userHasRole(user.user_id, 'admin') || await userHasRole(user.user_id, 'Admin')
+        if (isAdmin) {
+          console.log(`✅ [异步验证] 管理员，权限通过`)
+          return
+        }
+
+        const hasAccess = await userCanAccessModel(user.user_id, modelConfig.id)
+        if (!hasAccess) {
+          console.error(`❌ [异步验证] 用户无权限访问模型`)
+          authCheckFailed = true
+          return
+        }
+
+        console.log(`✅ [异步验证] 权限检查通过`)
+      }
+      catch (error) {
+        console.error(`❌ [异步验证] 权限检查失败:`, error)
+        authCheckFailed = true
+      }
+    })()
+
+    // 立即开始 LLM 调用
+    const llmCallStart = Date.now()
     await chatReplyProcess({
       message: prompt,
       lastContext,
       process: (chat: ChatMessage) => {
+        // 如果权限验证失败，停止发送数据
+        if (authCheckFailed) {
+          console.error(`🚫 [安全] 权限验证失败，终止响应`)
+          res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '权限验证失败' } }))
+          res.end()
+          return
+        }
+
         res.write(firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`)
         firstChunk = false
       },
       systemMessage,
       temperature: finalTemperature,
       top_p: finalTopP,
-      model,
+      model: modelConfig.model_id,
       maxTokens: finalMaxTokens,
-      providerId,
+      baseURL: modelConfig.provider.base_url,
+      apiKey: modelConfig.provider.api_key,
     })
+
+    // 等待权限验证完成
+    await authCheckPromise
+
+    console.log(`⏱️ [性能] LLM 调用: ${Date.now() - llmCallStart}ms, 总耗时: ${Date.now() - perfStart}ms`)
   }
   catch (error) {
+    console.error('❌ [Chat] 聊天处理失败:', error)
     res.write(JSON.stringify(error))
   }
   finally {
@@ -131,8 +206,8 @@ if (!existsSync(uploadDir))
   mkdirSync(uploadDir, { recursive: true })
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
     // 获取文件扩展名
     const ext = file.originalname.substring(file.originalname.lastIndexOf('.'))
     // 使用 UUID + 时间戳 + 扩展名，避免中文乱码问题
@@ -169,30 +244,8 @@ router.post('/upload', clerkAuth, requireAuth, upload.single('file'), async (req
   })
 
   try {
-    // 检查是否配置了 OpenAI API Key
-    const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')
-
-    if (!hasApiKey) {
-      console.warn('⚠️  [警告] 未配置 OPENAI_API_KEY，跳过文件分类')
-      return res.send({
-        status: 'Success',
-        message: '文件上传成功！（未配置 API Key，无法分类）',
-        data: {
-          filePath,
-          originalName,
-          fileName: req.file.filename,
-          classification: 'note', // 默认为笔记
-          error: '未配置 OPENAI_API_KEY',
-        },
-      })
-    }
-
-    console.log('🔍 [分类] 开始分类文件...')
-    // 立即启动分类工作流
-    const { classifyFile } = await import('./quiz/workflow')
-    const classificationResult = await classifyFile(filePath)
-
-    console.log('✅ [分类] 分类完成:', classificationResult)
+    // ✅ 文件分类功能暂时禁用，未来将从用户配置的模型中选择
+    console.log('📁 [上传] 文件上传成功（分类功能待实现）')
 
     return res.send({
       status: 'Success',
@@ -200,9 +253,8 @@ router.post('/upload', clerkAuth, requireAuth, upload.single('file'), async (req
       data: {
         filePath,
         originalName,
-        fileName: req.file.filename, // 服务器上的文件名
-        classification: classificationResult.classification,
-        error: classificationResult.error,
+        fileName: req.file.filename,
+        classification: 'note', // 默认分类
       },
     })
   }
@@ -370,457 +422,76 @@ router.post('/quiz/test-llm', async (req, res) => {
   }
 })
 
-// 获取可用模型列表
-router.post('/models/list', async (req, res) => {
+// ============================================
+// 注意：以下旧接口已废弃，使用数据库配置代替
+// ============================================
+// 旧的 /models/list 和 /usage 接口已移除
+// 现在使用 GET /models 从数据库获取模型配置
+// API 使用量查询功能需要管理员通过设置页面单独实现
+
+// ============================================
+// 注意：旧的内存存储模型数据已移除
+// 现在所有模型配置都从 Supabase 数据库读取
+// ============================================
+
+// 获取所有模型（基于用户角色过滤，管理员可以看到完整配置）
+router.get('/models', clerkAuth, requireAuth, async (req, res) => {
   try {
-    const apiKey = process.env.OPENAI_API_KEY
-    const baseURL = process.env.OPENAI_API_BASE_URL || 'https://api.juheai.top'
+    const { getAllProvidersWithModels } = await import('./db/providerService')
+    const { getUserAccessibleProvidersWithModels } = await import('./db/modelRoleAccessService')
+    const { userHasRole } = await import('./db/userRoleService')
+    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const { getAuth } = await import('@clerk/express')
 
-    if (!apiKey) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: 'API Key 未配置',
-        data: null,
-      })
-    }
+    // 获取当前用户
+    const auth = getAuth(req)
+    const user = await findUserByClerkId(auth!.userId!)
 
-    // 调用模型列表 API
-    const modelsURL = `${baseURL}/v1/models`
-
-    const response = await fetch(modelsURL, {
-      headers: {
-        'User-Agent': 'ChatGPT-Web/1.0.0',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': '*/*',
-        'Connection': 'keep-alive',
-      },
-    })
-
-    if (!response.ok)
-      throw new Error(`HTTP error! status: ${response.status}`)
-
-    const data: any = await response.json()
-    console.log('✅ [API] 获取模型列表成功，数量:', data.data?.length || 0)
-
-    res.send({
-      status: 'Success',
-      message: '获取模型列表成功',
-      data: data.data || [],
-    })
-  }
-  catch (error: any) {
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
-
-// 获取 API 使用量
-router.post('/usage', async (req, res) => {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY
-    const baseURL = process.env.OPENAI_API_BASE_URL || 'https://api.juheai.top'
-
-    if (!apiKey) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: 'API Key 未配置',
-        data: null,
-      })
-    }
-
-    // 调用使用量 API
-    const usageURL = `${baseURL}/api/usage/token`
-
-    const response = await fetch(usageURL, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'User-Agent': 'ChatGPT-Web/1.0.0',
-        'Content-Type': 'application/json',
-        'Accept': '*/*',
-        'Connection': 'keep-alive',
-      },
-    })
-
-    if (!response.ok)
-      throw new Error(`HTTP error! status: ${response.status}`)
-
-    const data: any = await response.json()
-    console.log('✅ [API] 获取使用量成功:', data)
-
-    res.send({
-      status: 'Success',
-      message: '获取使用量成功',
-      data,
-    })
-  }
-  catch (error: any) {
-    console.error('❌ [API] 获取使用量失败:', error)
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
-
-// Model management APIs
-// 注意：这些配置在实际应用中应该保存到数据库或配置文件
-// 这里简单起见，使用内存存储（重启后会丢失）
-interface ModelInfo {
-  id: string
-  provider: string
-  displayName: string
-  enabled: boolean
-  maxTokens?: number // 最大输出 tokens
-  temperature?: number // 温度参数 0-2
-  topP?: number // top_p 参数 0-1
-  createdAt: string
-  updatedAt: string
-}
-
-const modelsData: ModelInfo[] = [
-  // 默认模型
-  {
-    id: 'gpt-4o',
-    provider: 'OpenAI',
-    displayName: 'GPT-4o',
-    enabled: true,
-    maxTokens: 4096,
-    temperature: 0.7,
-    topP: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'gpt-4o-mini',
-    provider: 'OpenAI',
-    displayName: 'GPT-4o Mini',
-    enabled: true,
-    maxTokens: 16384,
-    temperature: 0.7,
-    topP: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  // Kriora 模型
-  {
-    id: 'moonshotai/kimi-k2-0905',
-    provider: 'Kriora',
-    displayName: 'Kimi K2 (0905)',
-    enabled: true,
-    maxTokens: 8192,
-    temperature: 0.7,
-    topP: 0.95,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'qwen/qwen3-coder',
-    provider: 'Kriora',
-    displayName: 'Qwen 3 Coder',
-    enabled: true,
-    maxTokens: 8192,
-    temperature: 0.7,
-    topP: 0.95,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'qwen/qwen3-next-80b-a3b-instruct',
-    provider: 'Kriora',
-    displayName: 'Qwen 3 Next 80B Instruct',
-    enabled: true,
-    maxTokens: 8192,
-    temperature: 0.7,
-    topP: 0.95,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
-
-// 获取模型配置的辅助函数
-function getModelConfig(modelId: string) {
-  return modelsData.find(m => m.id === modelId)
-}
-
-// 获取所有模型
-router.get('/models', async (req, res) => {
-  try {
-    res.send({
-      status: 'Success',
-      message: '获取模型列表成功',
-      data: modelsData,
-    })
-  }
-  catch (error: any) {
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
-
-// 添加模型（临时移除认证以便测试）
-router.post('/models/add', async (req, res) => {
-  try {
-    const { id, provider, displayName, enabled = true, maxTokens, temperature, topP } = req.body as {
-      id: string
-      provider: string
-      displayName: string
-      enabled?: boolean
-      maxTokens?: number
-      temperature?: number
-      topP?: number
-    }
-
-    if (!id || !provider || !displayName) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: '参数不完整：需要 id、provider、displayName',
-        data: null,
-      })
-    }
-
-    // 检查模型ID是否已存在
-    const existingModel = modelsData.find(m => m.id === id)
-    if (existingModel) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: '模型ID已存在',
-        data: null,
-      })
-    }
-
-    const newModel: ModelInfo = {
-      id,
-      provider,
-      displayName,
-      enabled,
-      maxTokens,
-      temperature,
-      topP,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    modelsData.push(newModel)
-
-    res.send({
-      status: 'Success',
-      message: '模型添加成功',
-      data: newModel,
-    })
-  }
-  catch (error: any) {
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
-
-// 更新模型（临时移除认证以便测试）
-router.post('/models/update', async (req, res) => {
-  try {
-    const { id, provider, displayName, enabled, maxTokens, temperature, topP } = req.body as {
-      id: string
-      provider?: string
-      displayName?: string
-      enabled?: boolean
-      maxTokens?: number
-      temperature?: number
-      topP?: number
-    }
-
-    if (!id) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: '缺少模型ID',
-        data: null,
-      })
-    }
-
-    const modelIndex = modelsData.findIndex(m => m.id === id)
-    if (modelIndex === -1) {
+    if (!user) {
       return res.status(404).send({
         status: 'Fail',
-        message: '模型不存在',
+        message: '用户不存在',
         data: null,
       })
     }
 
-    const model = modelsData[modelIndex]
-    if (provider !== undefined)
-      model.provider = provider
-    if (displayName !== undefined)
-      model.displayName = displayName
-    if (enabled !== undefined)
-      model.enabled = enabled
-    if (maxTokens !== undefined)
-      model.maxTokens = maxTokens
-    if (temperature !== undefined)
-      model.temperature = temperature
-    if (topP !== undefined)
-      model.topP = topP
-    model.updatedAt = new Date().toISOString()
+    const isAdmin = await userHasRole(user.user_id, 'admin')
 
-    res.send({
-      status: 'Success',
-      message: '模型更新成功',
-      data: model,
-    })
-  }
-  catch (error: any) {
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
+    if (isAdmin) {
+      // 管理员：返回所有模型的完整信息（包括 API Key 和 Base URL）
+      console.log('✅ [Models] 管理员请求，返回完整配置（所有模型）')
+      const providersWithModels = await getAllProvidersWithModels()
 
-// 删除模型（临时移除认证以便测试）
-router.post('/models/delete', async (req, res) => {
-  try {
-    const { id } = req.body as { id: string }
-
-    if (!id) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: '缺少模型ID',
-        data: null,
-      })
-    }
-
-    const modelIndex = modelsData.findIndex(m => m.id === id)
-    if (modelIndex === -1) {
-      return res.status(404).send({
-        status: 'Fail',
-        message: '模型不存在',
-        data: null,
-      })
-    }
-
-    modelsData.splice(modelIndex, 1)
-
-    res.send({
-      status: 'Success',
-      message: '模型删除成功',
-      data: null,
-    })
-  }
-  catch (error: any) {
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
-
-// 测试模型是否可用
-router.post('/models/test', async (req, res) => {
-  try {
-    const { modelId } = req.body as { modelId: string }
-
-    if (!modelId) {
-      return res.status(400).send({
-        status: 'Fail',
-        message: '缺少模型ID',
-        data: null,
-      })
-    }
-
-    console.log(`🧪 [测试] 测试模型: ${modelId}`)
-
-    // 导入chatReplyProcess来测试模型
-    const testMessage = 'Hi, please respond with "OK" if you receive this message.'
-
-    try {
-      // 使用简单的fetch测试模型
-      const apiKey = process.env.OPENAI_API_KEY
-      const baseURL = process.env.OPENAI_API_BASE_URL || 'https://api.openai.com'
-
-      if (!apiKey) {
-        return res.send({
-          status: 'Fail',
-          message: '未配置API Key',
-          data: {
-            success: false,
-            error: '请先配置OPENAI_API_KEY环境变量',
-          },
-        })
-      }
-
-      const testURL = `${baseURL}/v1/chat/completions`
-
-      const testResponse = await fetch(testURL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: [{ role: 'user', content: testMessage }],
-          max_tokens: 50,
-        }),
-      })
-
-      if (testResponse.ok) {
-        const data: any = await testResponse.json()
-        const responseText = data.choices?.[0]?.message?.content || ''
-
-        console.log(`✅ [测试] 模型响应成功: ${responseText.substring(0, 50)}...`)
-
-        res.send({
-          status: 'Success',
-          message: '模型测试成功',
-          data: {
-            success: true,
-            response: responseText,
-            model: data.model,
-            usage: data.usage,
-          },
-        })
-      }
-      else {
-        const errorData: any = await testResponse.json().catch(() => ({ error: { message: testResponse.statusText } }))
-        const errorMessage = errorData.error?.message || '未知错误'
-
-        console.error(`❌ [测试] 模型测试失败: ${errorMessage}`)
-
-        res.send({
-          status: 'Fail',
-          message: `模型测试失败: ${errorMessage}`,
-          data: {
-            success: false,
-            error: errorMessage,
-            statusCode: testResponse.status,
-          },
-        })
-      }
-    }
-    catch (testError: any) {
-      console.error('❌ [测试] 测试过程出错:', testError)
       res.send({
-        status: 'Fail',
-        message: `测试过程出错: ${testError.message}`,
-        data: {
-          success: false,
-          error: testError.message,
-        },
+        status: 'Success',
+        message: '获取模型列表成功',
+        data: providersWithModels,
+      })
+    }
+    else {
+      // 普通用户：只返回有权限访问的模型，隐藏敏感信息
+      console.log(`✅ [Models] 普通用户请求，基于角色过滤模型: ${user.user_id}`)
+      const accessibleProviders = await getUserAccessibleProvidersWithModels(user.user_id)
+
+      // 隐藏敏感信息
+      const sanitizedData = accessibleProviders.map(provider => ({
+        id: provider.id,
+        name: provider.name,
+        // 不返回 base_url 和 api_key
+        models: provider.models || [],
+        created_at: provider.created_at,
+        updated_at: provider.updated_at,
+      }))
+
+      res.send({
+        status: 'Success',
+        message: '获取模型列表成功',
+        data: sanitizedData,
       })
     }
   }
   catch (error: any) {
-    console.error('❌ [测试] 接口错误:', error)
+    console.error('❌ [Models] 获取模型列表失败:', error)
     res.status(500).send({
       status: 'Fail',
       message: error?.message || String(error),
@@ -828,6 +499,20 @@ router.post('/models/test', async (req, res) => {
     })
   }
 })
+
+// ============================================
+// 注意：旧的模型管理接口已移除
+// ============================================
+// 旧的 /models/add, /models/update, /models/delete, /models/test 已废弃
+// 现在使用以下新接口（通过 /api/providers 和 /api/models 路由）:
+// - POST /api/providers - 创建供应商
+// - PUT /api/providers/:id - 更新供应商
+// - DELETE /api/providers/:id - 删除供应商
+// - POST /api/models - 创建模型
+// - PUT /api/models/:id - 更新模型
+// - DELETE /api/models/:id - 删除模型
+// - PATCH /api/models/:id/toggle - 切换模型启用状态
+// 详见 service/src/api/routes.ts
 
 // Workflow config APIs
 // 注意：这些配置在实际应用中应该保存到数据库或配置文件
@@ -917,14 +602,15 @@ router.post('/verify', async (req, res) => {
   }
 })
 
-// 用户认证相关 API
+// ============================================
+// 注意：旧的用户管理接口已移除
+// ============================================
+// 现在使用 Clerk + Supabase 进行用户管理
+// 详见 service/src/api/authController.ts 和 service/src/api/routes.ts
+// - POST /api/webhooks/clerk - Clerk Webhook
+// - GET /api/auth/me - 获取当前用户信息
 
-// 生成简单的 token（实际应用中应使用 JWT）
-function generateToken(userId: string): string {
-  return Buffer.from(`${userId}-${Date.now()}`).toString('base64')
-}
-
-// 注册 API
+// 旧的注册接口（已废弃，保留用于兼容）
 router.post('/auth/register', async (req, res) => {
   try {
     const { email, password, name } = req.body as { email: string, password: string, name?: string }
@@ -1288,6 +974,15 @@ async function initDatabase() {
       // 使用旧的数据库连接
       await testConnection()
       await initUserTable()
+    }
+
+    // 🔥 预加载模型和供应商到 Redis 缓存
+    try {
+      const { preloadModelsToRedis } = await import('./cache/modelCache')
+      await preloadModelsToRedis()
+    }
+    catch (error) {
+      console.error('⚠️ [启动] 预加载缓存失败，将使用数据库查询:', error)
     }
 
     console.log('✅ [启动] 数据库初始化完成')

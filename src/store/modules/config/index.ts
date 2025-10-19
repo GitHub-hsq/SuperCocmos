@@ -52,14 +52,28 @@ export const useConfigStore = defineStore('config', {
 
       this.loading = true
       try {
-        const response = await fetchUserConfig<Config.UserConfig>()
+        const response = await fetchUserConfig<any>()
 
         if (response.status === 'Success' && response.data) {
-          // 从数据库字段映射到前端字段（snake_case -> camelCase）
-          this.userSettings = response.data.userSettings || null
-          this.chatConfig = response.data.chatConfig || null
-          this.workflowConfig = response.data.workflowConfig || null
+          // 🔥 从数据库字段映射到前端字段（snake_case -> camelCase）
+          const data = response.data
+          
+          // 处理 user_settings -> userSettings
+          this.userSettings = data.userSettings || data.user_settings || null
+          
+          // 处理 chat_config -> chatConfig
+          this.chatConfig = data.chatConfig || data.chat_config || null
+          
+          // 处理 workflow_config -> workflowConfig
+          this.workflowConfig = data.workflowConfig || data.workflow_config || null
+          
           this.loaded = true
+          
+          console.log('✅ [ConfigStore] 配置加载成功:', {
+            userSettings: !!this.userSettings,
+            chatConfig: !!this.chatConfig,
+            workflowConfig: !!this.workflowConfig,
+          })
         }
       }
       catch (error) {

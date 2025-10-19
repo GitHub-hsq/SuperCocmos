@@ -21,22 +21,72 @@ const show = ref(false)
 
 const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 
-// 获取用户角色
-const userRole = computed(() => authStore.userInfo?.role || 'user')
+// 获取用户角色（优先使用 roles 数组，兼容单个 role 字段）
+const userRoles = computed(() => {
+  const roles = authStore.userInfo?.roles || []
+  const singleRole = authStore.userInfo?.role
+
+  // 如果 roles 数组为空，使用单个 role 字段
+  if (roles.length === 0 && singleRole) {
+    return [singleRole]
+  }
+
+  return roles
+})
+
+// 获取主要显示的角色（优先级：Admin > Ultra > Pro > Free）
+const primaryRole = computed(() => {
+  const roles = userRoles.value
+
+  // 检查是否为管理员（不区分大小写）
+  if (roles.some(r => r.toLowerCase() === 'admin')) {
+    return 'Admin'
+  }
+
+  // 按会员等级优先级排序
+  if (roles.includes('Ultra'))
+    return 'Ultra'
+  if (roles.includes('Pro'))
+    return 'Pro'
+  if (roles.includes('free') || roles.includes('Free'))
+    return 'Free'
+
+  // 默认返回免费用户（兼容旧数据）
+  return 'Free'
+})
 
 // 用户角色显示文本
 const roleText = computed(() => {
-  return userRole.value === 'admin' ? '超级管理员' : '普通用户'
+  const roleMap: Record<string, string> = {
+    Admin: '超级管理员',
+    Ultra: 'Ultra会员',
+    Pro: 'Pro会员',
+    Free: '免费用户',
+  }
+
+  return roleMap[primaryRole.value] || '免费用户'
 })
 
 // 角色标签类型
 const roleTagType = computed(() => {
-  return userRole.value === 'admin' ? 'error' : 'info'
+  const typeMap: Record<string, 'error' | 'warning' | 'success' | 'info'> = {
+    Admin: 'error', // 红色 - 管理员
+    Ultra: 'warning', // 橙色 - Ultra会员
+    Pro: 'success', // 绿色 - Pro会员
+    Free: 'info', // 蓝色 - 免费用户
+  }
+
+  return typeMap[primaryRole.value] || 'info'
 })
 
 // 计算属性：从 store 获取设置页面状态
 const showSettingsPage = computed(() => appStore.showSettingsPage)
 const activeSettingTab = computed(() => appStore.activeSettingTab)
+
+// 判断是否为管理员
+const isAdmin = computed(() => {
+  return primaryRole.value === 'Admin'
+})
 
 // 设置导航项列表
 const settingItems = computed(() => {
@@ -45,12 +95,16 @@ const settingItems = computed(() => {
     { key: 'ChatConfig', label: '聊天配置', icon: 'ri:chat-settings-line' },
     { key: 'Config', label: t('modelsSetting.config'), icon: 'ri:list-settings-line' },
     { key: 'WorkflowModel', label: t('modelsSetting.workflowModel'), icon: 'ri:git-branch-line' },
-    { key: 'ProviderConfig', label: t('modelsSetting.providerConfig'), icon: 'ri:settings-3-line' },
   ]
 
   // 如果是 ChatGPT API，添加高级设置
   if (isChatGPTAPI.value) {
     items.splice(2, 0, { key: 'Advanced', label: t('modelsSetting.advanced'), icon: 'ri:equalizer-line' })
+  }
+
+  // 只有管理员才能看到供应商管理
+  if (isAdmin.value) {
+    items.push({ key: 'ProviderConfig', label: t('modelsSetting.providerConfig'), icon: 'ri:settings-3-line' })
   }
 
   return items
@@ -284,7 +338,7 @@ watch(
 <style scoped>
 /* 侧边栏面板滑动过渡效果 - 使用流畅的缓动函数 */
 .sider-panel-transition {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 设置导航项样式 */
@@ -295,7 +349,7 @@ watch(
   margin: 4px 8px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.1s ease;
   color: #666;
 }
 

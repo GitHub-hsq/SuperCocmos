@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store'
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_GLOB_API_URL || '/api',
-  timeout: 30000,
+  timeout: 120000, // 增加到 120 秒，因为 chatgpt 库处理较慢
   headers: {
     'Content-Type': 'application/json',
   },

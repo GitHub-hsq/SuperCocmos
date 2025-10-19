@@ -8,6 +8,7 @@ export interface UserInfo {
   createdAt: string
   role?: string // 用户主要角色（Admin, Pro, Ultra, Free 等）
   roles?: string[] // 用户所有角色数组
+  avatarUrl?: string // 用户头像URL
 }
 
 export interface AuthState {

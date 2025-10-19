@@ -5,11 +5,12 @@ import { getCurrentUser } from '@/api/services/authService'
 import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
-import { useAuthStore } from '@/store'
+import { useAuthStore, useUserStore } from '@/store'
 
 const { theme, themeOverrides } = useTheme()
 const { language } = useLanguage()
 const authStore = useAuthStore()
+const userStore = useUserStore()
 
 // 🔥 开发环境：暴露 store 到 window 对象，方便调试
 if (import.meta.env.DEV) {
@@ -68,12 +69,21 @@ onMounted(async () => {
             email: userData.email,
             createdAt: userData.createdAt,
             role: userData.role || 'user', // 🔥 保存用户角色
+            avatarUrl: userData.avatarUrl, // 🔥 保存头像URL
           })
+
+          // 🔥 同步头像到 userStore（用于聊天消息显示）
+          if (userData.avatarUrl) {
+            userStore.updateUserInfo({
+              avatar: userData.avatarUrl,
+            })
+          }
 
           if (import.meta.env.DEV) {
             console.warn('✅ [App] 用户信息已加载:', {
               email: userData.email,
               role: userData.role,
+              avatarUrl: userData.avatarUrl,
             })
           }
         }

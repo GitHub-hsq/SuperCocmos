@@ -298,7 +298,8 @@ async function _chatReplyProcessNative(options: RequestOptions) {
                 // 发送思考状态给前端（使用特殊格式，前端可以识别）
                 processCallback?.({
                   id: messageId,
-                  text: `💭 思考中...\n${reasoningText.substring(0, 100)}...`,
+                  text: `💭 
+                  ...\n${reasoningText.substring(0, 100)}...`,
                   role: 'assistant',
                   conversationId,
                   parentMessageId: messageId,
@@ -525,19 +526,37 @@ async function chatReplyProcess(options: RequestOptions) {
 
     // 🔥 手动累积文本（修复 GLM-4.6 等模型的 text 字段为空问题）
     let accumulatedText = ''
+    let accumulatedThinkingText = '' // 🔥 累积思考过程
+
+    let progressCallbackCount = 0
+    const progressStartTime = Date.now()
+    let lastProgressTime = progressStartTime
 
     const response = await apiInstance.sendMessage(message, {
       ...options,
       onProgress: (partialResponse) => {
-        // 🔥 从 delta 或 detail.choices[0].delta.content 获取增量内容
-        const delta = partialResponse.delta || ''
-        const content = partialResponse.detail?.choices?.[0]?.delta?.content || ''
-        const reasoningContent = partialResponse.detail?.choices?.[0]?.delta?.reasoning_content || ''
+        progressCallbackCount++
+        const currentTime = Date.now()
+        const timeSinceLastProgress = currentTime - lastProgressTime
 
-        // 如果只有 reasoning_content（思考过程），跳过
-        if (reasoningContent && !delta && !content) {
-          return
+        if (progressCallbackCount === 1) {
+          console.warn(`⏱️ [ChatGPT-性能] 首次onProgress回调: ${currentTime - progressStartTime}ms`)
         }
+
+        if (timeSinceLastProgress > 100) {
+          console.warn(`⏱️ [ChatGPT-性能] 第${progressCallbackCount}次回调，距离上次: ${timeSinceLastProgress}ms`)
+        }
+
+        lastProgressTime = currentTime
+
+        // 🔥 从 delta 或 detail.choices[0].delta.content 获取增量内容
+        const delta = (partialResponse as any).delta || ''
+        const content = (partialResponse.detail?.choices?.[0] as any)?.delta?.content || ''
+        const reasoningContent = (partialResponse.detail?.choices?.[0] as any)?.delta?.reasoning_content || ''
+
+        // 🔥 记录跳过的次数
+        let shouldSkip = false
+        let skipReason = ''
 
         // 🔥 累积实际内容
         const actualContent = content || delta
@@ -545,12 +564,56 @@ async function chatReplyProcess(options: RequestOptions) {
           accumulatedText += actualContent
         }
 
+        // 🔥 处理思考过程：如果有 reasoning_content，也传递给前端
+        if (reasoningContent && !actualContent) {
+          // 🔥 累积思考过程
+          accumulatedThinkingText += reasoningContent
+
+          // 思考过程：显示思考状态，但不累积到最终文本
+          const thinkingText = `💭 思考中...\n${accumulatedThinkingText}`
+
+          // 创建包含思考过程的响应对象
+          const thinkingResponse = {
+            ...partialResponse,
+            text: thinkingText,
+            isThinking: true, // 标记这是思考过程
+          }
+
+          processCallback?.(thinkingResponse)
+          return
+        }
+
+        // 如果既没有实际内容也没有思考内容，跳过
+        if (!actualContent && !reasoningContent) {
+          shouldSkip = true
+          skipReason = '没有内容'
+        }
+
+        // 记录跳过情况
+        if (shouldSkip && progressCallbackCount <= 50) {
+          console.warn(`⏱️ [ChatGPT-性能] 第${progressCallbackCount}次被跳过，原因: ${skipReason}`)
+        }
+
+        if (shouldSkip) {
+          return
+        }
+
         // 🔥 确保 text 字段有值（修复前端打字机效果）
         if (!partialResponse.text && accumulatedText) {
           partialResponse.text = accumulatedText
         }
 
+        const callbackStartTime = Date.now()
         processCallback?.(partialResponse)
+        const callbackTime = Date.now() - callbackStartTime
+
+        if (callbackTime > 10) {
+          console.warn(`⏱️ [ChatGPT-性能] processCallback耗时: ${callbackTime}ms`)
+        }
+
+        if (progressCallbackCount <= 20) {
+          console.warn(`⏱️ [ChatGPT-性能] 第${progressCallbackCount}次成功调用processCallback，累积文本长度: ${accumulatedText.length}`)
+        }
       },
     })
     const endTime = Date.now()
@@ -559,6 +622,7 @@ async function chatReplyProcess(options: RequestOptions) {
     console.log('✅ [ChatGPT] API 调用完成')
     // eslint-disable-next-line no-console
     console.log('⏱️ [ChatGPT] 耗时:', endTime - startTime, 'ms')
+    console.warn(`⏱️ [ChatGPT-性能] onProgress总共被调用: ${progressCallbackCount}次`)
     // eslint-disable-next-line no-console
     console.log('📊 [ChatGPT] 响应信息:', {
       id: response.id,

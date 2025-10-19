@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
+import type { Role } from '@/api/services/roleService'
 import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
 import { computed, h, ref, watch } from 'vue'
 import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, updateModel, updateProvider } from '@/api'
-import { getAllModelsWithRoles, getAllRoles, getModelRoles, setModelRoles } from '@/api/services/roleService'
-import type { Role } from '@/api/services/roleService'
+import { getAllModelsWithRoles, getAllRoles } from '@/api/services/roleService'
 import { SvgIcon } from '@/components/common'
 import { useModelStore } from '@/store'
 import ModelRoleDialog from './ModelRoleDialog.vue'
@@ -127,7 +127,7 @@ async function loadAllRoles() {
   try {
     loadingRoles.value = true
     const response = await getAllRoles()
-    allRoles.value = response.data.roles || []
+    allRoles.value = response.data?.roles || []
   }
   catch (error) {
     console.error('加载角色列表失败:', error)
@@ -157,18 +157,20 @@ const modelColumns: DataTableColumns<ModelItem> = [
     title: '模型ID',
     key: 'modelId',
     ellipsis: { tooltip: true },
-    width: 250,
+    width: 100, // 🔥 增加宽度：250 -> 300
+    minWidth: 100, // 🔥 添加最小宽度
   },
   {
     title: '显示名称',
     key: 'displayName',
     ellipsis: { tooltip: true },
-    width: 200,
+    width: 150, // 🔥 增加宽度：200 -> 280
+    minWidth: 120, // 🔥 添加最小宽度
   },
   {
     title: '是否启用',
     key: 'enabled',
-    width: 100,
+    width: 60,
     render: (row) => {
       return h(NSwitch, {
         value: row.enabled,
@@ -181,31 +183,28 @@ const modelColumns: DataTableColumns<ModelItem> = [
   {
     title: '访问权限',
     key: 'accessibleRoles',
-    width: 200,
+    width: 60, // 🔥 增加宽度：200 -> 220
     render: (row) => {
       const roles = row.accessibleRoles || []
       if (roles.length === 0) {
         return h(NTag, { type: 'info', size: 'small' }, { default: () => '所有人' })
       }
-      
+
       return h('div', { class: 'space-y-1' }, [
         h('div', { class: 'text-xs text-gray-600' }, `限制访问 (${roles.length}个角色)`),
-        h('div', { class: 'flex flex-wrap gap-1' }, 
-          roles.slice(0, 2).map((role: any) => 
-            h(NTag, { 
-              size: 'small', 
-              type: 'success' 
-            }, { default: () => role.roleName })
-          )
-        ),
-        roles.length > 2 && h('div', { class: 'text-xs text-gray-500' }, `+${roles.length - 2} 更多`)
+        h('div', { class: 'flex flex-wrap gap-1' }, roles.slice(0, 2).map((role: any) => h(NTag, {
+          size: 'small',
+          type: 'success',
+        }, { default: () => role.roleName }))),
+        roles.length > 2 && h('div', { class: 'text-xs text-gray-500' }, `+${roles.length - 2} 更多`),
       ])
     },
   },
   {
     title: '操作',
     key: 'actions',
-    width: 200,
+    width: 100, // 🔥 增加宽度：200 -> 220
+    fixed: 'right', // 🔥 固定操作列到右侧
     render: (row) => {
       return h(NSpace, { size: 'small' }, [
         h(NButton, {
@@ -235,6 +234,7 @@ const modelColumns: DataTableColumns<ModelItem> = [
 const providerColumns: DataTableColumns<ProviderItem> = [
   {
     type: 'expand',
+    width: 50, // 🔥 设置展开列宽度
     expandable: () => true, // 总是可展开，方便添加模型
     renderExpand: (row) => {
       return h('div', { class: 'p-4 bg-gray-50 dark:bg-gray-900/50' }, [
@@ -254,6 +254,8 @@ const providerColumns: DataTableColumns<ProviderItem> = [
           data: row.models,
           bordered: false,
           size: 'small',
+          resizable: true, // 🔥 开启列宽拖动调节
+          // 移除 scrollX，让表格自适应宽度
         }),
       ])
     },
@@ -262,18 +264,21 @@ const providerColumns: DataTableColumns<ProviderItem> = [
     title: '供应商名称',
     key: 'name',
     ellipsis: { tooltip: true },
-    width: 200,
+    width: 180, // 🔥 调整宽度：200 -> 180
+    minWidth: 150, // 🔥 添加最小宽度
   },
   {
     title: 'Base URL',
     key: 'baseUrl',
     ellipsis: { tooltip: true },
-    width: 300,
+    width: 350, // 🔥 增加宽度：300 -> 350
+    minWidth: 250, // 🔥 添加最小宽度
   },
   {
     title: 'API Key',
     key: 'apiKey',
-    width: 200,
+    width: 220, // 🔥 增加宽度：200 -> 220
+    ellipsis: { tooltip: true }, // 🔥 添加省略号提示
     render: (row) => {
       const maskedKey = row.apiKey ? `${row.apiKey.substring(0, 8)}...${row.apiKey.substring(row.apiKey.length - 4)}` : '-'
       return h('span', { class: 'font-mono text-xs' }, maskedKey)
@@ -290,7 +295,7 @@ const providerColumns: DataTableColumns<ProviderItem> = [
   {
     title: '操作',
     key: 'actions',
-    width: 200,
+    width: 180, // 🔥 调整宽度：200 -> 180
     fixed: 'right',
     render: (row) => {
       return h(NSpace, { size: 'small' }, [
@@ -313,13 +318,29 @@ const providerColumns: DataTableColumns<ProviderItem> = [
 ]
 
 // ========== 数据加载 ==========
+// 将下划线命名转换为驼峰命名
+function snakeToCamel(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(item => snakeToCamel(item))
+  }
+  else if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      acc[camelKey] = snakeToCamel(obj[key])
+      return acc
+    }, {} as any)
+  }
+  return obj
+}
+
 // 从后端加载供应商和模型列表（支持强制刷新）
 async function loadProviders(forceRefresh = false) {
   loading.value = true
   try {
     const response = await fetchProviders<ProviderItem[]>()
     if (response.status === 'Success' && response.data) {
-      providersList.value = response.data
+      // 🔥 转换下划线命名为驼峰命名
+      providersList.value = snakeToCamel(response.data)
       hasLoaded.value = true
 
       // 加载角色权限信息
@@ -360,12 +381,12 @@ async function loadModelRolesForAllModels() {
   try {
     // 获取所有模型及其角色权限
     const response = await getAllModelsWithRoles()
-    if (response.status === 'Success' && response.data.models) {
+    if (response.status === 'Success' && response.data?.models) {
       const modelsWithRoles = response.data.models
-      
+
       // 更新providersList中每个模型的角色权限信息
-      providersList.value.forEach(provider => {
-        provider.models.forEach(model => {
+      providersList.value.forEach((provider) => {
+        provider.models.forEach((model) => {
           const modelWithRoles = modelsWithRoles.find(m => m.id === model.id)
           if (modelWithRoles) {
             model.accessibleRoles = modelWithRoles.accessible_roles
@@ -403,7 +424,8 @@ async function handleAddProvider() {
     if (response.status === 'Success') {
       message.success('供应商添加成功')
       showAddProvider.value = false
-      await loadProviders()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await loadProviders(true)
     }
     else {
       message.error(response.message || '供应商添加失败')
@@ -441,7 +463,8 @@ async function handleEditProvider() {
     if (response.status === 'Success') {
       message.success('供应商更新成功')
       showEditProvider.value = false
-      await loadProviders()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await loadProviders(true)
     }
     else {
       message.error(response.message || '供应商更新失败')
@@ -460,8 +483,8 @@ async function handleDeleteProvider(id: string) {
 
     if (response.status === 'Success') {
       message.success('供应商删除成功')
-      await loadProviders()
-      await modelStore.loadModelsFromBackend()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await loadProviders(true)
     }
     else {
       message.error(response.message || '供应商删除失败')
@@ -504,8 +527,8 @@ async function handleAddModel() {
     if (response.status === 'Success') {
       message.success('模型添加成功')
       showAddModel.value = false
-      await loadProviders()
-      await modelStore.loadModelsFromBackend()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await loadProviders(true)
     }
     else {
       message.error(response.message || '模型添加失败')
@@ -542,8 +565,8 @@ async function handleEditModel() {
     if (response.status === 'Success') {
       message.success('模型更新成功')
       showEditModel.value = false
-      await loadProviders()
-      await modelStore.loadModelsFromBackend()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await loadProviders(true)
     }
     else {
       message.error(response.message || '模型更新失败')
@@ -571,7 +594,8 @@ async function toggleModelEnabled(id: string, enabled: boolean) {
       }
 
       message.success(enabled ? '模型已启用' : '模型已禁用')
-      await modelStore.loadModelsFromBackend()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await modelStore.loadModelsFromBackend(true)
     }
     else {
       message.error(response.message || '操作失败')
@@ -590,8 +614,8 @@ async function handleDeleteModel(id: string, _providerId: string) {
 
     if (response.status === 'Success') {
       message.success('模型删除成功')
-      await loadProviders()
-      await modelStore.loadModelsFromBackend()
+      // 🔥 强制刷新，确保聊天界面的模型列表同步更新
+      await loadProviders(true)
     }
     else {
       message.error(response.message || '模型删除失败')
@@ -658,7 +682,7 @@ watch(() => props.visible, async (visible) => {
     </div>
 
     <!-- 供应商列表表格 -->
-    <div class="overflow-auto" style="max-height: 60vh;">
+    <div class="overflow-auto" style="height: calc(100vh - 280px); min-height: 500px;">
       <NDataTable
         v-model:expanded-row-keys="expandedRowKeys"
         :columns="providerColumns"
@@ -666,9 +690,9 @@ watch(() => props.visible, async (visible) => {
         :bordered="false"
         :single-line="false"
         size="small"
-        :scroll-x="1200"
         :loading="loading"
         :row-key="(row: ProviderItem) => row.id"
+        resizable
       />
     </div>
 

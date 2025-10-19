@@ -29,7 +29,11 @@ const show = computed({
 
 // 从ModelStore获取已启用的模型
 const enabledModels = computed(() => {
-  return modelStore.enabledModels.filter((m: any) => m.enabled !== false)
+  return modelStore.enabledModels.filter((m: any) => m.enabled !== false).map((m: any) => ({
+    ...m,
+    displayName: m.displayName || m.name || m.modelId,
+    name: m.name || m.modelId || m.displayName,
+  }))
 })
 
 // 供应商列表（按模型数量统计）
@@ -242,9 +246,6 @@ watch(() => props.visible, (visible) => {
                 <div class="flex-1 min-w-0">
                   <div class="font-medium text-sm truncate">
                     {{ model.displayName || model.name }}
-                  </div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
-                    {{ model.id }}
                   </div>
                 </div>
                 <SvgIcon

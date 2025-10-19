@@ -42,11 +42,13 @@ const wrapClass = computed(() => {
   return [
     'text-wrap',
     'min-w-[20px]',
-    'rounded-md',
-    isMobile.value ? 'p-2' : 'px-3 py-2',
-    props.inversion ? 'bg-[#f4f6f8]' : 'bg-[#f4f6f8]',
-    props.inversion ? 'dark:bg-[#24272e]' : 'dark:bg-[#161618]',
+    props.inversion ? 'user-message-rounded' : 'rounded-md',
+    isMobile.value ? 'p-2' : 'px-4 py-2',
+    props.inversion ? 'bg-[#f4f4f4]' : 'bg-transparent',
+    props.inversion ? 'dark:bg-[#f4f4f4]' : 'dark:bg-transparent',
     props.inversion ? 'message-request' : 'message-reply',
+    // 限制用户消息最多占2/3宽度
+    props.inversion ? 'max-w-[65%]' : '',
     { 'text-red-500': props.error },
   ]
 })
@@ -54,11 +56,21 @@ const wrapClass = computed(() => {
 const text = computed(() => {
   const value = props.text ?? ''
   if (!props.asRawText) {
+    // 🔥 检查是否是思考过程
+    if (value.startsWith('💭 思考中...')) {
+      // 思考过程使用特殊样式，不进行 markdown 渲染
+      return value
+    }
     // 对数学公式进行处理，自动添加 $$ 符号
     const escapedText = escapeBrackets(escapeDollarNumber(value))
     return mdi.render(escapedText)
   }
   return value
+})
+
+// 🔥 检查是否是思考过程
+const isThinking = computed(() => {
+  return props.text?.startsWith('💭 思考中...') || false
 })
 
 function highlightBlock(str: string, lang?: string) {
@@ -139,14 +151,101 @@ onUnmounted(() => {
   <div class="text-black" :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion">
-        <div v-if="!asRawText" class="markdown-body" :class="{ 'markdown-body-generate': loading }" v-html="text" />
-        <div v-else class="whitespace-pre-wrap" v-text="text" />
+        <!-- 🔥 思考过程特殊显示 -->
+        <div v-if="isThinking" class="thinking-content">
+          <div class="thinking-header">
+            <span class="thinking-icon">💭</span>
+            <span class="thinking-title">思考中...</span>
+          </div>
+          <div class="thinking-text" v-text="text.replace('💭 思考中...\n', '')" />
+        </div>
+        <!-- 普通内容 -->
+        <div v-else-if="!asRawText" class="markdown-body" :class="{ 'markdown-body-generate': loading }" v-html="text" />
+        <div v-else class="whitespace-pre-wrap text-base" v-text="text" />
       </div>
-      <div v-else class="whitespace-pre-wrap" v-text="text" />
+      <div v-else class="whitespace-pre-wrap text-base" v-text="text" />
     </div>
   </div>
 </template>
 
 <style lang="less">
 @import url(./style.less);
+
+.user-message-rounded {
+  border-radius: 15px;
+}
+
+// 🔥 思考过程样式
+.thinking-content {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 8px 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  min-height: 120px; // 🔥 设置最小高度，让思考窗口更大
+  
+  .thinking-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: #475569;
+    
+    .thinking-icon {
+      font-size: 18px;
+      animation: pulse 2s infinite;
+    }
+    
+    .thinking-title {
+      font-size: 14px;
+    }
+  }
+  
+  .thinking-text {
+    font-size: 14px; // 🔥 增大字体
+    line-height: 1.6;
+    color: #64748b;
+    font-style: italic;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 16px; // 🔥 增大内边距
+    border-radius: 8px;
+    border-left: 3px solid #3b82f6;
+    min-height: 60px; // 🔥 设置最小高度
+    max-height: 400px; // 🔥 增大最大高度
+    overflow-y: auto;
+    white-space: pre-wrap; // 🔥 保持换行格式
+    word-wrap: break-word; // 🔥 自动换行
+  }
+}
+
+// 暗色主题
+.dark .thinking-content {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-color: #475569;
+  
+  .thinking-header {
+    color: #cbd5e1;
+  }
+  
+  .thinking-text {
+    color: #94a3b8;
+    background: rgba(0, 0, 0, 0.3);
+    border-left-color: #60a5fa;
+    font-size: 14px; // 🔥 暗色主题也使用大字体
+    padding: 16px; // 🔥 暗色主题也使用大内边距
+    min-height: 60px; // 🔥 暗色主题也设置最小高度
+    max-height: 400px; // 🔥 暗色主题也设置最大高度
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
 </style>

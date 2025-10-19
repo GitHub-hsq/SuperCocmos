@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 import type { UploadFileInfo } from 'naive-ui'
 import type { Ref } from 'vue'
-import { SignedIn, UserButton } from '@clerk/vue'
+import { SignedIn } from '@clerk/vue'
 import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
 import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage } from 'naive-ui'
@@ -127,7 +127,6 @@ async function onConversation() {
   if (selectedModel) {
     // 🔥 发送 modelId 而不是 UUID
     options.model = selectedModel.modelId || selectedModel.name
-    console.log('🚀 [聊天] 使用模型:', selectedModel.displayName, '(modelId:', options.model, ')')
 
     // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
     options.providerId = selectedModel.providerId
@@ -135,36 +134,23 @@ async function onConversation() {
 
   // 🔥 添加用户配置的参数（从 ConfigStore 获取）
   const chatConfig = configStore.chatConfig
-  console.log('📝 [聊天配置] chatConfig:', chatConfig)
-  console.log('📝 [聊天配置] configStore.loaded:', configStore.loaded)
   if (chatConfig) {
     // 系统提示词
-    if (chatConfig.systemPrompt) {
+    if (chatConfig.systemPrompt)
       options.systemMessage = chatConfig.systemPrompt
-      console.log('✅ [聊天配置] 添加系统提示词:', chatConfig.systemPrompt)
-    }
 
     // 模型参数
     if (chatConfig.parameters) {
-      if (chatConfig.parameters.temperature !== undefined) {
+      if (chatConfig.parameters.temperature !== undefined)
         options.temperature = chatConfig.parameters.temperature
-        console.log('✅ [聊天配置] 添加 temperature:', chatConfig.parameters.temperature)
-      }
-      if (chatConfig.parameters.topP !== undefined) {
+
+      if (chatConfig.parameters.topP !== undefined)
         options.top_p = chatConfig.parameters.topP
-        console.log('✅ [聊天配置] 添加 top_p:', chatConfig.parameters.topP)
-      }
-      if (chatConfig.parameters.maxTokens !== undefined) {
+
+      if (chatConfig.parameters.maxTokens !== undefined)
         (options as any).maxTokens = chatConfig.parameters.maxTokens
-        console.log('✅ [聊天配置] 添加 maxTokens:', chatConfig.parameters.maxTokens)
-      }
     }
   }
-  else {
-    console.warn('⚠️ [聊天配置] chatConfig 为空，使用默认配置')
-  }
-
-  console.log('📦 [聊天] 最终发送的 options:', options)
 
   addChat(
     uuid,
@@ -180,6 +166,14 @@ async function onConversation() {
   )
   scrollToBottom()
 
+  // 🔥 性能监控：记录请求开始时间
+  const requestStartTime = Date.now()
+  let firstChunkTime: number | null = null
+  let lastChunkTime = requestStartTime
+  let chunkCount = 0
+
+  console.warn('⏱️ [性能] 请求开始时间:', new Date().toISOString())
+
   try {
     let lastText = ''
     const fetchChatAPIOnce = async () => {
@@ -190,19 +184,78 @@ async function onConversation() {
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
           const { responseText } = xhr
+
+          // 🔥 性能监控：记录首次收到数据的时间
+          if (firstChunkTime === null) {
+            firstChunkTime = Date.now()
+            const ttfb = firstChunkTime - requestStartTime
+            console.warn(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
+            console.warn(`⏱️ [性能] responseText长度: ${responseText.length}字符`)
+          }
+
+          const currentChunkTime = Date.now()
+          const timeSinceLastChunk = currentChunkTime - lastChunkTime
+          chunkCount++
+
+          console.warn(`⏱️ [性能] 第${chunkCount}次onDownloadProgress触发，距离上次: ${timeSinceLastChunk}ms，responseText长度: ${responseText.length}`)
+
+          lastChunkTime = currentChunkTime
+
           // Always process the final line
           const lastIndex = responseText.lastIndexOf('\n', responseText.length - 2)
           let chunk = responseText
           if (lastIndex !== -1)
             chunk = responseText.substring(lastIndex)
+
+          console.warn(`⏱️ [性能] 准备解析的chunk长度: ${chunk.length}字符`)
           try {
+            const parseStartTime = Date.now()
             const data = JSON.parse(chunk)
+            const parseTime = Date.now() - parseStartTime
+
+            if (parseTime > 10) {
+              console.warn(`⏱️ [性能] JSON解析耗时: ${parseTime}ms`)
+            }
+
+            // 🔥 调试：输出解析后的数据
+            if (import.meta.env.DEV) {
+              console.warn('📥 [聊天响应] 解析数据:', {
+                text: data.text,
+                conversationId: data.conversationId,
+                hasError: !!data.error,
+                chunk: chunk.substring(0, 200),
+              })
+            }
+
+            // 🔥 检查是否有错误
+            if (data.error) {
+              console.error('❌ [聊天错误] 后端返回错误:', data.error)
+              updateChat(
+                uuid,
+                dataSources.value.length - 1,
+                {
+                  dateTime: new Date().toLocaleString(),
+                  text: data.error.message || '发生错误',
+                  inversion: false,
+                  error: true,
+                  loading: false,
+                  conversationOptions: null,
+                  requestOptions: { prompt: message, options: { ...options } },
+                },
+              )
+              return
+            }
+
+            // 🔥 检查是否是思考过程
+            const isThinking = data.isThinking || false
+            const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
+            
             updateChat(
               uuid,
               dataSources.value.length - 1,
               {
                 dateTime: new Date().toLocaleString(),
-                text: lastText + (data.text ?? ''),
+                text: displayText,
                 inversion: false,
                 error: false,
                 loading: true,
@@ -220,12 +273,18 @@ async function onConversation() {
 
             scrollToBottomIfAtBottom()
           }
-          catch {
-            //
+          catch (parseError: any) {
+            console.error('❌ [解析错误] chunk 解析失败:', parseError)
+            console.error('❌ [解析错误] chunk 内容:', chunk)
+            // 不要静默失败，记录错误
           }
         },
       })
       updateChatSome(uuid, dataSources.value.length - 1, { loading: false })
+
+      // 🔥 性能监控：请求完成
+      const totalTime = Date.now() - requestStartTime
+      console.warn(`⏱️ [性能] 请求总耗时: ${totalTime}ms, 共${chunkCount}个chunk`)
     }
 
     await fetchChatAPIOnce()
@@ -359,12 +418,17 @@ async function onRegenerate(index: number) {
             chunk = responseText.substring(lastIndex)
           try {
             const data = JSON.parse(chunk)
+            
+            // 🔥 检查是否是思考过程
+            const isThinking = data.isThinking || false
+            const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
+            
             updateChat(
               uuid,
               index,
               {
                 dateTime: new Date().toLocaleString(),
-                text: lastText + (data.text ?? ''),
+                text: displayText,
                 inversion: false,
                 error: false,
                 loading: true,
@@ -549,9 +613,9 @@ const buttonDisabled = computed(() => {
 })
 
 const footerClass = computed(() => {
-  let classes = ['p-4']
+  let classes = ['px-4', 'pb-6', 'pt-0', '!bg-transparent', 'backdrop-blur-md']
   if (isMobile.value)
-    classes = ['sticky', 'left-0', 'bottom-0', 'right-0', 'p-2', 'pr-3', 'overflow-hidden']
+    classes = ['sticky', 'left-0', 'bottom-0', 'right-0', 'p-2', 'pr-3', 'overflow-hidden', '!bg-transparent', 'backdrop-blur-md']
   return classes
 })
 
@@ -982,16 +1046,18 @@ const currentVendorModels = computed(() => {
   try {
     // 从ModelStore获取当前供应商的模型
     const provider = modelStore.providers.find((p: any) => p.id === activeVendor.value)
+
     if (!provider || !provider.enabled)
       return []
 
     let filteredModels = provider.models.map((model: any) => ({
       id: model.id,
-      name: model.name,
+      name: model.name || model.modelId || model.displayName,
+      modelId: model.modelId,
       provider: model.provider,
       providerId: model.providerId, // 🔥 添加 providerId 字段
-      displayName: model.displayName,
-      enabled: true,
+      displayName: model.displayName || model.name || model.modelId,
+      enabled: model.enabled !== false,
       deleted: false,
     }))
 
@@ -1032,10 +1098,10 @@ function loadCurrentModel() {
         // 模型存在，直接使用
         currentSelectedModel.value = {
           id: currentModelFromStore.id,
-          name: currentModelFromStore.name,
+          name: currentModelFromStore.name || '',
           provider: currentModelFromStore.provider,
           providerId: currentModelFromStore.providerId, // 🔥 添加 providerId 字段
-          displayName: currentModelFromStore.displayName,
+          displayName: currentModelFromStore.displayName || currentModelFromStore.name || currentModelFromStore.modelId || '',
           enabled: true,
           deleted: false,
         }
@@ -1056,7 +1122,7 @@ function loadCurrentModel() {
         }
 
         if (import.meta.env.DEV) {
-          console.warn('✅ [模型] 加载已保存的模型:', currentModelFromStore.displayName)
+          console.warn('✅ [模型] 加载已保存的模型:', currentSelectedModel.value?.displayName)
         }
       }
       else {
@@ -1146,7 +1212,7 @@ function handleSelectModel(model: ModelItem) {
         </div>
 
         <!-- 聊天页面 - 包含Header -->
-        <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col">
+        <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col relative">
           <HeaderComponent
             v-if="isMobile"
             :using-context="usingContext"
@@ -1154,8 +1220,8 @@ function handleSelectModel(model: ModelItem) {
             @handle-clear="handleClear"
           />
 
-          <!-- Web端Header -->
-          <header v-if="!isMobile" class="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#161618]">
+          <!-- Web端Header - 悬浮透明 -->
+          <header v-if="!isMobile" class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-transparent">
             <div class="flex items-center space-x-4">
               <NPopover
                 v-model:show="showModelSelector"
@@ -1220,7 +1286,6 @@ function handleSelectModel(model: ModelItem) {
                               <div class="model-item-content">
                                 <div class="model-info">
                                   <span class="model-name">{{ model.displayName }}</span>
-                                  <span class="model-id">{{ model.id }}</span>
                                 </div>
                                 <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
                                   <CheckmarkOutline />
@@ -1242,7 +1307,11 @@ function handleSelectModel(model: ModelItem) {
               </NPopover>
             </div>
             <div class="flex items-center space-x-2">
-              <UserButton />
+              <HoverButton v-if="!isMobile" @click="handleExport">
+                <span class="text-xl text-[#4f555e] dark:text-white">
+                  <SvgIcon icon="ri:download-2-line" />
+                </span>
+              </HoverButton>
             </div>
           </header>
 
@@ -1270,6 +1339,8 @@ function handleSelectModel(model: ModelItem) {
                         </template>
                         <template v-else>
                           <div>
+                            <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
+                            <div v-if="!isMobile" class="h-24" />
                             <Message
                               v-for="(item, index) of dataSources"
                               :key="index"
@@ -1322,7 +1393,8 @@ function handleSelectModel(model: ModelItem) {
                             v-model:value="prompt"
                             type="textarea"
                             :placeholder="placeholder"
-                            :autosize="{ minRows: 1, maxRows: isMobile ? 4 : 8 }"
+                            :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
+                            style="font-size: 16px; line-height: 1.5;"
                             @input="handleInput"
                             @focus="handleFocus"
                             @blur="handleBlur"
@@ -1330,7 +1402,7 @@ function handleSelectModel(model: ModelItem) {
                           />
                         </template>
                       </NAutoComplete>
-                      <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
+                      <NButton type="primary" :disabled="buttonDisabled" size="large" @click="handleSubmit">
                         <template #icon>
                           <span class="dark:text-black">
                             <SvgIcon icon="ri:send-plane-fill" />

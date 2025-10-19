@@ -32,6 +32,10 @@ let workflowConfig: import('./quiz/types').WorkflowNodeConfig[] = []
 app.use(express.static('public'))
 app.use(express.json())
 
+// 🔥 禁用响应压缩和缓冲（对于流式响应很重要）
+app.set('x-powered-by', false)
+app.set('etag', false)
+
 // 全局 CORS 配置：支持 Clerk 认证
 app.all('*', (req, res, next) => {
   // 允许的来源（开发环境）
@@ -56,7 +60,21 @@ app.all('*', (req, res, next) => {
 
 // 🚀 流式返回 LLM 的回复内容 - 优化版：先响应后验证
 router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) => {
-  res.setHeader('Content-type', 'application/octet-stream')
+  // 🔥 设置正确的响应头以支持真正的流式传输
+  res.setHeader('Content-Type', 'text/event-stream') // 使用 SSE 格式
+  res.setHeader('Cache-Control', 'no-cache, no-transform')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no') // 禁用 Nginx 缓冲
+  
+  // 🔥 设置 TCP 无延迟，禁用 Nagle 算法
+  if (req.socket) {
+    req.socket.setNoDelay(true)
+    req.socket.setTimeout(0)
+  }
+  
+  res.flushHeaders() // 🔥 立即发送响应头
+
+  const perfStart = Date.now() // 🔥 在外层声明，以便在 catch 中使用
 
   try {
     const requestBody = req.body as any
@@ -72,7 +90,7 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
       providerId, // 供应商 ID
     } = requestBody
 
-    const perfStart = Date.now()
+    console.warn('⏱️ [后端-性能] 请求到达时间:', new Date().toISOString())
     console.log('📝 [后端] 快速模式:', { model, providerId })
 
     if (!model || !providerId) {
@@ -87,11 +105,14 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
 
     // 降级：如果 Redis 没有，从数据库查询
     if (!modelConfig) {
+      const dbQueryStart = Date.now()
       const { getModelsWithProviderByModelId } = await import('./db/providerService')
       const models = await getModelsWithProviderByModelId(model)
       modelConfig = models.find((m: any) => m.provider_id === providerId) || models[0]
+      console.warn(`⏱️ [后端-性能] 数据库查询耗时: ${Date.now() - dbQueryStart}ms`)
     }
-    console.log(`⏱️ [快速] 获取模型配置耗时: ${Date.now() - step1Start}ms`)
+    const step1Time = Date.now() - step1Start
+    console.warn(`⏱️ [后端-性能] 获取模型配置耗时: ${step1Time}ms`)
 
     if (!modelConfig || !modelConfig.provider) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '模型配置错误' } }))
@@ -107,7 +128,8 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     }
 
     const clerkUserId = auth.userId
-    console.log(`⏱️ [快速] 前置处理完成，耗时: ${Date.now() - perfStart}ms，立即开始 LLM 调用`)
+    const preProcessTime = Date.now() - perfStart
+    console.warn(`⏱️ [后端-性能] 前置处理完成，耗时: ${preProcessTime}ms，立即开始 LLM 调用`)
 
     // 🔥 构建 lastContext（用于上下文对话）
     const lastContext: any = {}
@@ -122,10 +144,11 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     const finalMaxTokens = maxTokens !== undefined ? maxTokens : 4096
 
     // 🚀 步骤3：立即开始 LLM 调用（不等待权限验证）
-    let authCheckFailed = false
+    // let authCheckFailed = false
     let firstChunk = true
 
-    // 🔥 异步验证权限（不阻塞响应）
+    // 🔥 异步验证权限（不阻塞响应） - 暂时注释掉用于调试
+    /*
     const authCheckPromise = (async () => {
       try {
         const { findUserByClerkId } = await import('./db/supabaseUserService')
@@ -159,22 +182,58 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
         authCheckFailed = true
       }
     })()
+    */
+
+    console.log('🔓 [调试模式] 权限验证已禁用，直接调用 LLM')
 
     // 立即开始 LLM 调用
     const llmCallStart = Date.now()
+    let firstResponseTime: number | null = null
+    let lastChunkTime = llmCallStart
+    let chunksSent = 0
+
     await chatReplyProcess({
       message: prompt,
       lastContext,
       process: (chat: ChatMessage) => {
-        // 如果权限验证失败，停止发送数据
+        // 如果权限验证失败，停止发送数据 - 暂时注释掉
+        /*
         if (authCheckFailed) {
           console.error(`🚫 [安全] 权限验证失败，终止响应`)
           res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '权限验证失败' } }))
           res.end()
           return
         }
+        */
 
-        res.write(firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`)
+        const currentTime = Date.now()
+
+        // 🔥 性能监控：记录第一次响应时间
+        if (firstResponseTime === null) {
+          firstResponseTime = currentTime
+          const ttfr = firstResponseTime - llmCallStart
+          console.warn(`⏱️ [后端-性能] LLM首次响应时间: ${ttfr}ms`)
+        }
+
+        const timeSinceLastChunk = currentTime - lastChunkTime
+        if (timeSinceLastChunk > 100) {
+          console.warn(`⏱️ [后端-性能] 第${chunksSent + 1}个chunk，距离上次: ${timeSinceLastChunk}ms`)
+        }
+
+        chunksSent++
+        lastChunkTime = currentTime
+
+        // 🔥 立即发送数据，不缓冲
+        const dataToSend = firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`
+        
+        const writeStartTime = Date.now()
+        res.write(dataToSend)
+        const writeTime = Date.now() - writeStartTime
+
+        if (writeTime > 10) {
+          console.warn(`⏱️ [后端-性能] res.write耗时: ${writeTime}ms`)
+        }
+
         firstChunk = false
       },
       systemMessage,
@@ -186,13 +245,20 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
       apiKey: modelConfig.provider.api_key,
     })
 
-    // 等待权限验证完成
-    await authCheckPromise
+    // 等待权限验证完成 - 暂时注释掉
+    // await authCheckPromise
 
-    console.log(`⏱️ [性能] LLM 调用: ${Date.now() - llmCallStart}ms, 总耗时: ${Date.now() - perfStart}ms`)
+    const llmTime = Date.now() - llmCallStart
+    const totalTime = Date.now() - perfStart
+    console.warn(`⏱️ [后端-性能] LLM调用总耗时: ${llmTime}ms`)
+    console.warn(`⏱️ [后端-性能] 请求总耗时: ${totalTime}ms`)
+    console.warn(`⏱️ [后端-性能] 发送chunks数: ${chunksSent}`)
+    console.warn(`⏱️ [后端-性能] 结束时间: ${new Date().toISOString()}`)
+    console.warn('⏱️ [后端-性能] ====================')
   }
   catch (error) {
     console.error('❌ [Chat] 聊天处理失败:', error)
+    console.warn(`⏱️ [后端-性能] 错误发生在: ${Date.now() - perfStart}ms`)
     res.write(JSON.stringify(error))
   }
   finally {

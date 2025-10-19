@@ -4,26 +4,26 @@ import { fetchProviders } from '@/api'
 import { store } from '@/store/helper'
 import { clearCurrentModelId, clearProvidersCache, defaultModelState, getCurrentModelId, getLocalWorkflowConfig, getProvidersCache, saveCurrentModelId, saveProvidersCache, setLocalWorkflowConfig } from './helper'
 
-// 后端供应商数据格式
+// 后端供应商数据格式（使用下划线命名，匹配后端 API 和 Redis 缓存格式）
 interface BackendProviderInfo {
   id: string
   name: string
-  baseUrl: string
-  apiKey: string
+  base_url: string // 🔥 下划线命名
+  api_key: string // 🔥 下划线命名
   models: BackendModelInfo[]
-  createdAt?: string
-  updatedAt?: string
+  created_at?: string // 🔥 下划线命名
+  updated_at?: string // 🔥 下划线命名
 }
 
-// 后端模型数据格式
+// 后端模型数据格式（使用下划线命名，匹配后端 API 和 Redis 缓存格式）
 interface BackendModelInfo {
   id: string
-  modelId: string
-  displayName: string
+  model_id: string // 🔥 下划线命名
+  display_name: string // 🔥 下划线命名
   enabled: boolean
-  providerId: string
-  createdAt?: string
-  updatedAt?: string
+  provider_id: string // 🔥 下划线命名
+  created_at?: string // 🔥 下划线命名
+  updated_at?: string // 🔥 下划线命名
 }
 
 export const useModelStore = defineStore('model-store', {
@@ -46,8 +46,9 @@ export const useModelStore = defineStore('model-store', {
       // 从所有provider中查找
       for (const provider of state.providers) {
         const model = provider.models.find((m: any) => m.id === state.currentModelId)
-        if (model)
+        if (model) {
           return model
+        }
       }
       return undefined
     },
@@ -116,21 +117,27 @@ export const useModelStore = defineStore('model-store', {
             const providerId = provider.id as Model.ProviderType
             const hasEnabledModel = provider.models.some(m => m.enabled)
 
-            return {
+            const mappedProvider = {
               id: providerId, // 使用 UUID
               name: provider.name, // 使用原始名称
               displayName: provider.name, // 显示名称就是供应商名称
               enabled: hasEnabledModel, // 如果有任何模型启用，则供应商启用
-              models: provider.models.map(m => ({
-                id: m.id, // 模型的 UUID（用于前端标识）
-                modelId: m.modelId, // 🔥 实际的模型ID（发送给后端，如：basic/gpt-4.1）
-                name: m.modelId, // 原始模型ID
-                displayName: m.displayName, // 显示名称
-                provider: providerId, // 关联到供应商 UUID
-                providerId: provider.id, // 🔥 供应商 UUID（用于查找 baseUrl）
-                enabled: m.enabled,
-              })),
+              models: provider.models.map((m) => {
+                const mappedModel = {
+                  id: m.id, // 模型的 UUID（用于前端标识）
+                  modelId: m.model_id, // 🔥 从下划线字段读取
+                  name: m.model_id || m.display_name || m.id, // 原始模型ID
+                  displayName: m.display_name || m.model_id || m.id, // 🔥 从下划线字段读取
+                  provider: providerId, // 关联到供应商 UUID
+                  providerId: provider.id, // 🔥 供应商 UUID（用于查找 baseUrl）
+                  enabled: m.enabled,
+                }
+
+                return mappedModel
+              }),
             }
+
+            return mappedProvider
           })
 
           // 🔥 保存到缓存

@@ -120,10 +120,41 @@ export async function getProviderById(id: string): Promise<Provider | null> {
 }
 
 /**
- * 创建新供应商
+ * 创建新供应商（智能处理：如果存在软删除的记录，则恢复它）
  */
 export async function createProvider(provider: Omit<Provider, 'id' | 'created_at' | 'updated_at'>): Promise<Provider> {
   try {
+    // 🔥 第一步：检查是否存在软删除的记录
+    const { data: existingProvider, error: checkError } = await supabase
+      .from('providers')
+      .select('*')
+      .eq('name', provider.name)
+      .not('deleted_at', 'is', null) // 只查找已软删除的记录
+      .single()
+
+    // 如果找到软删除的记录，恢复它
+    if (!checkError && existingProvider) {
+      console.log(`🔄 [恢复供应商] 发现软删除的供应商，正在恢复: ${provider.name}`)
+      const { data: restoredProvider, error: restoreError } = await supabase
+        .from('providers')
+        .update({
+          base_url: provider.base_url, // 更新配置
+          api_key: provider.api_key, // 更新配置
+          deleted_at: null, // 清除删除标记
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingProvider.id)
+        .select()
+        .single()
+
+      if (restoreError)
+        throw restoreError
+
+      console.log(`✅ [恢复成功] 供应商已恢复: ${restoredProvider.name}`)
+      return restoredProvider
+    }
+
+    // 🔥 第二步：如果没有软删除记录，正常插入
     const { data, error } = await supabase
       .from('providers')
       .insert({
@@ -137,6 +168,7 @@ export async function createProvider(provider: Omit<Provider, 'id' | 'created_at
     if (error)
       throw error
 
+    console.log(`✅ [创建成功] 新供应商已创建: ${data.name}`)
     return data
   }
   catch (error) {
@@ -264,10 +296,42 @@ export async function getModelById(id: string): Promise<Model | null> {
 }
 
 /**
- * 创建新模型
+ * 创建新模型（智能处理：如果存在软删除的记录，则恢复它）
  */
 export async function createModel(model: Omit<Model, 'id' | 'created_at' | 'updated_at'>): Promise<Model> {
   try {
+    // 🔥 第一步：检查是否存在软删除的记录
+    const { data: existingModel, error: checkError } = await supabase
+      .from('models')
+      .select('*')
+      .eq('provider_id', model.provider_id)
+      .eq('model_id', model.model_id)
+      .not('deleted_at', 'is', null) // 只查找已软删除的记录
+      .single()
+
+    // 如果找到软删除的记录，恢复它
+    if (!checkError && existingModel) {
+      console.log(`🔄 [恢复模型] 发现软删除的模型，正在恢复: ${model.display_name}`)
+      const { data: restoredModel, error: restoreError } = await supabase
+        .from('models')
+        .update({
+          display_name: model.display_name, // 更新显示名称（可能已改变）
+          enabled: model.enabled ?? true, // 更新启用状态
+          deleted_at: null, // 清除删除标记
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingModel.id)
+        .select()
+        .single()
+
+      if (restoreError)
+        throw restoreError
+
+      console.log(`✅ [恢复成功] 模型已恢复: ${restoredModel.display_name}`)
+      return restoredModel
+    }
+
+    // 🔥 第二步：如果没有软删除记录，正常插入
     const { data, error } = await supabase
       .from('models')
       .insert({
@@ -282,6 +346,7 @@ export async function createModel(model: Omit<Model, 'id' | 'created_at' | 'upda
     if (error)
       throw error
 
+    console.log(`✅ [创建成功] 新模型已创建: ${data.display_name}`)
     return data
   }
   catch (error) {

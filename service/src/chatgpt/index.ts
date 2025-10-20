@@ -69,19 +69,22 @@ let apiModel: ApiModel
 let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
 let isInitialized = false
 
-// 延迟初始化函数
+// 延迟初始化函数（可选：仅在使用环境变量时需要）
 async function initializeAPI() {
   if (isInitialized)
     return
 
   const model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
 
-  // 只有在实际需要时才检查环境变量
+  // 🔥 新架构：优先使用数据库配置，环境变量作为后备
+  // 如果没有配置环境变量，直接跳过初始化（将使用数据库配置）
   if (!isNotEmptyString(process.env.OPENAI_API_KEY) && !isNotEmptyString(process.env.OPENAI_ACCESS_TOKEN)) {
-    console.warn('⚠️ [ChatGPT] 未配置 OPENAI_API_KEY 或 OPENAI_ACCESS_TOKEN，将使用数据库中的供应商配置')
     isInitialized = true
     return
   }
+
+  // 如果配置了环境变量，使用环境变量初始化（向后兼容）
+  console.warn('✅ [ChatGPT] 检测到环境变量配置，使用环境变量初始化 API')
 
   await (async () => {
   // More Info: https://github.com/transitive-bullshit/chatgpt-api
@@ -95,7 +98,7 @@ async function initializeAPI() {
         debug: !disableDebug,
         // 禁用 token 计数以避免网络错误
         // chatgpt库会尝试从网络下载tiktoken模型，可能导致ECONNRESET错误
-        messageStore: undefined,
+        // messageStore: undefined, // 🔥 移除此行，使用默认的内存存储以支持对话历史
       }
 
       // increase max token limit if use gpt-4
@@ -170,7 +173,7 @@ function createApiForProvider(modelId: string, maxTokens?: number): ChatGPTAPI {
       apiKey: krioraApiKey,
       completionParams: { model: modelId },
       debug: !disableDebug,
-      messageStore: undefined,
+      // messageStore: undefined, // 🔥 移除此行，使用默认的内存存储以支持对话历史
       apiBaseUrl: `${krioraApiUrl}/v1`,
       maxModelTokens: 128000,
       maxResponseTokens: maxTokens || 8192, // 使用配置的 maxTokens，默认 8192
@@ -376,17 +379,19 @@ async function _chatReplyProcessNative(options: RequestOptions) {
 }
 
 async function chatReplyProcess(options: RequestOptions) {
-  // 🔥 默认使用 chatgpt 库
-  console.warn('📚 [ChatGPT] 使用 chatgpt 库')
-
   // 确保API已初始化
   await initializeAPI()
 
-  const { message, lastContext, process: processCallback, systemMessage, temperature, top_p, model: requestModel, maxTokens, providerId, baseURL, apiKey } = options
+  const { message, lastContext, historyMessages, process: processCallback, systemMessage, temperature, top_p, model: requestModel, maxTokens, providerId, baseURL, apiKey } = options
   try {
     let options: SendMessageOptions = { timeoutMs }
     const defaultModel = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
     const selectedModel = requestModel || defaultModel
+
+    // 🔥 如果提供了历史消息，记录一下
+    if (historyMessages && historyMessages.length > 0) {
+      console.warn(`📚 [ChatGPT] 使用历史消息: ${historyMessages.length} 条`)
+    }
 
     // 🔥 优先使用直接传递的 baseURL 和 apiKey（新方式）
     let apiInstance: ChatGPTAPI | ChatGPTUnofficialProxyAPI | null = api
@@ -399,10 +404,6 @@ async function chatReplyProcess(options: RequestOptions) {
         apiKey,
         name: 'Direct Config',
       }
-      console.warn('✅ [ChatGPT] 使用直接传递的配置:', {
-        baseUrl: baseURL,
-        model: selectedModel,
-      })
 
       // 🔥 创建 API 实例（不依赖 apiModel，直接使用 ChatGPTAPI）
       // ChatGPT API 需要完整的 URL，包括 /v1
@@ -414,7 +415,6 @@ async function chatReplyProcess(options: RequestOptions) {
         apiKey: providerInfo.apiKey,
         completionParams: { model: selectedModel },
         debug: !disableDebug,
-        messageStore: undefined,
         apiBaseUrl,
         maxModelTokens: 128000,
         maxResponseTokens: maxTokens || 8192,
@@ -422,7 +422,6 @@ async function chatReplyProcess(options: RequestOptions) {
 
       setupProxy(providerOptions as any)
       apiInstance = new ChatGPTAPI({ ...providerOptions })
-      console.warn('🔧 [ChatGPT] 已创建 API 实例，URL:', apiBaseUrl)
     }
     else if (lastContext?.providerId || providerId) {
       // 🔥 旧方式：通过 providerId 查询数据库（兼容）
@@ -452,7 +451,7 @@ async function chatReplyProcess(options: RequestOptions) {
             apiKey: providerInfo.apiKey,
             completionParams: { model: selectedModel },
             debug: !disableDebug,
-            messageStore: undefined,
+            // messageStore: undefined, // 🔥 移除此行，使用默认的内存存储以支持对话历史
             apiBaseUrl,
             maxModelTokens: 128000,
             maxResponseTokens: maxTokens || 8192,
@@ -488,6 +487,7 @@ async function chatReplyProcess(options: RequestOptions) {
     if (currentApiModel === 'ChatGPTAPI') {
       if (isNotEmptyString(systemMessage))
         options.systemMessage = systemMessage
+
       // 使用请求中的模型参数，如果没有则使用默认模型
       options.completionParams = {
         model: selectedModel,
@@ -497,6 +497,7 @@ async function chatReplyProcess(options: RequestOptions) {
         // presence_penalty: 0,
         // frequency_penalty: 0,
       }
+
       // 如果提供了 maxTokens，设置 maxResponseTokens
       if (maxTokens && apiInstance instanceof ChatGPTAPI) {
         const chatGptApi = apiInstance as any
@@ -512,42 +513,149 @@ async function chatReplyProcess(options: RequestOptions) {
         options = { ...lastContext }
     }
 
-    console.warn('📤 [ChatGPT] 准备发送请求:')
-    console.warn('   消息:', message.substring(0, 100))
-    console.warn('   模型:', selectedModel)
-    console.warn('   选项:', {
-      systemMessage: options.systemMessage?.substring(0, 50),
-      completionParams: options.completionParams,
-      parentMessageId: options.parentMessageId,
-      timeoutMs,
-    })
-
     const startTime = Date.now()
 
     // 🔥 手动累积文本（修复 GLM-4.6 等模型的 text 字段为空问题）
     let accumulatedText = ''
     let accumulatedThinkingText = '' // 🔥 累积思考过程
 
-    let progressCallbackCount = 0
-    const progressStartTime = Date.now()
-    let lastProgressTime = progressStartTime
+    let _progressCallbackCount = 0
+    const _progressStartTime = Date.now()
+    let _lastProgressTime = _progressStartTime
 
+    // 🔥 如果提供了历史消息，使用直接 API 调用而不是 chatgpt 库
+    if (historyMessages && historyMessages.length > 0 && baseURL && apiKey) {
+      console.warn('📝 [ChatGPT] 使用历史消息直接调用 API:', historyMessages.length, '条')
+
+      // 构建完整的消息列表
+      const fullMessages = [
+        ...historyMessages,
+        { role: 'user', content: message },
+      ]
+
+      // 直接调用 OpenAI API
+      const apiUrl = baseURL.endsWith('/v1')
+        ? `${baseURL}/chat/completions`
+        : `${baseURL}/v1/chat/completions`
+
+      const requestBody = {
+        model: selectedModel,
+        messages: fullMessages,
+        temperature: temperature || 0.7,
+        top_p: top_p || 1,
+        max_tokens: maxTokens || 4096,
+        stream: true,
+      }
+
+      const fetchResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!fetchResponse.ok) {
+        throw new Error(`API 调用失败: ${fetchResponse.statusText}`)
+      }
+
+      // 🔥 使用 Node.js 流处理（node-fetch）
+      const body = fetchResponse.body as any
+      let buffer = ''
+      const messageId = `msg_${Date.now()}`
+
+      // 🔥 监听流数据
+      body.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf-8')
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim() || line === 'data: [DONE]')
+            continue
+
+          if (line.startsWith('data: ')) {
+            try {
+              const jsonStr = line.substring(6)
+              const data = JSON.parse(jsonStr)
+              const delta = data.choices?.[0]?.delta?.content || ''
+
+              if (delta) {
+                accumulatedText += delta
+
+                // 调用进度回调
+                if (processCallback) {
+                  processCallback({
+                    id: messageId,
+                    text: accumulatedText,
+                    role: 'assistant',
+                    detail: data,
+                  } as any)
+                }
+              }
+            }
+            catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      })
+
+      // 🔥 等待流结束
+      await new Promise((resolve, reject) => {
+        body.on('end', resolve)
+        body.on('error', reject)
+      })
+
+      // 返回最终响应
+      const response = {
+        id: messageId,
+        text: accumulatedText,
+        role: 'assistant',
+        detail: {
+          model: selectedModel,
+          usage: {
+            total_tokens: 0, // 需要从实际响应中获取
+            estimated: true,
+          },
+        },
+      }
+
+      // eslint-disable-next-line no-console
+      console.log('✅ [ChatGPT] API 调用完成')
+      // eslint-disable-next-line no-console
+      console.log('⏱️ [ChatGPT] 耗时:', Date.now() - startTime, 'ms')
+      // eslint-disable-next-line no-console
+      console.log('📊 [ChatGPT] 响应信息:', {
+        id: response.id,
+        model: selectedModel,
+        textLength: accumulatedText.length,
+      })
+
+      return sendResponse({
+        type: 'Success',
+        data: response,
+      })
+    }
+
+    // 🔥 否则使用 chatgpt 库的默认行为
     const response = await apiInstance.sendMessage(message, {
       ...options,
       onProgress: (partialResponse) => {
-        progressCallbackCount++
+        _progressCallbackCount++
         const currentTime = Date.now()
-        const timeSinceLastProgress = currentTime - lastProgressTime
+        const _timeSinceLastProgress = currentTime - _lastProgressTime
 
-        if (progressCallbackCount === 1) {
-          console.warn(`⏱️ [ChatGPT-性能] 首次onProgress回调: ${currentTime - progressStartTime}ms`)
-        }
+        // if (_progressCallbackCount === 1) {
+        //   console.warn(`⏱️ [ChatGPT-性能] 首次onProgress回调: ${currentTime - _progressStartTime}ms`)
+        // }
 
-        if (timeSinceLastProgress > 100) {
-          console.warn(`⏱️ [ChatGPT-性能] 第${progressCallbackCount}次回调，距离上次: ${timeSinceLastProgress}ms`)
-        }
+        // if (_timeSinceLastProgress > 100) {
+        //   console.warn(`⏱️ [ChatGPT-性能] 第${_progressCallbackCount}次回调，距离上次: ${_timeSinceLastProgress}ms`)
+        // }
 
-        lastProgressTime = currentTime
+        _lastProgressTime = currentTime
 
         // 🔥 从 delta 或 detail.choices[0].delta.content 获取增量内容
         const delta = (partialResponse as any).delta || ''
@@ -556,7 +664,7 @@ async function chatReplyProcess(options: RequestOptions) {
 
         // 🔥 记录跳过的次数
         let shouldSkip = false
-        let skipReason = ''
+        let _skipReason = ''
 
         // 🔥 累积实际内容
         const actualContent = content || delta
@@ -586,13 +694,13 @@ async function chatReplyProcess(options: RequestOptions) {
         // 如果既没有实际内容也没有思考内容，跳过
         if (!actualContent && !reasoningContent) {
           shouldSkip = true
-          skipReason = '没有内容'
+          _skipReason = '没有内容'
         }
 
         // 记录跳过情况
-        if (shouldSkip && progressCallbackCount <= 50) {
-          console.warn(`⏱️ [ChatGPT-性能] 第${progressCallbackCount}次被跳过，原因: ${skipReason}`)
-        }
+        // if (shouldSkip && _progressCallbackCount <= 50) {
+        //   console.warn(`⏱️ [ChatGPT-性能] 第${_progressCallbackCount}次被跳过，原因: ${_skipReason}`)
+        // }
 
         if (shouldSkip) {
           return
@@ -603,17 +711,17 @@ async function chatReplyProcess(options: RequestOptions) {
           partialResponse.text = accumulatedText
         }
 
-        const callbackStartTime = Date.now()
+        // const callbackStartTime = Date.now()
         processCallback?.(partialResponse)
-        const callbackTime = Date.now() - callbackStartTime
+        // const callbackTime = Date.now() - callbackStartTime
 
-        if (callbackTime > 10) {
-          console.warn(`⏱️ [ChatGPT-性能] processCallback耗时: ${callbackTime}ms`)
-        }
+        // if (callbackTime > 10) {
+        //   console.warn(`⏱️ [ChatGPT-性能] processCallback耗时: ${callbackTime}ms`)
+        // }
 
-        if (progressCallbackCount <= 20) {
-          console.warn(`⏱️ [ChatGPT-性能] 第${progressCallbackCount}次成功调用processCallback，累积文本长度: ${accumulatedText.length}`)
-        }
+        // if (_progressCallbackCount <= 20) {
+        //   console.warn(`⏱️ [ChatGPT-性能] 第${_progressCallbackCount}次成功调用processCallback，累积文本长度: ${accumulatedText.length}`)
+        // }
       },
     })
     const endTime = Date.now()
@@ -622,7 +730,7 @@ async function chatReplyProcess(options: RequestOptions) {
     console.log('✅ [ChatGPT] API 调用完成')
     // eslint-disable-next-line no-console
     console.log('⏱️ [ChatGPT] 耗时:', endTime - startTime, 'ms')
-    console.warn(`⏱️ [ChatGPT-性能] onProgress总共被调用: ${progressCallbackCount}次`)
+    // console.warn(`⏱️ [ChatGPT-性能] onProgress总共被调用: ${_progressCallbackCount}次`)
     // eslint-disable-next-line no-console
     console.log('📊 [ChatGPT] 响应信息:', {
       id: response.id,

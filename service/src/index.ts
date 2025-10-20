@@ -58,23 +58,23 @@ app.all('*', (req, res, next) => {
   next()
 })
 
-// 🚀 流式返回 LLM 的回复内容 - 优化版：先响应后验证
+// 🚀 流式返回 LLM 的回复内容 - 优化版：支持消息历史
 router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) => {
   // 🔥 设置正确的响应头以支持真正的流式传输
   res.setHeader('Content-Type', 'text/event-stream') // 使用 SSE 格式
   res.setHeader('Cache-Control', 'no-cache, no-transform')
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no') // 禁用 Nginx 缓冲
-  
+
   // 🔥 设置 TCP 无延迟，禁用 Nagle 算法
   if (req.socket) {
     req.socket.setNoDelay(true)
     req.socket.setTimeout(0)
   }
-  
+
   res.flushHeaders() // 🔥 立即发送响应头
 
-  const perfStart = Date.now() // 🔥 在外层声明，以便在 catch 中使用
+  const _perfStart = Date.now() // 🔥 在外层声明，以便在 catch 中使用
 
   try {
     const requestBody = req.body as any
@@ -85,13 +85,14 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
       top_p,
       model, // model 现在是 model_id
       maxTokens,
-      conversationId,
-      parentMessageId,
+      conversationId: clientConversationId, // 前端传来的对话 ID
+      parentMessageId: _parentMessageId,
       providerId, // 供应商 ID
+      contextMessages, // 🔥 前端传来的本地缓存消息（可选）
     } = requestBody
 
-    console.warn('⏱️ [后端-性能] 请求到达时间:', new Date().toISOString())
-    console.log('📝 [后端] 快速模式:', { model, providerId })
+    // console.warn('⏱️ [后端-性能] 请求到达时间:', new Date().toISOString())
+    console.log('📝 [后端] 接收请求:', { model, providerId, conversationId: clientConversationId })
 
     if (!model || !providerId) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '未指定模型或供应商' } }))
@@ -99,20 +100,20 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     }
 
     // 🚀 步骤1：快速从 Redis 获取模型配置（<10ms）
-    const step1Start = Date.now()
+    const _step1Start = Date.now()
     const { getModelFromCache } = await import('./cache/modelCache')
     let modelConfig = await getModelFromCache(model, providerId)
 
     // 降级：如果 Redis 没有，从数据库查询
     if (!modelConfig) {
-      const dbQueryStart = Date.now()
+      // const dbQueryStart = Date.now()
       const { getModelsWithProviderByModelId } = await import('./db/providerService')
       const models = await getModelsWithProviderByModelId(model)
       modelConfig = models.find((m: any) => m.provider_id === providerId) || models[0]
-      console.warn(`⏱️ [后端-性能] 数据库查询耗时: ${Date.now() - dbQueryStart}ms`)
+      // console.warn(`⏱️ [后端-性能] 数据库查询耗时: ${Date.now() - dbQueryStart}ms`)
     }
-    const step1Time = Date.now() - step1Start
-    console.warn(`⏱️ [后端-性能] 获取模型配置耗时: ${step1Time}ms`)
+    // const step1Time = Date.now() - step1Start
+    // console.warn(`⏱️ [后端-性能] 获取模型配置耗时: ${step1Time}ms`)
 
     if (!modelConfig || !modelConfig.provider) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '模型配置错误' } }))
@@ -128,15 +129,67 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     }
 
     const clerkUserId = auth.userId
-    const preProcessTime = Date.now() - perfStart
-    console.warn(`⏱️ [后端-性能] 前置处理完成，耗时: ${preProcessTime}ms，立即开始 LLM 调用`)
 
-    // 🔥 构建 lastContext（用于上下文对话）
-    const lastContext: any = {}
-    if (conversationId)
-      lastContext.conversationId = conversationId
-    if (parentMessageId)
-      lastContext.parentMessageId = parentMessageId
+    // 🔥 获取 Supabase 用户信息
+    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const user = await findUserByClerkId(clerkUserId)
+    if (!user) {
+      res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '用户不存在' } }))
+      return res.end()
+    }
+
+    // 🔥 获取或创建对话
+    const { getOrCreateConversation } = await import('./db/conversationService')
+    const { getConversationContextWithCache } = await import('./cache/messageCache')
+
+    let conversation = null
+    if (clientConversationId) {
+      // 如果前端提供了对话 ID，先尝试获取
+      const { getConversationById } = await import('./db/conversationService')
+      conversation = await getConversationById(clientConversationId)
+    }
+
+    if (!conversation) {
+      // 创建新对话
+      conversation = await getOrCreateConversation(
+        user.user_id,
+        modelConfig.id,
+        modelConfig.provider_id,
+        {
+          title: prompt.substring(0, 50), // 使用前50个字符作为标题
+          temperature: temperature ?? 0.7,
+          top_p: top_p ?? 1.0,
+          max_tokens: maxTokens ?? 2048,
+          system_prompt: systemMessage,
+        },
+      )
+    }
+
+    if (!conversation) {
+      res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '创建对话失败' } }))
+      return res.end()
+    }
+
+    const conversationId = conversation.id
+    console.log('📝 [对话] 使用对话ID:', conversationId)
+
+    // 🔥 加载历史消息（优先从缓存，降级到数据库）
+    let historyMessages: Array<{ role: string, content: string }> = []
+
+    // 优先使用前端传来的本地缓存
+    if (contextMessages && Array.isArray(contextMessages) && contextMessages.length > 0) {
+      console.log(`📦 [上下文] 使用前端传来的本地缓存: ${contextMessages.length} 条`)
+      historyMessages = contextMessages
+    }
+    else {
+      // 从 Redis/数据库加载
+      historyMessages = await getConversationContextWithCache(
+        conversationId,
+        10, // 最多加载 10 条历史消息
+        systemMessage,
+      )
+      console.log(`📚 [上下文] 从缓存/数据库加载: ${historyMessages.length} 条`)
+    }
 
     // 使用请求参数或默认值
     const finalTemperature = temperature !== undefined ? temperature : 0.7
@@ -187,14 +240,18 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     console.log('🔓 [调试模式] 权限验证已禁用，直接调用 LLM')
 
     // 立即开始 LLM 调用
-    const llmCallStart = Date.now()
+    const _llmCallStart = Date.now()
     let firstResponseTime: number | null = null
-    let lastChunkTime = llmCallStart
-    let chunksSent = 0
+    let lastChunkTime = _llmCallStart
+    let _chunksSent = 0
+    let assistantResponse = '' // 🔥 累积助手的完整回复
+    let responseId = '' // 🔥 响应消息 ID
+    let responseTokens = 0 // 🔥 响应使用的 tokens
 
     await chatReplyProcess({
       message: prompt,
-      lastContext,
+      lastContext: {}, // 🔥 不再使用旧的 lastContext，改用 historyMessages
+      historyMessages, // 🔥 传递历史消息
       process: (chat: ChatMessage) => {
         // 如果权限验证失败，停止发送数据 - 暂时注释掉
         /*
@@ -211,28 +268,43 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
         // 🔥 性能监控：记录第一次响应时间
         if (firstResponseTime === null) {
           firstResponseTime = currentTime
-          const ttfr = firstResponseTime - llmCallStart
-          console.warn(`⏱️ [后端-性能] LLM首次响应时间: ${ttfr}ms`)
+          // const ttfr = firstResponseTime - llmCallStart
+          // console.warn(`⏱️ [后端-性能] LLM首次响应时间: ${ttfr}ms`)
         }
 
-        const timeSinceLastChunk = currentTime - lastChunkTime
-        if (timeSinceLastChunk > 100) {
-          console.warn(`⏱️ [后端-性能] 第${chunksSent + 1}个chunk，距离上次: ${timeSinceLastChunk}ms`)
-        }
+        const _timeSinceLastChunk = currentTime - lastChunkTime
+        // if (_timeSinceLastChunk > 100) {
+        //   console.warn(`⏱️ [后端-性能] 第${_chunksSent + 1}个chunk，距离上次: ${_timeSinceLastChunk}ms`)
+        // }
 
-        chunksSent++
+        _chunksSent++
         lastChunkTime = currentTime
 
-        // 🔥 立即发送数据，不缓冲
-        const dataToSend = firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`
-        
-        const writeStartTime = Date.now()
-        res.write(dataToSend)
-        const writeTime = Date.now() - writeStartTime
-
-        if (writeTime > 10) {
-          console.warn(`⏱️ [后端-性能] res.write耗时: ${writeTime}ms`)
+        // 🔥 累积助手回复
+        if (chat.text) {
+          assistantResponse = chat.text
         }
+        if (chat.id) {
+          responseId = chat.id
+        }
+        if (chat.detail?.usage?.total_tokens) {
+          responseTokens = chat.detail.usage.total_tokens
+        }
+
+        // 🔥 立即发送数据，不缓冲（添加 conversationId）
+        const responseData = {
+          ...chat,
+          conversationId, // 🔥 返回对话ID给前端
+        }
+        const dataToSend = firstChunk ? JSON.stringify(responseData) : `\n${JSON.stringify(responseData)}`
+
+        // const writeStartTime = Date.now()
+        res.write(dataToSend)
+        // const writeTime = Date.now() - writeStartTime
+
+        // if (writeTime > 10) {
+        //   console.warn(`⏱️ [后端-性能] res.write耗时: ${writeTime}ms`)
+        // }
 
         firstChunk = false
       },
@@ -245,20 +317,71 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
       apiKey: modelConfig.provider.api_key,
     })
 
-    // 等待权限验证完成 - 暂时注释掉
-    // await authCheckPromise
+    // 🔥 异步保存消息到数据库和缓存（不阻塞响应）
+    const saveMessagesAsync = async () => {
+      try {
+        const { createMessage, estimateTokens } = await import('./db/messageService')
+        const { appendMessageToCache } = await import('./cache/messageCache')
+        const { incrementConversationStats } = await import('./db/conversationService')
 
-    const llmTime = Date.now() - llmCallStart
-    const totalTime = Date.now() - perfStart
-    console.warn(`⏱️ [后端-性能] LLM调用总耗时: ${llmTime}ms`)
-    console.warn(`⏱️ [后端-性能] 请求总耗时: ${totalTime}ms`)
-    console.warn(`⏱️ [后端-性能] 发送chunks数: ${chunksSent}`)
-    console.warn(`⏱️ [后端-性能] 结束时间: ${new Date().toISOString()}`)
-    console.warn('⏱️ [后端-性能] ====================')
+        // 计算用户消息的 tokens
+        const userTokens = estimateTokens(prompt)
+        const assistantTokens = responseTokens > 0 ? responseTokens : estimateTokens(assistantResponse)
+
+        // 保存用户消息
+        const userMessage = await createMessage({
+          conversation_id: conversationId,
+          role: 'user',
+          content: prompt,
+          tokens: userTokens,
+        })
+
+        // 保存助手消息
+        const assistantMessage = await createMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: assistantResponse,
+          tokens: assistantTokens,
+          model_info: {
+            model: modelConfig.model_id,
+            provider: modelConfig.provider.name,
+            response_id: responseId,
+          },
+        })
+
+        // 更新对话统计
+        await incrementConversationStats(conversationId, userTokens + assistantTokens)
+
+        // 更新 Redis 缓存
+        if (userMessage) {
+          await appendMessageToCache(conversationId, userMessage)
+        }
+        if (assistantMessage) {
+          await appendMessageToCache(conversationId, assistantMessage)
+        }
+
+        console.log('✅ [保存] 消息已保存到数据库和缓存')
+      }
+      catch (error) {
+        console.error('❌ [保存] 保存消息失败:', error)
+        // 不影响用户体验，只记录错误
+      }
+    }
+
+    // 启动异步保存（不等待完成）
+    saveMessagesAsync()
+
+    // const llmTime = Date.now() - llmCallStart
+    // const totalTime = Date.now() - perfStart
+    // console.warn(`⏱️ [后端-性能] LLM调用总耗时: ${llmTime}ms`)
+    // console.warn(`⏱️ [后端-性能] 请求总耗时: ${totalTime}ms`)
+    // console.warn(`⏱️ [后端-性能] 发送chunks数: ${chunksSent}`)
+    // console.warn(`⏱️ [后端-性能] 结束时间: ${new Date().toISOString()}`)
+    // console.warn('⏱️ [后端-性能] ====================')
   }
   catch (error) {
     console.error('❌ [Chat] 聊天处理失败:', error)
-    console.warn(`⏱️ [后端-性能] 错误发生在: ${Date.now() - perfStart}ms`)
+    // console.warn(`⏱️ [后端-性能] 错误发生在: ${Date.now() - perfStart}ms`)
     res.write(JSON.stringify(error))
   }
   finally {
@@ -499,6 +622,113 @@ router.post('/quiz/test-llm', async (req, res) => {
 // 注意：旧的内存存储模型数据已移除
 // 现在所有模型配置都从 Supabase 数据库读取
 // ============================================
+
+// ============================================
+// 对话和消息历史 API
+// ============================================
+
+// 获取用户的对话列表
+router.get('/conversations', clerkAuth, requireAuth, async (req, res) => {
+  try {
+    const { getAuth } = await import('@clerk/express')
+    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const { getUserConversations } = await import('./db/conversationService')
+
+    const auth = getAuth(req)
+    const user = await findUserByClerkId(auth!.userId!)
+
+    if (!user) {
+      return res.status(404).send({
+        status: 'Fail',
+        message: '用户不存在',
+        data: null,
+      })
+    }
+
+    // 获取分页参数
+    const limit = parseInt(req.query.limit as string) || 50
+    const offset = parseInt(req.query.offset as string) || 0
+
+    const conversations = await getUserConversations(user.user_id, { limit, offset })
+
+    res.send({
+      status: 'Success',
+      message: '获取对话列表成功',
+      data: conversations,
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [Conversations] 获取对话列表失败:', error)
+    res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+})
+
+// 获取对话的消息历史
+router.get('/conversations/:conversationId/messages', clerkAuth, requireAuth, async (req, res) => {
+  try {
+    const { getAuth } = await import('@clerk/express')
+    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const { getConversationById } = await import('./db/conversationService')
+    const { getConversationMessages } = await import('./db/messageService')
+
+    const auth = getAuth(req)
+    const user = await findUserByClerkId(auth!.userId!)
+
+    if (!user) {
+      return res.status(404).send({
+        status: 'Fail',
+        message: '用户不存在',
+        data: null,
+      })
+    }
+
+    const { conversationId } = req.params
+    const limit = parseInt(req.query.limit as string) || 100
+    const offset = parseInt(req.query.offset as string) || 0
+
+    // 验证对话是否属于该用户
+    const conversation = await getConversationById(conversationId)
+    if (!conversation) {
+      return res.status(404).send({
+        status: 'Fail',
+        message: '对话不存在',
+        data: null,
+      })
+    }
+
+    if (conversation.user_id !== user.user_id) {
+      return res.status(403).send({
+        status: 'Fail',
+        message: '无权访问该对话',
+        data: null,
+      })
+    }
+
+    // 获取消息列表
+    const messages = await getConversationMessages(conversationId, { limit, offset })
+
+    res.send({
+      status: 'Success',
+      message: '获取消息历史成功',
+      data: {
+        conversation,
+        messages,
+      },
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [Messages] 获取消息历史失败:', error)
+    res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+})
 
 // 获取所有模型（基于用户角色过滤，管理员可以看到完整配置）
 router.get('/models', clerkAuth, requireAuth, async (req, res) => {
@@ -1028,12 +1258,9 @@ else {
 // 初始化数据库
 async function initDatabase() {
   try {
-    console.log('🔍 [启动] 初始化数据库...')
-
     // 测试旧的数据库连接（如果配置了）
     const hasOldDb = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
     if (hasOldDb) {
-      console.log('🔍 [启动] 检测到 Supabase 配置，测试连接...')
       await testSupabaseConnection()
     }
     else {

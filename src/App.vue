@@ -5,12 +5,14 @@ import { getCurrentUser } from '@/api/services/authService'
 import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
-import { useAuthStore, useUserStore } from '@/store'
+import { useAppStore, useAuthStore, useConfigStore, useUserStore } from '@/store'
 
 const { theme, themeOverrides } = useTheme()
 const { language } = useLanguage()
+const appStore = useAppStore()
 const authStore = useAuthStore()
 const userStore = useUserStore()
+const configStore = useConfigStore()
 
 // 🔥 开发环境：暴露 store 到 window 对象，方便调试
 if (import.meta.env.DEV) {
@@ -91,6 +93,33 @@ onMounted(async () => {
       catch (error) {
         console.error('❌ [App] 获取用户信息失败:', error)
       }
+    }
+
+    // 🔥 加载用户配置（主题、语言等）
+    try {
+      if (!configStore.loaded && !configStore.loading) {
+        await (configStore as any).loadAllConfig()
+        
+        // 🔥 同步主题和语言设置到 appStore
+        if (configStore.userSettings) {
+          if (configStore.userSettings.theme) {
+            appStore.setTheme(configStore.userSettings.theme)
+          }
+          if (configStore.userSettings.language) {
+            appStore.setLanguage(configStore.userSettings.language)
+          }
+          
+          if (import.meta.env.DEV) {
+            console.warn('✅ [App] 用户配置已加载并同步:', {
+              theme: configStore.userSettings.theme,
+              language: configStore.userSettings.language,
+            })
+          }
+        }
+      }
+    }
+    catch (error) {
+      console.error('❌ [App] 加载用户配置失败:', error)
     }
   }
   catch (error) {

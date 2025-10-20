@@ -195,6 +195,13 @@ const getMobileClass = computed<CSSProperties>(() => {
   return {}
 })
 
+// 🔥 Sider 内容样式（支持暗黑模式）
+const siderContentStyle = computed<CSSProperties>(() => {
+  return {
+    backgroundColor: 'var(--n-color)',
+  }
+})
+
 const mobileSafeArea = computed(() => {
   if (isMobile.value) {
     return {
@@ -226,6 +233,7 @@ watch(
     position="absolute"
     bordered
     :style="getMobileClass"
+    :content-style="siderContentStyle"
     @update-collapsed="handleUpdateCollapsed"
   >
     <div class="flex flex-col h-full overflow-hidden" :style="mobileSafeArea">

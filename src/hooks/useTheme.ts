@@ -43,10 +43,21 @@ export function useTheme() {
   watch(
     () => isDark.value,
     (dark) => {
+      if (import.meta.env.DEV) {
+        console.log('[useTheme] 主题切换:', dark ? '暗黑模式' : '浅色模式')
+        console.log('[useTheme] 当前主题设置:', appStore.theme)
+      }
       if (dark)
         document.documentElement.classList.add('dark')
       else
         document.documentElement.classList.remove('dark')
+      
+      // 🔥 确保 body 元素也同步更新背景色
+      if (dark) {
+        document.body.style.backgroundColor = 'rgb(22, 22, 24)' // #161618
+      } else {
+        document.body.style.backgroundColor = 'white'
+      }
     },
     { immediate: true },
   )

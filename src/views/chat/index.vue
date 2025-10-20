@@ -26,6 +26,8 @@ import HeaderComponent from './components/Header/index.vue'
 import { useChat } from './hooks/useChat'
 import { useScroll } from './hooks/useScroll'
 import { useUsingContext } from './hooks/useUsingContext'
+// 🔥 导入消息缓存工具
+import { getConversationContext, appendMessageToLocalCache } from '@/utils/messageCache'
 
 /**
  * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
@@ -50,6 +52,8 @@ const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
 
 const currentSelectedModel = ref<ModelItem | null>(null)
+// 🔥 当前对话ID（用于跨浏览器同步）
+const currentConversationId = ref<string>('')
 
 // 设置页面相关
 const showSettingsPage = computed(() => appStore.showSettingsPage)
@@ -78,6 +82,15 @@ dataSources.value.forEach((item, index) => {
   if (item.loading)
     updateChatSome(uuid, index, { loading: false })
 })
+
+// 🔥 监听路由变化，切换对话时重置对话ID
+watch(
+  () => route.params.uuid,
+  (newUuid) => {
+    currentConversationId.value = '' // 切换对话时重置
+    console.log('🔄 [对话] 切换到新对话，重置对话ID')
+  },
+)
 
 function handleSubmit() {
   onConversation()
@@ -116,11 +129,18 @@ async function onConversation() {
   loading.value = true
   prompt.value = ''
 
-  let options: Chat.ConversationRequest = {}
-  const lastContext = conversationList.value[conversationList.value.length - 1]?.conversationOptions
+  // 🔥 步骤1：加载历史上下文（自动降级：localStorage → Backend）
+  let contextMessages: Array<{ role: string, content: string }> = []
+  if (currentConversationId.value && usingContext.value) {
+    contextMessages = await getConversationContext(currentConversationId.value, 10)
+    console.log('📦 [上下文] 加载消息数:', contextMessages.length)
+  }
 
-  if (lastContext && usingContext.value)
-    options = { ...lastContext }
+  // 🔥 步骤2：构建请求参数
+  let options: Chat.ConversationRequest = {
+    conversationId: currentConversationId.value,
+    contextMessages, // 🔥 传递历史消息
+  }
 
   // 添加当前选中的模型
   const selectedModel = currentSelectedModel.value || modelStore.currentModel
@@ -217,6 +237,12 @@ async function onConversation() {
               console.warn(`⏱️ [性能] JSON解析耗时: ${parseTime}ms`)
             }
 
+            // 🔥 步骤3：保存后端返回的对话ID
+            if (data.conversationId && !currentConversationId.value) {
+              currentConversationId.value = data.conversationId
+              console.log('💾 [对话] 保存对话ID:', data.conversationId)
+            }
+
             // 🔥 调试：输出解析后的数据
             if (import.meta.env.DEV) {
               console.warn('📥 [聊天响应] 解析数据:', {
@@ -249,7 +275,7 @@ async function onConversation() {
             // 🔥 检查是否是思考过程
             const isThinking = data.isThinking || false
             const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
-            
+
             updateChat(
               uuid,
               dataSources.value.length - 1,
@@ -288,6 +314,21 @@ async function onConversation() {
     }
 
     await fetchChatAPIOnce()
+
+    // 🔥 步骤4：保存消息到 localStorage（响应完成后）
+    if (currentConversationId.value && lastText) {
+      appendMessageToLocalCache(currentConversationId.value, {
+        role: 'user',
+        content: message,
+      })
+
+      appendMessageToLocalCache(currentConversationId.value, {
+        role: 'assistant',
+        content: lastText,
+      })
+
+      console.log('✅ [缓存] 消息已保存到 localStorage')
+    }
   }
   catch (error: any) {
     const errorMessage = error?.message ?? t('common.wrong')
@@ -349,10 +390,20 @@ async function onRegenerate(index: number) {
 
   let message = requestOptions?.prompt ?? ''
 
-  let options: Chat.ConversationRequest = {}
+  // 🔥 加载历史上下文（重新生成时也需要上下文）
+  let contextMessages: Array<{ role: string, content: string }> = []
+  if (currentConversationId.value && usingContext.value) {
+    contextMessages = await getConversationContext(currentConversationId.value, 10)
+    console.log('🔄 [重新生成] 加载上下文消息数:', contextMessages.length)
+  }
+
+  let options: Chat.ConversationRequest = {
+    conversationId: currentConversationId.value,
+    contextMessages, // 🔥 传递历史消息
+  }
 
   if (requestOptions.options)
-    options = { ...requestOptions.options }
+    options = { ...options, ...requestOptions.options }
 
   // 添加当前选中的模型
   const selectedModel = currentSelectedModel.value || modelStore.currentModel
@@ -418,11 +469,17 @@ async function onRegenerate(index: number) {
             chunk = responseText.substring(lastIndex)
           try {
             const data = JSON.parse(chunk)
-            
+
+            // 🔥 保存对话ID（如果有）
+            if (data.conversationId && !currentConversationId.value) {
+              currentConversationId.value = data.conversationId
+              console.log('💾 [重新生成] 保存对话ID:', data.conversationId)
+            }
+
             // 🔥 检查是否是思考过程
             const isThinking = data.isThinking || false
             const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
-            
+
             updateChat(
               uuid,
               index,
@@ -443,6 +500,11 @@ async function onRegenerate(index: number) {
               message = ''
               return fetchChatAPIOnce()
             }
+            
+            // 🔥 累积最后的文本
+            if (!isThinking && data.text) {
+              lastText = displayText
+            }
           }
           catch {
             //
@@ -452,6 +514,15 @@ async function onRegenerate(index: number) {
       updateChatSome(uuid, index, { loading: false })
     }
     await fetchChatAPIOnce()
+
+    // 🔥 保存重新生成的消息到 localStorage
+    if (currentConversationId.value && lastText) {
+      appendMessageToLocalCache(currentConversationId.value, {
+        role: 'assistant',
+        content: lastText,
+      })
+      console.log('✅ [缓存] 重新生成的消息已保存')
+    }
   }
   catch (error: any) {
     if (error.message === 'canceled') {
@@ -1182,7 +1253,7 @@ function handleSelectModel(model: ModelItem) {
 
 <template>
   <SignedIn>
-    <div class="flex flex-col w-full h-full">
+    <div class="flex flex-col w-full h-full bg-white dark:bg-[#161618]">
       <transition name="fade" mode="out-in">
         <!-- 设置页面 - 整体替换 -->
         <div v-if="showSettingsPage" key="settings" class="flex-1 overflow-hidden flex flex-col">
@@ -1212,7 +1283,7 @@ function handleSelectModel(model: ModelItem) {
         </div>
 
         <!-- 聊天页面 - 包含Header -->
-        <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col relative">
+        <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col relative bg-white dark:bg-[#161618]">
           <HeaderComponent
             v-if="isMobile"
             :using-context="usingContext"
@@ -1316,23 +1387,23 @@ function handleSelectModel(model: ModelItem) {
           </header>
 
           <!-- 聊天区域主体 -->
-          <main class="flex-1 overflow-hidden flex flex-col relative">
+          <main class="flex-1 overflow-hidden flex flex-col relative bg-white dark:bg-[#161618]">
             <div
               class="flex-1 overflow-hidden transition-all duration-300"
               :style="{
                 marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
               }"
             >
-              <article class="h-full overflow-hidden flex flex-col">
+              <article class="h-full overflow-hidden flex flex-col bg-white dark:bg-[#161618]">
                 <div class="flex-1 overflow-hidden">
                   <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
                     <div
-                      class="w-full max-w-screen-xl m-auto dark:bg-[#161618]"
+                      class="w-full max-w-screen-xl m-auto bg-white dark:bg-[#161618]"
                       :class="[isMobile ? 'p-2' : 'p-4']"
                     >
                       <div id="image-wrapper" class="relative">
                         <template v-if="!dataSources.length">
-                          <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
+                          <div class="flex items-center justify-center mt-4 text-center text-neutral-400 dark:text-neutral-500">
                             <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
                             <span>{{ t('chat.newChatTitle') }}</span>
                           </div>

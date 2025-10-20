@@ -30,7 +30,14 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.npmjs.com)",
       "Bash(claude mcp remove:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(tree:*)",
+      "Bash(claude mcp list:*)",
+      "Bash(claude mcp:*)",
+      "Read(//c/Users/Administrator/**)"
     ],
     "deny": [],
     "ask": []

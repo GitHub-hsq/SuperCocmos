@@ -32,10 +32,6 @@ redis.on('connect', () => {
   console.warn('✅ [Redis] 已连接到 Redis 服务器')
 })
 
-redis.on('ready', () => {
-  console.warn('✅ [Redis] Redis 客户端已就绪')
-})
-
 redis.on('error', (error) => {
   console.error('❌ [Redis] Redis 错误:', error.message)
 })

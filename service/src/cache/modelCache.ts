@@ -16,7 +16,6 @@ const CACHE_TTL = 3600 // 1小时
  */
 export async function preloadModelsToRedis(): Promise<void> {
   try {
-    console.warn('🔄 [缓存] 开始预加载模型和供应商到 Redis...')
     const startTime = Date.now()
 
     // 从数据库获取所有供应商和模型
@@ -68,7 +67,7 @@ export async function preloadModelsToRedis(): Promise<void> {
     }
 
     const endTime = Date.now()
-    console.warn(`✅ [缓存] 预加载完成: ${providerCount} 个供应商, ${modelCount} 个模型, 耗时 ${endTime - startTime}ms`)
+    console.warn(`✅ [Redis缓存] 预加载完成: ${providerCount} 个供应商, ${modelCount} 个模型, 耗时 ${endTime - startTime}ms`)
   }
   catch (error) {
     console.error('❌ [缓存] 预加载失败:', error)

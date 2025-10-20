@@ -4,6 +4,7 @@ import type fetch from 'node-fetch'
 export interface RequestOptions {
   message: string
   lastContext?: { conversationId?: string, parentMessageId?: string, providerId?: string }
+  historyMessages?: Array<{ role: string, content: string }> // 🔥 历史消息列表
   process?: (chat: ChatMessage) => void
   systemMessage?: string
   temperature?: number

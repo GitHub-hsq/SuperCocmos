@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NSelect, NSpace, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, onMounted, reactive, watch } from 'vue'
-import { useConfigStore } from '@/store'
+import { useAppStore, useConfigStore } from '@/store'
 
+const appStore = useAppStore()
 const configStore = useConfigStore()
 const ms = useMessage()
 const loadingBar = useLoadingBar()
@@ -23,6 +24,21 @@ function loadData() {
     formData.name = userSettings.name || ''
     formData.theme = userSettings.theme || 'auto'
     formData.language = userSettings.language || 'zh-CN'
+    
+    // 🔥 同步到 appStore（确保前端主题状态和后端一致）
+    if (userSettings.theme) {
+      appStore.setTheme(userSettings.theme)
+    }
+    if (userSettings.language) {
+      appStore.setLanguage(userSettings.language)
+    }
+    
+    if (import.meta.env.DEV) {
+      console.log('✅ [UserSettings] 已从后端加载配置并同步到 appStore:', {
+        theme: userSettings.theme,
+        language: userSettings.language,
+      })
+    }
   }
   else {
     console.warn('⚠️ [UserSettings] userSettings 为空，使用默认值')
@@ -70,8 +86,20 @@ async function handleSave() {
       theme: formData.theme as 'auto' | 'light' | 'dark',
       language: formData.language as 'zh-CN' | 'en-US',
     })
+    
+    // 🔥 同步更新 appStore 的主题和语言设置
+    appStore.setTheme(formData.theme as 'auto' | 'light' | 'dark')
+    appStore.setLanguage(formData.language as 'zh-CN' | 'en-US')
+    
     loadingBar.finish()
     ms.success('用户设置已保存')
+    
+    if (import.meta.env.DEV) {
+      console.log('✅ [UserSettings] 保存成功，已同步更新 appStore:', {
+        theme: formData.theme,
+        language: formData.language,
+      })
+    }
   }
   catch (error: any) {
     loadingBar.error()

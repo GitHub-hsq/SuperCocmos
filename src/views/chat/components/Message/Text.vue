@@ -45,7 +45,7 @@ const wrapClass = computed(() => {
     props.inversion ? 'user-message-rounded' : 'rounded-md',
     isMobile.value ? 'p-2' : 'px-4 py-2',
     props.inversion ? 'bg-[#f4f4f4]' : 'bg-transparent',
-    props.inversion ? 'dark:bg-[#f4f4f4]' : 'dark:bg-transparent',
+    props.inversion ? 'dark:bg-[#2a2a2a]' : 'dark:bg-transparent',
     props.inversion ? 'message-request' : 'message-reply',
     // 限制用户消息最多占2/3宽度
     props.inversion ? 'max-w-[65%]' : '',
@@ -148,7 +148,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="text-black" :class="wrapClass">
+  <div class="text-black dark:text-white" :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion">
         <!-- 🔥 思考过程特殊显示 -->

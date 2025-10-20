@@ -4,5 +4,6 @@
 
 export * from './authService'
 export * from './configService'
+export * from './conversationService'
 export * from './roleService'
 export * from './userService'

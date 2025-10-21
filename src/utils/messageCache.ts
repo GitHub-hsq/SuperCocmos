@@ -159,7 +159,7 @@ export function getCachedMessageCount(conversationId: string): number {
 export function messagesToApiFormat(
   messages: CachedMessage[],
 ): Array<{ role: string, content: string }> {
-  return messages.map(msg => ({
+  return messages.map((msg: CachedMessage) => ({
     role: msg.role,
     content: msg.content,
   }))
@@ -222,7 +222,7 @@ export async function loadMessagesFromBackend(
     const messages = response.data.messages
 
     // 转换为缓存格式
-    const cachedMessages: CachedMessage[] = messages.map(msg => ({
+    const cachedMessages: CachedMessage[] = messages.map((msg: any) => ({
       role: msg.role,
       content: msg.content,
       timestamp: new Date(msg.created_at).getTime(),

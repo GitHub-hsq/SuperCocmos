@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
-import { h, NButton, NDataTable, NPopconfirm, NSpace, NSwitch, NTag, NBadge } from 'naive-ui'
-import { ref, onMounted } from 'vue'
+import { NButton, NDataTable, NPopconfirm, NSpace, NSwitch, NTag, NBadge } from 'naive-ui'
+import { ref, onMounted, h } from 'vue'
 import { SvgIcon } from '@/components/common'
-import { getAllRoles, getModelRoles, setModelRoles } from '@/api/services/roleService'
+import { getAllRoles } from '@/api/services/roleService'
 import type { Role } from '@/api/services/roleService'
 import ModelRoleDialog from './ModelRoleDialog.vue'
 
@@ -74,7 +74,7 @@ async function loadAllRoles() {
   try {
     loadingRoles.value = true
     const response = await getAllRoles()
-    allRoles.value = response.data.roles || []
+    allRoles.value = response?.data?.roles || []
   }
   catch (error) {
     console.error('加载角色列表失败:', error)
@@ -110,16 +110,6 @@ function handleAddModel(providerId: string) {
   emit('addModel', providerId)
 }
 
-// 处理模型角色权限更新
-async function handleUpdateModelRoles(modelId: string, roleIds: number[]) {
-  try {
-    await setModelRoles(modelId, roleIds)
-    emit('updateModelRoles', modelId, roleIds)
-  }
-  catch (error) {
-    console.error('更新模型角色权限失败:', error)
-  }
-}
 
 // 处理编辑模型角色权限
 function handleEditModelRoles(model: ModelItem) {
@@ -297,8 +287,8 @@ const modelColumns: DataTableColumns<ModelItem> = [
 ]
 
 // 处理行展开
-function handleExpandedRowKeys(keys: string[]) {
-  expandedRowKeys.value = keys
+function handleExpandedRowKeys(keys: Array<string | number>) {
+  expandedRowKeys.value = keys.map(k => String(k))
 }
 </script>
 

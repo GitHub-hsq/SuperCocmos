@@ -2,7 +2,7 @@
  * 对话和消息历史服务
  */
 
-import { get } from '../client'
+import { request } from '../client'
 
 export interface Conversation {
   id: string
@@ -39,13 +39,13 @@ export interface ConversationWithMessages {
  * 获取用户的对话列表
  */
 export function fetchConversations(params: { limit?: number, offset?: number } = {}) {
-  return get<Conversation[]>('/conversations', params)
+  return request.get<Conversation[]>('/conversations', { params })
 }
 
 /**
  * 获取对话的消息历史
  */
 export function fetchConversationMessages(conversationId: string, params: { limit?: number, offset?: number } = {}) {
-  return get<ConversationWithMessages>(`/conversations/${conversationId}/messages`, params)
+  return request.get<ConversationWithMessages>(`/conversations/${conversationId}/messages`, { params })
 }
 

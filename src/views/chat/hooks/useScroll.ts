@@ -15,19 +15,25 @@ export function useScroll(): ScrollReturn {
   const scrollRef = ref<ScrollElement>(null)
 
   // 使用节流优化滚动性能
-  const scrollToBottom = throttle(async () => {
+  const throttledScrollToBottom = throttle(async (): Promise<void> => {
     await nextTick()
     if (scrollRef.value)
       scrollRef.value.scrollTop = scrollRef.value.scrollHeight
   }, 16) // 约60fps
+  const scrollToBottom = async (): Promise<void> => {
+    await (throttledScrollToBottom() ?? Promise.resolve())
+  }
 
-  const scrollToTop = throttle(async () => {
+  const throttledScrollToTop = throttle(async (): Promise<void> => {
     await nextTick()
     if (scrollRef.value)
       scrollRef.value.scrollTop = 0
   }, 16)
+  const scrollToTop = async (): Promise<void> => {
+    await (throttledScrollToTop() ?? Promise.resolve())
+  }
 
-  const scrollToBottomIfAtBottom = throttle(async () => {
+  const throttledScrollToBottomIfAtBottom = throttle(async (): Promise<void> => {
     await nextTick()
     if (scrollRef.value) {
       const threshold = 100 // Threshold, indicating the distance threshold to the bottom of the scroll bar.
@@ -36,6 +42,9 @@ export function useScroll(): ScrollReturn {
         scrollRef.value.scrollTop = scrollRef.value.scrollHeight
     }
   }, 16)
+  const scrollToBottomIfAtBottom = async (): Promise<void> => {
+    await (throttledScrollToBottomIfAtBottom() ?? Promise.resolve())
+  }
 
   return {
     scrollRef,

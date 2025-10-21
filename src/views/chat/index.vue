@@ -27,7 +27,7 @@ import { useChat } from './hooks/useChat'
 import { useScroll } from './hooks/useScroll'
 import { useUsingContext } from './hooks/useUsingContext'
 // 🔥 导入消息缓存工具
-import { getConversationContext, appendMessageToLocalCache } from '@/utils/messageCache'
+import { appendMessageToLocalCache } from '@/utils/messageCache'
 
 /**
  * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
@@ -65,7 +65,6 @@ const hasLoadedUsage = ref(false)
 const { uuid } = route.params as { uuid: string }
 
 const dataSources = computed(() => chatStore.getChatByUuid(uuid))
-const conversationList = computed(() => dataSources.value.filter(item => (!item.inversion && !!item.conversationOptions)))
 
 const prompt = ref<string>('')
 const loading = ref<boolean>(false)
@@ -129,17 +128,9 @@ async function onConversation() {
   loading.value = true
   prompt.value = ''
 
-  // 🔥 步骤1：加载历史上下文（自动降级：localStorage → Backend）
-  let contextMessages: Array<{ role: string, content: string }> = []
-  if (currentConversationId.value && usingContext.value) {
-    contextMessages = await getConversationContext(currentConversationId.value, 10)
-    console.log('📦 [上下文] 加载消息数:', contextMessages.length)
-  }
-
-  // 🔥 步骤2：构建请求参数
+  // 🔥 步骤2：构建请求参数（移除 contextMessages，后端不需要该字段）
   let options: Chat.ConversationRequest = {
     conversationId: currentConversationId.value,
-    contextMessages, // 🔥 传递历史消息
   }
 
   // 添加当前选中的模型
@@ -390,16 +381,8 @@ async function onRegenerate(index: number) {
 
   let message = requestOptions?.prompt ?? ''
 
-  // 🔥 加载历史上下文（重新生成时也需要上下文）
-  let contextMessages: Array<{ role: string, content: string }> = []
-  if (currentConversationId.value && usingContext.value) {
-    contextMessages = await getConversationContext(currentConversationId.value, 10)
-    console.log('🔄 [重新生成] 加载上下文消息数:', contextMessages.length)
-  }
-
   let options: Chat.ConversationRequest = {
     conversationId: currentConversationId.value,
-    contextMessages, // 🔥 传递历史消息
   }
 
   if (requestOptions.options)

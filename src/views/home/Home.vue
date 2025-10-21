@@ -741,13 +741,10 @@ const partnerLogos = [
   transition: all 0.3s;
   display: flex;
   flex-direction: column;
-}
-
-.pricing-card:hover {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
 }
 
-.dark .pricing-card:hover {
+.dark .pricing-card {
   box-shadow: 0 12px 24px rgba(255, 255, 255, 0.05);
 }
 

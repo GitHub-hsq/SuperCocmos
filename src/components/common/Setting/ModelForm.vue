@@ -74,7 +74,7 @@ async function loadAllRoles() {
   try {
     loadingRoles.value = true
     const response = await getAllRoles()
-    allRoles.value = response.data.roles || []
+    allRoles.value = response?.data?.roles || []
   }
   catch (error) {
     console.error('加载角色列表失败:', error)
@@ -88,7 +88,7 @@ async function loadAllRoles() {
 async function loadModelRoles(modelId: string) {
   try {
     const response = await getModelRoles(modelId)
-    selectedRoleIds.value = response.data.roleIds || []
+    selectedRoleIds.value = response?.data?.roleIds || []
   }
   catch (error) {
     console.error('加载模型角色权限失败:', error)

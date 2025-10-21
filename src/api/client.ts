@@ -64,6 +64,16 @@ apiClient.interceptors.response.use(
     return response
   },
   (error) => {
+    // 🔥 静默处理特定路径的 404 错误（用户未登录时的配置请求）
+    const requestUrl = error.config?.url || ''
+    const isConfigRequest = requestUrl.includes('/api/config') || requestUrl.includes('/api/user/settings')
+    const is404 = error.response?.status === 404
+
+    // 如果是配置相关的 404 错误，静默跳过（用户可能未登录）
+    if (is404 && isConfigRequest) {
+      return Promise.reject(error)
+    }
+
     // 统一错误处理
     if (error.response) {
       const status = error.response.status

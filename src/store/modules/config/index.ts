@@ -76,7 +76,13 @@ export const useConfigStore = defineStore('config', {
           })
         }
       }
-      catch (error) {
+      catch (error: any) {
+        // 静默处理 404 错误（用户未登录或配置不存在）
+        if (error?.response?.status === 404 || error?.message?.includes('404')) {
+          // 未登录或配置不存在，静默跳过
+          return
+        }
+        // 其他错误才打印日志
         console.error('❌ [ConfigStore] 加载配置失败:', error)
       }
       finally {

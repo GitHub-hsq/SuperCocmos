@@ -16,24 +16,12 @@ const apiClient: AxiosInstance = axios.create({
   },
 })
 
-// 请求拦截器 - 统一处理 Clerk 和传统 Token 授权
+// 请求拦截器 - 统一处理授权 Token
 apiClient.interceptors.request.use(
   async (config) => {
-    // 优先从 Clerk 获取 token（如果已登录）
-    if (window.Clerk?.session) {
-      try {
-        const clerkToken = await window.Clerk.session.getToken()
-        if (clerkToken) {
-          config.headers.Authorization = `Bearer ${clerkToken}`
-          return config
-        }
-      }
-      catch (error) {
-        console.error('❌ 获取 Clerk token 失败:', error)
-      }
-    }
-
-    // 降级：使用传统 token 存储（兼容性）
+    // TODO: 集成 Auth0 后，从 Auth0 获取 token
+    
+    // 临时：使用传统 token 存储（兼容性）
     const authStore = useAuthStore()
     const token = authStore.token || localStorage.getItem('token')
     if (token) {
@@ -41,7 +29,7 @@ apiClient.interceptors.request.use(
     }
     else {
       if (import.meta.env.DEV)
-        console.warn('⚠️ 未找到认证 token')
+        console.warn('⚠️ 未找到认证 token (Auth0 待集成)')
     }
 
     return config

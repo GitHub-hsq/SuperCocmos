@@ -6,14 +6,20 @@ dotenv.config()
 
 // Supabase 客户端配置
 const supabaseUrl = process.env.SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_ANON_KEY!
+// 服务端优先使用 SERVICE_ROLE_KEY，它有更高的权限并可以绕过 RLS 策略
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseKey) {
-  throw new Error('❌ [数据库] 缺少 Supabase 环境变量: SUPABASE_URL 和 SUPABASE_ANON_KEY')
+  throw new Error('❌ [数据库] 缺少 Supabase 环境变量: SUPABASE_URL 和 SUPABASE_SERVICE_ROLE_KEY (或 SUPABASE_ANON_KEY)')
 }
 
-// 创建 Supabase 客户端
-const supabase = createClient(supabaseUrl, supabaseKey)
+// 创建 Supabase 客户端（使用 SERVICE_ROLE_KEY 绕过 RLS）
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false, // 服务端不需要持久化 session
+  },
+})
 
 // 测试数据库连接
 export async function testConnection() {

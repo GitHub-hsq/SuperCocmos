@@ -1,21 +1,27 @@
 /* eslint-disable no-console */
 /**
  * 认证控制器
- * 处理 Clerk Webhook 和用户同步
+ * TODO: 更新为 Auth0 认证
  */
 
 import type { Request, Response } from 'express'
-import { getAuth } from '@clerk/express'
-import { Webhook } from 'svix'
 import { findUserByClerkId, upsertUserFromOAuth } from '../db/supabaseUserService'
 import { getUserWithRoles } from '../db/userRoleService'
 
 /**
- * Clerk Webhook 处理器
- * 当 Clerk 用户事件发生时同步到 Supabase
+ * Webhook 处理器
+ * TODO: 更新为 Auth0 Webhook
  */
 export async function handleClerkWebhook(req: Request, res: Response) {
   try {
+    // TODO: 实现 Auth0 Webhook
+    console.warn('⚠️ [Webhook] Clerk Webhook 已废弃，待实现 Auth0 Webhook')
+    return res.status(501).send({
+      status: 'Fail',
+      message: 'Webhook not implemented',
+    })
+
+    /* 原 Clerk Webhook 代码已注释
     const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
 
     if (!WEBHOOK_SECRET) {
@@ -192,9 +198,10 @@ export async function handleClerkWebhook(req: Request, res: Response) {
  */
 export async function getCurrentUser(req: Request, res: Response) {
   try {
-    const auth = getAuth(req)
+    // TODO: 使用 Auth0 认证
+    const userId = req.userId
 
-    if (!auth?.userId) {
+    if (!userId) {
       return res.status(401).send({
         status: 'Fail',
         message: '未登录',
@@ -202,8 +209,8 @@ export async function getCurrentUser(req: Request, res: Response) {
       })
     }
 
-    // 从 Clerk ID 获取用户信息
-    const user = await findUserByClerkId(auth.userId)
+    // 从用户 ID 获取用户信息
+    const user = await findUserByClerkId(userId)
     if (!user) {
       return res.status(404).send({
         status: 'Fail',

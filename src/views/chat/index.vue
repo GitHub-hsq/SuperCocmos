@@ -2,7 +2,6 @@
 /* eslint-disable no-console */
 import type { UploadFileInfo } from 'naive-ui'
 import type { Ref } from 'vue'
-import { SignedIn } from '@clerk/vue'
 import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
 import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage } from 'naive-ui'
@@ -1235,8 +1234,8 @@ function handleSelectModel(model: ModelItem) {
 </script>
 
 <template>
-  <SignedIn>
-    <div class="flex flex-col w-full h-full bg-white dark:bg-[#161618]">
+  <!-- TODO: 添加 Auth0 登录检查 -->
+  <div class="flex flex-col w-full h-full bg-white dark:bg-[#161618]">
       <transition name="fade" mode="out-in">
         <!-- 设置页面 - 整体替换 -->
         <div v-if="showSettingsPage" key="settings" class="flex-1 overflow-hidden flex flex-col">
@@ -1602,7 +1601,6 @@ function handleSelectModel(model: ModelItem) {
         </div>
       </transition>
     </div>
-  </SignedIn>
 </template>
 
 <style scoped>

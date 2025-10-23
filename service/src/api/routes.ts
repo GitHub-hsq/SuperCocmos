@@ -4,7 +4,7 @@
  */
 
 import express from 'express'
-import { clerkAuth, requireAdmin, requireAuth } from '../middleware/clerkAuth'
+import { authMiddleware as clerkAuth, requireAdmin, requireAuth } from '../middleware/auth'
 import * as authController from './authController'
 import * as configController from './configController'
 import * as modelRoleController from './modelRoleController'

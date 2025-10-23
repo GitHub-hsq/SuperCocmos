@@ -64,6 +64,40 @@ export const router = createRouter({
   scrollBehavior: () => ({ left: 0, top: 0 }),
 })
 
+// TODO: 添加 Auth0 路由守卫
+// 路由守卫：保护需要认证的路由
+router.beforeEach(async (to, from, next) => {
+  // 公开路由直接放行
+  if (to.meta.public) {
+    next()
+    return
+  }
+
+  // TODO: 集成 Auth0 后，在这里检查认证状态
+  // 临时：允许所有路由访问（开发阶段）
+  console.warn('⚠️ [Router] Auth0 认证尚未集成，暂时允许访问所有路由')
+  next()
+
+  /* Auth0 集成后的示例代码：
+  const isAuthenticated = await checkAuth0Session()
+  
+  if (!isAuthenticated) {
+    if (to.path !== '/signin') {
+      next({
+        path: '/signin',
+        query: { redirect: to.fullPath },
+      })
+    }
+    else {
+      next()
+    }
+  }
+  else {
+    next()
+  }
+  */
+})
+
 export async function setupRouter(app: App) {
   app.use(router)
   await router.isReady()

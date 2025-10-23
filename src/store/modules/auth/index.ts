@@ -15,7 +15,7 @@ export const useAuthStore = defineStore('auth-store', {
   getters: {
     isLoggedIn: state => !!state.token,
     getUserEmail: state => state.userInfo?.email || '',
-    isChatGPTAPI: state => state.isChatGPTAPI || false,
+    // isChatGPTAPI 已在 state 中定义，可以直接访问 state.isChatGPTAPI
     session: state => state.session || null,
   },
 

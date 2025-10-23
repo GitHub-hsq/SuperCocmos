@@ -1,6 +1,5 @@
 <script setup lang='ts'>
 import type { CSSProperties } from 'vue'
-import { UserButton } from '@clerk/vue'
 import { NButton, NLayoutSider, NTag, useDialog } from 'naive-ui'
 import { nanoid } from 'nanoid'
 import { computed, ref, watch } from 'vue'
@@ -320,8 +319,7 @@ watch(
       <!-- Footer - 独立于面板切换，根据状态显示不同图标 -->
       <footer class="flex items-center justify-between min-w-0 p-4 overflow-hidden border-t dark:border-neutral-800">
         <div class="flex items-center space-x-2 flex-1 min-w-0">
-          <!-- Clerk UserButton -->
-          <UserButton />
+          <!-- TODO: 添加 Auth0 用户按钮 -->
           <!-- 用户角色标签 -->
           <NTag :type="roleTagType" size="small" round>
             {{ roleText }}

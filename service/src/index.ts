@@ -15,7 +15,7 @@ import { nanoid } from 'nanoid'
 import clerkRoutes from './api/routes' // Clerk + Supabase 路由
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
 import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
-import { clerkAuth, requireAuth } from './middleware/clerkAuth' // Clerk 认证中间件
+import { authMiddleware as clerkAuth, requireAuth } from './middleware/auth' // 临时认证中间件（待替换为 Auth0）
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
 import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
@@ -120,15 +120,13 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
       return res.end()
     }
 
-    // 🚀 步骤2：快速获取用户 ID（不验证权限）
-    const { getAuth } = await import('@clerk/express')
-    const auth = getAuth(req)
-    if (!auth?.userId) {
+    // 🚀 步骤2：快速获取用户 ID
+    // TODO: 使用 Auth0 认证后更新此处
+    const clerkUserId = req.userId
+    if (!clerkUserId) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '认证失败' } }))
       return res.end()
     }
-
-    const clerkUserId = auth.userId
 
     // 🔥 获取 Supabase 用户信息
     const { findUserByClerkId } = await import('./db/supabaseUserService')
@@ -630,12 +628,11 @@ router.post('/quiz/test-llm', async (req, res) => {
 // 获取用户的对话列表
 router.get('/conversations', clerkAuth, requireAuth, async (req, res) => {
   try {
-    const { getAuth } = await import('@clerk/express')
     const { findUserByClerkId } = await import('./db/supabaseUserService')
     const { getUserConversations } = await import('./db/conversationService')
 
-    const auth = getAuth(req)
-    const user = await findUserByClerkId(auth!.userId!)
+    // TODO: 使用 Auth0 认证后更新此处
+    const user = await findUserByClerkId(req.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -670,13 +667,12 @@ router.get('/conversations', clerkAuth, requireAuth, async (req, res) => {
 // 获取对话的消息历史
 router.get('/conversations/:conversationId/messages', clerkAuth, requireAuth, async (req, res) => {
   try {
-    const { getAuth } = await import('@clerk/express')
     const { findUserByClerkId } = await import('./db/supabaseUserService')
     const { getConversationById } = await import('./db/conversationService')
     const { getConversationMessages } = await import('./db/messageService')
 
-    const auth = getAuth(req)
-    const user = await findUserByClerkId(auth!.userId!)
+    // TODO: 使用 Auth0 认证后更新此处
+    const user = await findUserByClerkId(req.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -737,11 +733,10 @@ router.get('/models', clerkAuth, requireAuth, async (req, res) => {
     const { getUserAccessibleProvidersWithModels } = await import('./db/modelRoleAccessService')
     const { userHasRole } = await import('./db/userRoleService')
     const { findUserByClerkId } = await import('./db/supabaseUserService')
-    const { getAuth } = await import('@clerk/express')
 
     // 获取当前用户
-    const auth = getAuth(req)
-    const user = await findUserByClerkId(auth!.userId!)
+    // TODO: 使用 Auth0 认证后更新此处
+    const user = await findUserByClerkId(req.userId!)
 
     if (!user) {
       return res.status(404).send({

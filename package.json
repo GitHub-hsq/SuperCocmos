@@ -24,7 +24,6 @@
     "kill-port": "node kill-port.js 3002"
   },
   "dependencies": {
-    "@clerk/vue": "^1.14.3",
     "@langchain/community": "^0.3.57",
     "@langchain/langgraph": "^0.4.9",
     "@vicons/ionicons5": "^0.13.0",

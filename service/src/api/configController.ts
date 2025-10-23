@@ -3,7 +3,6 @@
  */
 
 import type { Request, Response } from 'express'
-import { getAuth } from '@clerk/express'
 import {
   getAdditionalConfig,
   getChatConfig,
@@ -22,13 +21,14 @@ import { findUserByClerkId } from '../db/supabaseUserService'
  * 获取当前用户的数据库 user_id
  */
 async function getUserIdFromRequest(req: Request): Promise<string | null> {
-  const auth = getAuth(req)
-  if (!auth?.userId) {
+  // TODO: 使用 Auth0 认证
+  const userId = req.userId
+  if (!userId) {
     return null
   }
 
   try {
-    const user = await findUserByClerkId(auth.userId)
+    const user = await findUserByClerkId(userId)
     return user?.user_id || null
   }
   catch (error: any) {

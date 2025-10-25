@@ -3,7 +3,7 @@ import App from './App.vue'
 import { auth0 } from './auth'
 import { setupI18n } from './locales'
 import { setupAssets, setupScrollbarStyle } from './plugins'
-import { setupAuthGuard, setupRouter } from './router'
+import { setupRouter } from './router'
 import { setupStore } from './store'
 
 async function bootstrap() {

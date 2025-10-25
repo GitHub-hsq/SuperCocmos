@@ -3,6 +3,7 @@
  * 负责底层的 HTTP 请求逻辑，统一管理授权和错误处理
  */
 
+import type { Auth0VueClient } from '@auth0/auth0-vue'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import axios from 'axios'
 import { useAuthStore } from '@/store'
@@ -16,49 +17,54 @@ const apiClient: AxiosInstance = axios.create({
   },
 })
 
-// 请求拦截器 - 统一处理授权 Token
-apiClient.interceptors.request.use(
-  async (config) => {
-    try {
-      // 🔐 从 Auth0 获取 token
-      const { getAuth0Client } = await import('@/auth')
-      const auth0Client = getAuth0Client()
+/**
+ * 设置 API 客户端（配置 Axios 拦截器）
+ * ⚠️ 必须在 App.vue 的 setup 中调用，传入 Auth0 实例
+ *
+ * @param auth0 - Auth0 客户端实例（从 useAuth0() 获取）
+ */
+export function setupApiClient(auth0: Auth0VueClient) {
+  // 请求拦截器 - 统一处理授权 Token
+  apiClient.interceptors.request.use(
+    async (config) => {
+      try {
+        // 🔐 从 Auth0 获取 token
+        if (auth0 && auth0.isAuthenticated.value) {
+          try {
+            const token = await auth0.getAccessTokenSilently({
+              authorizationParams: {
+                audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+              },
+            })
 
-      if (auth0Client && auth0Client.isAuthenticated.value) {
-        try {
-          const token = await auth0Client.getAccessTokenSilently({
-            authorizationParams: {
-              audience: import.meta.env.VITE_AUTH0_AUDIENCE,
-            },
-          })
-
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`
+            if (token) {
+              config.headers.Authorization = `Bearer ${token}`
+            }
           }
-        }
-        catch (tokenError: any) {
-          // 静默处理 token 获取失败（可能是 Consent required）
-          if (import.meta.env.DEV && !tokenError.message?.includes('Consent required')) {
-            console.warn('⚠️ 获取 Auth0 token 失败:', tokenError.message)
+          catch (tokenError: any) {
+            // 静默处理 token 获取失败（可能是 Consent required）
+            if (import.meta.env.DEV && !tokenError.message?.includes('Consent required')) {
+              console.warn('⚠️ 获取 Auth0 token 失败:', tokenError.message)
+            }
           }
         }
       }
-    }
-    catch (error) {
-      // Auth0 未初始化，使用备用方案
-      const authStore = useAuthStore()
-      const token = authStore.token || localStorage.getItem('token')
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
+      catch {
+        // Auth0 未初始化，使用备用方案
+        const authStore = useAuthStore()
+        const token = authStore.token || localStorage.getItem('token')
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
       }
-    }
 
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  },
-)
+      return config
+    },
+    (error) => {
+      return Promise.reject(error)
+    },
+  )
+}
 
 // 响应拦截器 - 统一错误处理
 apiClient.interceptors.response.use(

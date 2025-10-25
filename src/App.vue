@@ -3,28 +3,28 @@ import { useAuth0 } from '@auth0/auth0-vue'
 import { NConfigProvider } from 'naive-ui'
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { setupApiClient } from '@/api/client'
 import { syncAuth0UserToSupabase } from '@/api/services/auth0Service'
-import { setAuth0Client } from '@/auth'
 import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
 import { setupAuthGuard } from '@/router'
-import { useAuthStore } from '@/store'
 
-// ✅ 初始化 Auth0 客户端实例
+// ✅ 初始化 Auth0 客户端实例（只能在 setup 中调用）
 const auth0Client = useAuth0()
-// 设置路由守卫,传入Auth0客户端实例
+
+// ✅ 设置路由守卫，传入 Auth0 客户端实例
 setupAuthGuard(auth0Client)
+
+// ✅ 设置 API 客户端（Axios 拦截器），传入 Auth0 客户端实例
+setupApiClient(auth0Client)
+
 const router = useRouter()
 const { theme, themeOverrides } = useTheme()
 const { language } = useLanguage()
-const authStore = useAuthStore()
 
 // 用户同步状态
 const hasSyncedUser = ref(false)
-
-// 保存 Auth0 客户端实例，供路由守卫使用
-setAuth0Client(auth0Client)
 
 // 🎯 监听 Auth0 认证状态变化，处理登录后跳转和用户同步
 const hasHandledLoginRedirect = ref(false)
@@ -87,14 +87,6 @@ watch(
   },
 )
 
-// 🔥 开发环境：暴露 store 到 window 对象，方便调试
-if (import.meta.env.DEV) {
-  (window as any).__authStore = authStore;
-  (window as any).__getUserInfo = () => ({
-    authStore: authStore.userInfo,
-  })
-}
-
 // 启动Loading状态
 const isAppLoading = ref(true)
 
@@ -120,11 +112,6 @@ onMounted(async () => {
     else {
       // Auth0 已加载完成
       isAppLoading.value = false
-    }
-
-    // 开发环境：输出认证状态
-    if (import.meta.env.DEV && auth0Client.isAuthenticated.value) {
-      console.warn('✅ [App] Auth0 已初始化，用户已登录')
     }
   }
   catch (error) {

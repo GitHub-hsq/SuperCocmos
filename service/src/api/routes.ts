@@ -9,6 +9,7 @@ import { requireAuth, requireAdmin } from '../middleware/authUnified'
 import * as auth0Controller from './auth0Controller'
 import * as authController from './authController'
 import * as configController from './configController'
+import * as conversationController from './conversationController'
 import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
@@ -183,6 +184,46 @@ router.patch('/config/additional', auth0Auth[0], auth0Auth[1], requireAuth, conf
  * 重置配置为默认值
  */
 router.post('/config/reset', auth0Auth[0], auth0Auth[1], requireAuth, configController.resetConfig)
+
+// ==============================================
+// 会话管理路由
+// ==============================================
+
+/**
+ * 获取用户的所有会话列表
+ * GET /api/conversations
+ */
+router.get('/conversations', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.getUserConversationsHandler)
+
+/**
+ * 创建新会话
+ * POST /api/conversations
+ */
+router.post('/conversations', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.createConversationHandler)
+
+/**
+ * 获取指定会话的详细信息
+ * GET /api/conversations/:id
+ */
+router.get('/conversations/:id', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.getConversationByIdHandler)
+
+/**
+ * 更新会话信息
+ * PATCH /api/conversations/:id
+ */
+router.patch('/conversations/:id', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.updateConversationHandler)
+
+/**
+ * 获取会话的所有消息
+ * GET /api/conversations/:id/messages
+ */
+router.get('/conversations/:id/messages', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.getConversationMessagesHandler)
+
+/**
+ * 批量保存消息到会话
+ * POST /api/conversations/:id/messages
+ */
+router.post('/conversations/:id/messages', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.saveMessagesHandler)
 
 // ==============================================
 // 模型-角色权限管理路由（仅管理员）

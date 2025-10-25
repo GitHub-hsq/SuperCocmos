@@ -60,7 +60,7 @@ export async function getUserPermissions(
       console.warn('⚠️ Token 为空')
       return []
     }
-
+    console.log('token为:', token)
     // 使用 jwt-decode 安全解码 JWT token
     try {
       const payload = jwtDecode<JWTPayload>(token)

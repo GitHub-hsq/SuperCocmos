@@ -13,7 +13,8 @@ declare namespace Chat {
   interface History {
     title: string
     isEdit: boolean
-    uuid: string
+    uuid: string // 🔥 前端使用的 nanoid（用于路由）
+    backendConversationId?: string // 🔥 后端返回的 UUID（用于 API 请求）
     mode: 'normal' | 'noteToQuestion' | 'noteToStory'
   }
 

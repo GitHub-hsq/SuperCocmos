@@ -187,7 +187,6 @@ export async function getConversationContextWithCache(
 
     // 2. 如果缓存未命中，从数据库加载
     if (!messages) {
-      console.log('📚 [上下文] 缓存未命中，从数据库加载')
       const { getRecentMessages } = await import('../db/messageService')
       messages = await getRecentMessages(conversationId, limit * 2) // 多加载一些用于缓存
 
@@ -198,7 +197,6 @@ export async function getConversationContextWithCache(
     }
 
     if (!messages || messages.length === 0) {
-      console.log('⚠️ [上下文] 没有历史消息')
       return systemPrompt ? [{ role: 'system', content: systemPrompt }] : []
     }
 
@@ -219,7 +217,8 @@ export async function getConversationContextWithCache(
       }
     }
 
-    console.log(`📝 [上下文] 加载成功: ${chatMessages.length} 条消息`)
+    // ✅ 统一的日志输出
+    console.log(`📚 [上下文] 从缓存/数据库加载: ${chatMessages.length} 条`)
     return chatMessages
   }
   catch (error) {

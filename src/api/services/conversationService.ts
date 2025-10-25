@@ -1,50 +1,146 @@
 /**
- * 对话和消息历史服务
+ * 会话同步服务
+ * 用于从数据库加载和保存用户的聊天会话
  */
 
-import { request } from '../client'
+import { get, post } from '@/utils/request'
 
+/**
+ * 会话数据结构（与后端对应）
+ */
 export interface Conversation {
   id: string
-  user_id: string
+  userId: string
   title: string
-  model_id: string
-  provider_id: string
-  temperature: number
-  top_p: number
-  max_tokens: number
-  system_prompt?: string
-  total_tokens: number
-  message_count: number
-  created_at: string
-  updated_at: string
+  modelId: string
+  providerId: string
+  temperature?: number
+  topP?: number
+  maxTokens?: number
+  systemPrompt?: string
+  totalTokens?: number
+  messageCount?: number
+  createdAt: string
+  updatedAt: string
+  messages?: Message[]
 }
 
+/**
+ * 消息数据结构
+ */
 export interface Message {
   id: string
-  conversation_id: string
+  conversationId: string
   role: 'user' | 'assistant' | 'system'
   content: string
-  tokens: number
-  model_info?: Record<string, any>
-  created_at: string
-}
-
-export interface ConversationWithMessages {
-  conversation: Conversation
-  messages: Message[]
+  tokens?: number
+  createdAt: string
 }
 
 /**
- * 获取用户的对话列表
+ * 获取用户的所有会话列表
+ * GET /api/conversations
  */
-export function fetchConversations(params: { limit?: number, offset?: number } = {}) {
-  return request.get<Conversation[]>('/conversations', { params })
+export function fetchUserConversations<T = Conversation[]>(options?: {
+  limit?: number
+  offset?: number
+}) {
+  return get<T>({
+    url: '/conversations',
+    data: options,
+  })
 }
 
 /**
- * 获取对话的消息历史
+ * 获取指定会话的详细信息（包含消息）
+ * GET /api/conversations/:id
  */
-export function fetchConversationMessages(conversationId: string, params: { limit?: number, offset?: number } = {}) {
-  return request.get<ConversationWithMessages>(`/conversations/${conversationId}/messages`, { params })
+export function fetchConversationById<T = Conversation>(conversationId: string) {
+  return get<T>({
+    url: `/conversations/${conversationId}`,
+  })
+}
+
+/**
+ * 创建新会话
+ * POST /api/conversations
+ */
+export function createConversation<T = Conversation>(params: {
+  title: string
+  modelId: string
+  providerId: string
+  temperature?: number
+  topP?: number
+  maxTokens?: number
+  systemPrompt?: string
+}) {
+  return post<T>({
+    url: '/conversations',
+    data: params,
+  })
+}
+
+/**
+ * 更新会话标题
+ * PATCH /api/conversations/:id
+ */
+export function updateConversation<T = Conversation>(
+  conversationId: string,
+  params: {
+    title?: string
+    temperature?: number
+    topP?: number
+    maxTokens?: number
+    systemPrompt?: string
+  },
+) {
+  return post<T>({
+    url: `/conversations/${conversationId}`,
+    data: params,
+  })
+}
+
+/**
+ * 删除会话
+ * DELETE /api/conversations/:id
+ */
+export function deleteConversation<T = any>(conversationId: string) {
+  return post<T>({
+    url: `/conversations/${conversationId}/delete`,
+  })
+}
+
+/**
+ * 批量保存消息到会话
+ * POST /api/conversations/:id/messages
+ */
+export function saveMessages<T = any>(
+  conversationId: string,
+  messages: Array<{
+    role: 'user' | 'assistant' | 'system'
+    content: string
+    tokens?: number
+  }>,
+) {
+  return post<T>({
+    url: `/conversations/${conversationId}/messages`,
+    data: { messages },
+  })
+}
+
+/**
+ * 获取会话的所有消息
+ * GET /api/conversations/:id/messages
+ */
+export function fetchConversationMessages<T = Message[]>(
+  conversationId: string,
+  options?: {
+    limit?: number
+    offset?: number
+  },
+) {
+  return get<T>({
+    url: `/conversations/${conversationId}/messages`,
+    data: options,
+  })
 }

@@ -69,11 +69,8 @@ export const useConfigStore = defineStore('config', {
 
           this.loaded = true
 
-          console.log('✅ [ConfigStore] 配置加载成功:', {
-            userSettings: !!this.userSettings,
-            chatConfig: !!this.chatConfig,
-            workflowConfig: !!this.workflowConfig,
-          })
+          // ✅ 日志已统一到 AppInitStore，此处不再重复输出
+          // console.log('✅ [ConfigStore] 配置加载成功:', { ... })
         }
       }
       catch (error: any) {

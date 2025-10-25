@@ -1,4 +1,5 @@
 export * from './app'
+export * from './appInit'
 export * from './auth'
 export * from './chat'
 export * from './config'

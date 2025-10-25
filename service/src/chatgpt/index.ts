@@ -388,10 +388,7 @@ async function chatReplyProcess(options: RequestOptions) {
     const defaultModel = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
     const selectedModel = requestModel || defaultModel
 
-    // 🔥 如果提供了历史消息，记录一下
-    if (historyMessages && historyMessages.length > 0) {
-      console.warn(`📚 [ChatGPT] 使用历史消息: ${historyMessages.length} 条`)
-    }
+    // ✅ 历史消息日志已在 messageCache 中统一输出，此处不重复
 
     // 🔥 优先使用直接传递的 baseURL 和 apiKey（新方式）
     let apiInstance: ChatGPTAPI | ChatGPTUnofficialProxyAPI | null = api
@@ -525,7 +522,7 @@ async function chatReplyProcess(options: RequestOptions) {
 
     // 🔥 如果提供了历史消息，使用直接 API 调用而不是 chatgpt 库
     if (historyMessages && historyMessages.length > 0 && baseURL && apiKey) {
-      console.warn('📝 [ChatGPT] 使用历史消息直接调用 API:', historyMessages.length, '条')
+      // ✅ 日志已在 messageCache 中统一输出
 
       // 构建完整的消息列表
       const fullMessages = [

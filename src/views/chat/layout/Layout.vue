@@ -40,8 +40,10 @@ const getContainerClass = computed(() => {
       <NLayout class="z-40 transition" :class="getContainerClass" has-sider>
         <Sider />
         <NLayoutContent class="h-full">
-          <RouterView v-slot="{ Component, route }">
-            <component :is="Component" :key="route.fullPath" />
+          <RouterView v-slot="{ Component }">
+            <!-- 移除 :key，让 Vue Router 自己管理组件复用 -->
+            <!-- 会话切换时组件会复用，watch 会触发，提升性能 -->
+            <component :is="Component" />
           </RouterView>
         </NLayoutContent>
       </NLayout>

@@ -41,9 +41,9 @@ watch(() => configStore.chatConfig, (newConfig) => {
 
 // 🔥 组件挂载时确保配置已加载
 onMounted(async () => {
-  if (!configStore.loaded && !configStore.loading) {
-    console.warn('🔄 [ChatConfigPanel] 配置未加载，触发加载...')
-    await (configStore as any).loadAllConfig()
+  // ✅ 配置已在 AppInitStore 中加载，无需重复加载
+  if (configStore.loading) {
+    console.warn('⏳ [ChatConfigPanel] 等待配置加载完成...')
   }
 })
 

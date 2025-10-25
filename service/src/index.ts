@@ -139,31 +139,49 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       return res.end()
     }
 
-    // 🔥 获取或创建对话
-    const { getOrCreateConversation } = await import('./db/conversationService')
+    // 🔥 准备会话相关的工具
     const { getConversationContextWithCache } = await import('./cache/messageCache')
 
+    // 🔥 UUID 格式验证（PostgreSQL UUID 格式）
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const isValidUuid = clientConversationId && uuidRegex.test(clientConversationId)
+
     let conversation = null
-    if (clientConversationId) {
-      // 如果前端提供了对话 ID，先尝试获取
-      const { getConversationById } = await import('./db/conversationService')
-      conversation = await getConversationById(clientConversationId)
+    let isNewConversation = false // 🔥 标记是否是新会话（用于决定是否加载历史）
+
+    if (isValidUuid) {
+      // 🔥 有效的 UUID，尝试查找现有会话
+      try {
+        const { getConversationById } = await import('./db/conversationService')
+        conversation = await getConversationById(clientConversationId!)
+        if (conversation) {
+          console.log('✅ [Conversation] 找到现有对话:', clientConversationId)
+          isNewConversation = false
+        }
+      }
+      catch (error: any) {
+        console.error('❌ [Conversation] 查询对话失败:', error.message)
+        // 查询失败，继续创建新对话
+      }
     }
 
     if (!conversation) {
-      // 创建新对话
-      conversation = await getOrCreateConversation(
-        user.user_id,
-        modelConfig.id,
-        modelConfig.provider_id,
-        {
-          title: prompt.substring(0, 50), // 使用前50个字符作为标题
-          temperature: temperature ?? 0.7,
-          top_p: top_p ?? 1.0,
-          max_tokens: maxTokens ?? 2048,
-          system_prompt: systemMessage,
-        },
-      )
+      // 🔥 创建新对话（空 ID 或无效 ID）
+      isNewConversation = true
+      const { createConversation } = await import('./db/conversationService')
+
+      // 🔥 直接创建新会话，不尝试复用
+      conversation = await createConversation({
+        user_id: user.user_id,
+        model_id: modelConfig.id,
+        provider_id: modelConfig.provider_id,
+        title: prompt.substring(0, 50), // 使用前50个字符作为标题
+        temperature: temperature ?? 0.7,
+        top_p: top_p ?? 1.0,
+        max_tokens: maxTokens ?? 2048,
+        system_prompt: systemMessage,
+      })
+      console.log('🆕 [Conversation] 创建新会话:', conversation?.id)
     }
 
     if (!conversation) {
@@ -174,22 +192,34 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
     const conversationId = conversation.id
     console.log('📝 [对话] 使用对话ID:', conversationId)
 
-    // 🔥 加载历史消息（优先从缓存，降级到数据库）
+    // 🔥 加载历史消息（仅在已有会话时加载）
     let historyMessages: Array<{ role: string, content: string }> = []
 
-    // 优先使用前端传来的本地缓存
-    if (contextMessages && Array.isArray(contextMessages) && contextMessages.length > 0) {
-      console.log(`📦 [上下文] 使用前端传来的本地缓存: ${contextMessages.length} 条`)
-      historyMessages = contextMessages
+    if (isNewConversation) {
+      // 🔥 新会话：不加载历史，只使用系统提示词
+      if (systemMessage) {
+        historyMessages = [{ role: 'system', content: systemMessage }]
+      }
+      console.log('🆕 [上下文] 新会话，不加载历史消息')
     }
     else {
-      // 从 Redis/数据库加载
-      historyMessages = await getConversationContextWithCache(
-        conversationId,
-        10, // 最多加载 10 条历史消息
-        systemMessage,
-      )
-      console.log(`📚 [上下文] 从缓存/数据库加载: ${historyMessages.length} 条`)
+      // 🔥 已有会话：加载历史消息
+      // 优先使用前端传来的本地缓存
+      if (contextMessages && Array.isArray(contextMessages) && contextMessages.length > 0) {
+        historyMessages = contextMessages
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`📚 [上下文] 使用前端缓存: ${contextMessages.length} 条`)
+        }
+      }
+      else {
+        // 从 Redis/数据库加载
+        historyMessages = await getConversationContextWithCache(
+          conversationId,
+          10, // 最多加载 10 条历史消息
+          systemMessage,
+        )
+        // ✅ 日志已移到 getConversationContextWithCache 函数内部
+      }
     }
 
     // 使用请求参数或默认值

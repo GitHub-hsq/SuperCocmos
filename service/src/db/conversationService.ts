@@ -236,6 +236,12 @@ export async function incrementConversationStats(
 /**
  * 🔄 根据用户ID和模型信息获取或创建对话
  */
+/**
+ * ⚠️ 已废弃：此函数会自动复用最近的相同模型会话，不推荐使用
+ * 推荐直接使用 createConversation 创建新会话
+ *
+ * @deprecated 请使用 createConversation 代替
+ */
 export async function getOrCreateConversation(
   userId: string,
   modelId: string,
@@ -250,7 +256,8 @@ export async function getOrCreateConversation(
   client: SupabaseClient = supabase,
 ): Promise<Conversation | null> {
   try {
-    // 尝试获取最近的对话（同一模型和供应商）
+    // ⚠️ 注意：此函数会查找并复用最近的相同模型会话
+    // 如果需要总是创建新会话，请使用 createConversation
     const { data, error } = await client
       .from('conversations')
       .select('*')
@@ -262,7 +269,7 @@ export async function getOrCreateConversation(
       .single()
 
     if (!error && data) {
-      console.log('✅ [Conversation] 找到现有对话:', data.id)
+      console.log('✅ [Conversation] 找到并复用现有对话:', data.id)
       return data as Conversation
     }
 

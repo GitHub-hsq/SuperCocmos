@@ -33,12 +33,7 @@ function loadData() {
       appStore.setLanguage(userSettings.language)
     }
 
-    if (import.meta.env.DEV) {
-      console.log('✅ [UserSettings] 已从后端加载配置并同步到 appStore:', {
-        theme: userSettings.theme,
-        language: userSettings.language,
-      })
-    }
+    // ✅ 日志已移至 watch 中，避免重复输出
   }
   else {
     console.warn('⚠️ [UserSettings] userSettings 为空，使用默认值')
@@ -54,8 +49,10 @@ watch(() => configStore.userSettings, (newSettings) => {
 
 // 🔥 组件挂载时确保配置已加载
 onMounted(async () => {
-  if (!configStore.loaded && !configStore.loading) {
-    await (configStore as any).loadAllConfig()
+  // ✅ 配置已在 AppInitStore 中加载，无需重复加载
+  // 如果未加载（异常情况），等待加载完成
+  if (configStore.loading) {
+    console.warn('⏳ [UserSettings] 等待配置加载完成...')
   }
 })
 
@@ -94,8 +91,9 @@ async function handleSave() {
     loadingBar.finish()
     ms.success('用户设置已保存')
 
+    // ✅ 保存成功的日志（只在开发环境输出）
     if (import.meta.env.DEV) {
-      console.log('✅ [UserSettings] 保存成功，已同步更新 appStore:', {
+      console.log('✅ [UserSettings] 保存成功:', {
         theme: formData.theme,
         language: formData.language,
       })

@@ -6,9 +6,10 @@ import { useAuth0 } from '@auth0/auth0-vue'
 import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
 import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage, useNotification } from 'naive-ui'
+import { nanoid } from 'nanoid'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { HoverButton, SvgIcon } from '@/components/common'
 import About from '@/components/common/Setting/About.vue'
@@ -20,10 +21,9 @@ import UserSettingsPanel from '@/components/common/Setting/panels/UserSettingsPa
 import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConfigPanel.vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore } from '@/store'
+import { useAppInitStore, useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore } from '@/store'
 // 🔥 导入消息缓存工具
 import { appendMessageToLocalCache } from '@/utils/messageCache'
-import { getUserPermissions } from '@/utils/permissions'
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
 import HeaderComponent from './components/Header/index.vue'
 import { useChat } from './hooks/useChat'
@@ -38,22 +38,18 @@ let controller = new AbortController()
 const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
 
 const route = useRoute()
+const router = useRouter()
 const dialog = useDialog()
 const ms = useMessage()
 const notification = useNotification()
 const auth0 = useAuth0()
 
 const appStore = useAppStore()
+const appInitStore = useAppInitStore()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const configStore = useConfigStore()
 const modelStore = useModelStore()
-
-// 🔐 用户权限
-const userPermissions = ref<string[]>([])
-// 使用全局标记防止重复显示（因为路由从 /chat → /chat/[uuid] 会重新加载组件）
-const PERMISSION_SHOWN_KEY = '__permission_notification_shown__'
-const PERMISSIONS_CACHE_KEY = '__user_permissions_cache__'
 
 const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
@@ -71,9 +67,11 @@ const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 const aboutRef = ref<InstanceType<typeof About> | null>(null)
 const hasLoadedUsage = ref(false)
 
-const { uuid } = route.params as { uuid: string }
+// 🔥 使用 computed 让 uuid 响应式（路由变化时自动更新）
+// 这样当路由从 /chat → /chat/abc 或 /chat/abc → /chat/def 时，组件会自动更新
+const uuid = computed(() => (route.params.uuid as string) || '')
 
-const dataSources = computed(() => chatStore.getChatByUuid(uuid))
+const dataSources = computed(() => chatStore.getChatByUuid(uuid.value))
 
 const prompt = ref<string>('')
 const loading = ref<boolean>(false)
@@ -88,16 +86,37 @@ const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
 // 未知原因刷新页面，loading 状态不会重置，手动重置
 dataSources.value.forEach((item, index) => {
   if (item.loading)
-    updateChatSome(uuid, index, { loading: false })
+    updateChatSome(uuid.value, index, { loading: false })
 })
 
-// 🔥 监听路由变化，切换对话时重置对话ID
+// 🔥 监听路由变化，切换对话时恢复后端 UUID
 watch(
   () => route.params.uuid,
-  (_newUuid) => {
-    currentConversationId.value = '' // 切换对话时重置
-    console.log('🔄 [对话] 切换到新对话，重置对话ID')
+  (newUuid) => {
+    // 处理 uuid 可能是数组的情况（TypeScript 类型）
+    const uuidStr = Array.isArray(newUuid) ? newUuid[0] : newUuid
+
+    if (uuidStr) {
+      // 🔥 切换到已有会话，查找后端 UUID 映射
+      const backendUuid = chatStore.getBackendConversationId(uuidStr)
+      currentConversationId.value = backendUuid || ''
+
+      if (import.meta.env.DEV) {
+        console.log('🔄 [对话] 切换到会话:', {
+          前端nanoid: uuidStr,
+          后端UUID: backendUuid || '（无映射，新会话）',
+        })
+      }
+    }
+    else {
+      // 新建会话，重置 conversationId
+      currentConversationId.value = ''
+      if (import.meta.env.DEV) {
+        console.log('🔄 [对话] 准备新建会话')
+      }
+    }
   },
+  { immediate: true }, // 🔥 立即执行，确保初始加载时也设置 conversationId
 )
 
 function handleSubmit() {
@@ -121,8 +140,34 @@ async function onConversation() {
 
   controller = new AbortController()
 
+  // 🔥 如果是新会话（没有 UUID），先创建会话并跳转路由
+  let actualUuid = uuid.value
+  const isNewConversation = !uuid.value || uuid.value === 'undefined'
+
+  if (isNewConversation) {
+    // 生成新的 UUID（使用 nanoid）
+    const newUuid = nanoid()
+    actualUuid = newUuid
+
+    // 创建新会话历史记录
+    chatStore.addHistory({
+      uuid: newUuid,
+      title: message.slice(0, 20), // 使用消息前20字作为标题
+      isEdit: false,
+      mode: 'normal',
+    }, [])
+
+    // 🔥 立即跳转路由（在发送消息前）- 使用 replace 避免历史记录
+    await router.replace({ name: 'Chat', params: { uuid: newUuid } })
+
+    if (import.meta.env.DEV) {
+      console.log('🆕 [对话] 新会话已创建并跳转:', newUuid)
+    }
+  }
+
+  // 使用实际的 UUID（新会话用新生成的，已有会话用原来的）
   addChat(
-    uuid,
+    actualUuid,
     {
       dateTime: new Date().toLocaleString(),
       text: message,
@@ -137,9 +182,19 @@ async function onConversation() {
   loading.value = true
   prompt.value = ''
 
-  // 🔥 步骤2：构建请求参数（移除 contextMessages，后端不需要该字段）
+  // 🔥 步骤2：构建请求参数
+  // 使用后端 UUID（通过映射获取），如果没有则为空（后端会创建新会话）
+  const backendUuid = chatStore.getBackendConversationId(actualUuid) || ''
+
   const options: Chat.ConversationRequest = {
-    conversationId: currentConversationId.value,
+    conversationId: backendUuid, // 🔥 使用后端 UUID
+  }
+
+  if (import.meta.env.DEV) {
+    console.log('📤 [请求] 发送参数:', {
+      前端UUID: actualUuid,
+      后端UUID: backendUuid || '（空，将创建新会话）',
+    })
   }
 
   // 添加当前选中的模型
@@ -173,7 +228,7 @@ async function onConversation() {
   }
 
   addChat(
-    uuid,
+    actualUuid,
     {
       dateTime: new Date().toLocaleString(),
       text: t('chat.thinking'),
@@ -217,17 +272,24 @@ async function onConversation() {
           try {
             const data = JSON.parse(chunk)
 
-            // 🔥 步骤3：保存后端返回的对话ID
-            if (data.conversationId && !currentConversationId.value) {
-              currentConversationId.value = data.conversationId
-              console.log('💾 [对话] 保存对话ID:', data.conversationId)
+            // 🔥 步骤3：保存后端返回的 UUID，建立映射关系
+            if (data.conversationId) {
+              // 如果是首次收到后端 UUID，建立映射
+              if (!chatStore.getBackendConversationId(actualUuid)) {
+                chatStore.setBackendConversationId(actualUuid, data.conversationId)
+              }
+
+              // 更新当前对话ID（用于 localStorage 缓存等）
+              if (data.conversationId !== currentConversationId.value) {
+                currentConversationId.value = data.conversationId
+              }
             }
 
             // 🔥 检查是否有错误
             if (data.error) {
               console.error('❌ [聊天错误] 后端返回错误:', data.error)
               updateChat(
-                uuid,
+                actualUuid,
                 dataSources.value.length - 1,
                 {
                   dateTime: new Date().toLocaleString(),
@@ -247,7 +309,7 @@ async function onConversation() {
             const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
 
             updateChat(
-              uuid,
+              actualUuid,
               dataSources.value.length - 1,
               {
                 dateTime: new Date().toLocaleString(),
@@ -276,11 +338,7 @@ async function onConversation() {
           }
         },
       })
-      updateChatSome(uuid, dataSources.value.length - 1, { loading: false })
-
-      // 🔥 性能监控：请求完成
-      const totalTime = Date.now() - requestStartTime
-      console.warn(`⏱️ [性能] 请求总耗时: ${totalTime}ms`)
+      updateChatSome(actualUuid, dataSources.value.length - 1, { loading: false })
     }
 
     await fetchChatAPIOnce()
@@ -297,7 +355,9 @@ async function onConversation() {
         content: lastText,
       })
 
-      console.log('✅ [缓存] 消息已保存到 localStorage')
+      if (import.meta.env.DEV) {
+        console.log('✅ [缓存] 消息已保存到 localStorage')
+      }
     }
   }
   catch (error: any) {
@@ -305,7 +365,7 @@ async function onConversation() {
 
     if (error.message === 'canceled') {
       updateChatSome(
-        uuid,
+        actualUuid,
         dataSources.value.length - 1,
         {
           loading: false,
@@ -315,11 +375,11 @@ async function onConversation() {
       return
     }
 
-    const currentChat = getChatByUuidAndIndex(uuid, dataSources.value.length - 1)
+    const currentChat = getChatByUuidAndIndex(actualUuid, dataSources.value.length - 1)
 
     if (currentChat?.text && currentChat.text !== '') {
       updateChatSome(
-        uuid,
+        actualUuid,
         dataSources.value.length - 1,
         {
           text: `${currentChat.text}\n[${errorMessage}]`,
@@ -331,7 +391,7 @@ async function onConversation() {
     }
 
     updateChat(
-      uuid,
+      actualUuid,
       dataSources.value.length - 1,
       {
         dateTime: new Date().toLocaleString(),
@@ -360,8 +420,14 @@ async function onRegenerate(index: number) {
 
   let message = requestOptions?.prompt ?? ''
 
+  // 使用当前路由的 UUID
+  const currentUuid = uuid.value
+
+  // 🔥 获取后端 UUID
+  const backendUuid = chatStore.getBackendConversationId(currentUuid) || ''
+
   let options: Chat.ConversationRequest = {
-    conversationId: currentConversationId.value,
+    conversationId: backendUuid, // 🔥 使用后端 UUID
   }
 
   if (requestOptions.options)
@@ -401,7 +467,7 @@ async function onRegenerate(index: number) {
   loading.value = true
 
   updateChat(
-    uuid,
+    currentUuid,
     index,
     {
       dateTime: new Date().toLocaleString(),
@@ -432,10 +498,15 @@ async function onRegenerate(index: number) {
           try {
             const data = JSON.parse(chunk)
 
-            // 🔥 保存对话ID（如果有）
-            if (data.conversationId && !currentConversationId.value) {
-              currentConversationId.value = data.conversationId
-              console.log('💾 [重新生成] 保存对话ID:', data.conversationId)
+            // 🔥 保存后端 UUID 映射（如果需要）
+            if (data.conversationId) {
+              if (!chatStore.getBackendConversationId(currentUuid)) {
+                chatStore.setBackendConversationId(currentUuid, data.conversationId)
+              }
+
+              if (data.conversationId !== currentConversationId.value) {
+                currentConversationId.value = data.conversationId
+              }
             }
 
             // 🔥 检查是否是思考过程
@@ -443,7 +514,7 @@ async function onRegenerate(index: number) {
             const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
 
             updateChat(
-              uuid,
+              currentUuid,
               index,
               {
                 dateTime: new Date().toLocaleString(),
@@ -473,7 +544,7 @@ async function onRegenerate(index: number) {
           }
         },
       })
-      updateChatSome(uuid, index, { loading: false })
+      updateChatSome(currentUuid, index, { loading: false })
     }
     await fetchChatAPIOnce()
 
@@ -489,7 +560,7 @@ async function onRegenerate(index: number) {
   catch (error: any) {
     if (error.message === 'canceled') {
       updateChatSome(
-        uuid,
+        currentUuid,
         index,
         {
           loading: false,
@@ -501,7 +572,7 @@ async function onRegenerate(index: number) {
     const errorMessage = error?.message ?? t('common.wrong')
 
     updateChat(
-      uuid,
+      currentUuid,
       index,
       {
         dateTime: new Date().toLocaleString(),
@@ -567,7 +638,7 @@ function handleDelete(index: number) {
     positiveText: t('common.yes'),
     negativeText: t('common.no'),
     onPositiveClick: () => {
-      chatStore.deleteChatByUuid(uuid, index)
+      chatStore.deleteChatByUuid(uuid.value, index)
     },
   })
 }
@@ -582,7 +653,7 @@ function handleClear() {
     positiveText: t('common.yes'),
     negativeText: t('common.no'),
     onPositiveClick: () => {
-      chatStore.clearChatByUuid(uuid)
+      chatStore.clearChatByUuid(uuid.value)
     },
   })
 }
@@ -656,26 +727,26 @@ const footerClass = computed(() => {
 const uploadFileList = ref<UploadFileInfo[]>([])
 
 // 工作流状态 - 从 store 获取和更新
-const workflowState = computed(() => chatStore.getWorkflowStateByUuid(uuid))
+const workflowState = computed(() => chatStore.getWorkflowStateByUuid(uuid.value))
 const uploadedFilePath = computed({
   get: () => workflowState.value?.uploadedFilePath || '',
-  set: val => chatStore.updateWorkflowStateSome(uuid, { uploadedFilePath: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid.value, { uploadedFilePath: val }),
 })
 const workflowStage = computed({
   get: () => workflowState.value?.stage || 'idle',
-  set: val => chatStore.updateWorkflowStateSome(uuid, { stage: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid.value, { stage: val }),
 })
 const classification = computed({
   get: () => workflowState.value?.classification || '',
-  set: val => chatStore.updateWorkflowStateSome(uuid, { classification: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid.value, { classification: val }),
 })
 const generatedQuestions = computed({
   get: () => workflowState.value?.generatedQuestions || [],
-  set: val => chatStore.updateWorkflowStateSome(uuid, { generatedQuestions: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid.value, { generatedQuestions: val }),
 })
 const scoreDistribution = computed({
   get: () => workflowState.value?.scoreDistribution,
-  set: val => chatStore.updateWorkflowStateSome(uuid, { scoreDistribution: val }),
+  set: val => chatStore.updateWorkflowStateSome(uuid.value, { scoreDistribution: val }),
 })
 const quizLoading = ref(false)
 
@@ -948,98 +1019,27 @@ const activeVendor = ref('') // 🔥 初始化为空，将在加载模型后自�
 const modelSearch = ref('')
 const selectedModelFromPopover = ref<string | null>(null)
 
-// 🔥 全局初始化标记（防止多个 chat 实例重复初始化）
-const GLOBAL_INIT_KEY = '__chat_initialized__'
-
 // 监听鼠标事件
 onMounted(async () => {
-  // 🔥 检查是否已经初始化过（使用全局标记）
-  if ((window as any)[GLOBAL_INIT_KEY]) {
+  // ✅ 等待应用初始化完成（正常情况下路由守卫已完成）
+  if (!appInitStore.isFullyInitialized && appInitStore.isInitializing) {
     if (import.meta.env.DEV) {
-      console.warn('ℹ️ [Chat] 组件已初始化，跳过重复初始化')
+      console.warn('⏳ [Chat] 等待应用初始化完成...')
     }
-    // 只执行必要的操作
-    scrollToBottom()
-    if (inputRef.value && !isMobile.value)
-      inputRef.value?.focus()
-    document.addEventListener('mousemove', handleResizeMove)
-    document.addEventListener('mouseup', handleResizeEnd)
-    return
+    // 可以添加 loading 状态或等待逻辑
   }
 
+  // 📋 组件特定的初始化
   scrollToBottom()
   if (inputRef.value && !isMobile.value)
     inputRef.value?.focus()
 
-  // 🔐 加载并显示用户权限（使用全局标记，确保只显示一次）
-  if (auth0.isAuthenticated.value) {
-    const w = window as any
-
-    // 检查缓存的权限
-    let permissions: string[] = w[PERMISSIONS_CACHE_KEY] || []
-
-    // 如果没有缓存，则获取
-    if (permissions.length === 0) {
-      try {
-        permissions = await getUserPermissions(auth0.getAccessTokenSilently)
-        // 缓存权限（整个会话期间共享）
-        w[PERMISSIONS_CACHE_KEY] = permissions
-        userPermissions.value = permissions
-      }
-      catch (error) {
-        console.error('❌ 获取权限失败:', error)
-      }
-    }
-    else {
-      // 使用缓存的权限
-      userPermissions.value = permissions
-    }
-
-    // 只显示一次通知
-    if (!w[PERMISSION_SHOWN_KEY] && permissions.length >= 0) {
-      w[PERMISSION_SHOWN_KEY] = true
-
-      // 显示权限通知（手动关闭）
-      notification.success({
-        title: '🔐 登录成功',
-        description: auth0.user.value?.name || auth0.user.value?.email || '用户',
-        content: permissions.length > 0
-          ? `您的权限：${permissions.join(', ')}`
-          : '当前账号暂无特殊权限',
-        meta: new Date().toLocaleString(),
-        duration: 0, // 🔑 设置为 0 表示需要手动关闭
-        closable: true, // 显示关闭按钮
-      })
-    }
-  }
-
-  // 🔥 加载模型列表（优先使用缓存，Store内部已做防重复加载处理）
-  if (!modelStore.isProvidersLoaded) {
-    try {
-      const success = await modelStore.loadModelsFromBackend()
-      if (success && import.meta.env.DEV) {
-        console.warn('✅ [Chat] 模型列表初始化完成:', {
-          供应商数量: modelStore.providers.length,
-          启用的模型: modelStore.enabledModels.length,
-        })
-      }
-    }
-    catch (error) {
-      console.error('❌ [Chat] 模型列表初始化异常:', error)
-      ms.error('模型列表加载异常，请检查网络连接')
-    }
-  }
-
-  // 🔥 加载用户配置（V2 新增，带防重复加载）
-  if (!configStore.loaded) {
-    try {
-      const loadConfig = (configStore as any).loadAllConfig
-      if (typeof loadConfig === 'function')
-        await loadConfig()
-    }
-    catch (error) {
-      console.error('❌ [Chat] 用户配置初始化异常:', error)
-    }
+  // 🔐 显示权限通知（只显示一次，由 AppInitStore 管理）
+  if (auth0.isAuthenticated.value && !appInitStore.permissionNotificationShown) {
+    appInitStore.showPermissionNotification(
+      notification,
+      auth0.user.value?.name || auth0.user.value?.email,
+    )
   }
 
   // 加载当前选中的模型（已从缓存恢复）
@@ -1051,14 +1051,12 @@ onMounted(async () => {
     if (firstEnabledProvider) {
       activeVendor.value = firstEnabledProvider.id
       if (import.meta.env.DEV) {
-        console.warn('✅ [Chat] 设置默认供应商（无保存的模型）:', firstEnabledProvider.displayName)
+        console.warn('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
       }
     }
   }
 
-  // 🔥 标记全局已初始化
-  (window as any)[GLOBAL_INIT_KEY] = true
-
+  // 监听鼠标拖拽事件
   document.addEventListener('mousemove', handleResizeMove)
   document.addEventListener('mouseup', handleResizeEnd)
 })

@@ -2,7 +2,7 @@ import type { Auth0VueClient } from '@auth0/auth0-vue'
 import type { App } from 'vue'
 import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
-import { hasPermission } from '@/utils/permissions'
+import { useAppInitStore } from '@/store'
 import Login from '@/views/auth/Login.vue'
 import { ChatLayout } from '@/views/chat/layout'
 
@@ -134,7 +134,7 @@ export function setupAuthGuard(auth0: Auth0VueClient) {
       routeHistory.shift()
 
     try {
-      const { isLoading, isAuthenticated, loginWithRedirect, getAccessTokenSilently } = auth0
+      const { isLoading, isAuthenticated, loginWithRedirect } = auth0
 
       // 🔹 步骤 1: 等待 Auth0 初始化完成
       if (isLoading.value) {
@@ -165,20 +165,20 @@ export function setupAuthGuard(auth0: Auth0VueClient) {
         return
       }
 
-      // 🔹 步骤 4: 权限检查（基于 permissions）
+      // 🔥 步骤 3.5: 应用级初始化（仅首次，使用 Pinia）
+      const appInitStore = useAppInitStore()
+      if (!appInitStore.isInitialized && !appInitStore.isInitializing) {
+        // ✅ 传递 auth0 实例（从 setup 上下文传入，避免在 store 中调用 useAuth0）
+        await appInitStore.initializeApp(auth0)
+      }
+
+      // 🔹 步骤 4: 权限检查（使用 AppInitStore）
       const requiredPermissions = to.meta.permissions as string[] | undefined
       if (requiredPermissions?.length) {
-        try {
-          const hasPerm = await hasPermission(getAccessTokenSilently, requiredPermissions)
+        const hasRequiredPermission = appInitStore.hasAnyPermission(requiredPermissions)
 
-          if (!hasPerm) {
-            next('/403')
-            return
-          }
-        }
-        catch (err) {
-          console.error('❌ 权限检查失败:', err)
-          next('/500')
+        if (!hasRequiredPermission) {
+          next('/403')
           return
         }
       }

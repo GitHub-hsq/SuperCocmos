@@ -94,7 +94,7 @@ dataSources.value.forEach((item, index) => {
 // 🔥 监听路由变化，切换对话时重置对话ID
 watch(
   () => route.params.uuid,
-  (newUuid) => {
+  (_newUuid) => {
     currentConversationId.value = '' // 切换对话时重置
     console.log('🔄 [对话] 切换到新对话，重置对话ID')
   },
@@ -138,7 +138,7 @@ async function onConversation() {
   prompt.value = ''
 
   // 🔥 步骤2：构建请求参数（移除 contextMessages，后端不需要该字段）
-  let options: Chat.ConversationRequest = {
+  const options: Chat.ConversationRequest = {
     conversationId: currentConversationId.value,
   }
 
@@ -189,10 +189,6 @@ async function onConversation() {
   // 🔥 性能监控：记录请求开始时间
   const requestStartTime = Date.now()
   let firstChunkTime: number | null = null
-  let lastChunkTime = requestStartTime
-  let chunkCount = 0
-
-  console.warn('⏱️ [性能] 请求开始时间:', new Date().toISOString())
 
   try {
     let lastText = ''
@@ -210,16 +206,7 @@ async function onConversation() {
             firstChunkTime = Date.now()
             const ttfb = firstChunkTime - requestStartTime
             console.warn(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
-            console.warn(`⏱️ [性能] responseText长度: ${responseText.length}字符`)
           }
-
-          const currentChunkTime = Date.now()
-          const timeSinceLastChunk = currentChunkTime - lastChunkTime
-          chunkCount++
-
-          console.warn(`⏱️ [性能] 第${chunkCount}次onDownloadProgress触发，距离上次: ${timeSinceLastChunk}ms，responseText长度: ${responseText.length}`)
-
-          lastChunkTime = currentChunkTime
 
           // Always process the final line
           const lastIndex = responseText.lastIndexOf('\n', responseText.length - 2)
@@ -227,30 +214,13 @@ async function onConversation() {
           if (lastIndex !== -1)
             chunk = responseText.substring(lastIndex)
 
-          console.warn(`⏱️ [性能] 准备解析的chunk长度: ${chunk.length}字符`)
           try {
-            const parseStartTime = Date.now()
             const data = JSON.parse(chunk)
-            const parseTime = Date.now() - parseStartTime
-
-            if (parseTime > 10) {
-              console.warn(`⏱️ [性能] JSON解析耗时: ${parseTime}ms`)
-            }
 
             // 🔥 步骤3：保存后端返回的对话ID
             if (data.conversationId && !currentConversationId.value) {
               currentConversationId.value = data.conversationId
               console.log('💾 [对话] 保存对话ID:', data.conversationId)
-            }
-
-            // 🔥 调试：输出解析后的数据
-            if (import.meta.env.DEV) {
-              console.warn('📥 [聊天响应] 解析数据:', {
-                text: data.text,
-                conversationId: data.conversationId,
-                hasError: !!data.error,
-                chunk: chunk.substring(0, 200),
-              })
             }
 
             // 🔥 检查是否有错误
@@ -310,7 +280,7 @@ async function onConversation() {
 
       // 🔥 性能监控：请求完成
       const totalTime = Date.now() - requestStartTime
-      console.warn(`⏱️ [性能] 请求总耗时: ${totalTime}ms, 共${chunkCount}个chunk`)
+      console.warn(`⏱️ [性能] 请求总耗时: ${totalTime}ms`)
     }
 
     await fetchChatAPIOnce()
@@ -1046,9 +1016,6 @@ onMounted(async () => {
   // 🔥 加载模型列表（优先使用缓存，Store内部已做防重复加载处理）
   if (!modelStore.isProvidersLoaded) {
     try {
-      if (import.meta.env.DEV) {
-        console.warn('🔄 [Chat] 初始化模型列表...')
-      }
       const success = await modelStore.loadModelsFromBackend()
       if (success && import.meta.env.DEV) {
         console.warn('✅ [Chat] 模型列表初始化完成:', {

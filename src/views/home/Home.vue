@@ -220,7 +220,7 @@ const partnerLogos = [
               size="large"
               quaternary
               class="cta-secondary"
-              @click="scrollToSection('features')"
+              @click="scrollToSection('pricing')"
             >
               {{ t('home.hero.ctaSecondary') }}
             </NButton>
@@ -764,7 +764,7 @@ const partnerLogos = [
 
 /* Pricing Section */
 .pricing-section {
-  padding: 60px 0;
+  padding: 160px 60px;
   background: var(--bg-color);
 }
 

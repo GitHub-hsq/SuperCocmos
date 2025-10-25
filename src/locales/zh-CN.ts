@@ -246,7 +246,7 @@ export default {
       subtitle: '让你的项目、文档与智能助理融为一体',
       description: '将碎片化知识变成结构化学习资源，自动生成笔记、总结与学习卡',
       ctaPrimary: '立即开始（免费）',
-      ctaSecondary: '查看演示',
+      ctaSecondary: '查看定价',
     },
     features: {
       title: '核心功能',

@@ -118,11 +118,9 @@ if (import.meta.env.DEV) {
  */
 
 export function setupAuthGuard(auth0: Auth0VueClient) {
-  console.log('=======================路由守卫触发=======================')
-  console.log('11111 isLoading', auth0.isLoading.value)
-  console.log('22222 isAuthenticated', auth0.isAuthenticated.value)
-  console.log('33333 loginWithRedirect', auth0.loginWithRedirect)
-  console.log('44444 getAccessTokenSilently', auth0.getAccessTokenSilently)
+  console.warn('=======================路由守卫触发=======================')
+  console.warn('11111 isLoading', auth0.isLoading.value)
+  console.warn('22222 isAuthenticated', auth0.isAuthenticated.value)
 
   router.beforeEach(async (to, from, next) => {
     // 📊 记录路由跳转（可选）

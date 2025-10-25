@@ -19,17 +19,38 @@ const apiClient: AxiosInstance = axios.create({
 // 请求拦截器 - 统一处理授权 Token
 apiClient.interceptors.request.use(
   async (config) => {
-    // TODO: 集成 Auth0 后，从 Auth0 获取 token
-    
-    // 临时：使用传统 token 存储（兼容性）
-    const authStore = useAuthStore()
-    const token = authStore.token || localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    try {
+      // 🔐 从 Auth0 获取 token
+      const { getAuth0Client } = await import('@/auth')
+      const auth0Client = getAuth0Client()
+
+      if (auth0Client && auth0Client.isAuthenticated.value) {
+        try {
+          const token = await auth0Client.getAccessTokenSilently({
+            authorizationParams: {
+              audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+            },
+          })
+
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`
+          }
+        }
+        catch (tokenError: any) {
+          // 静默处理 token 获取失败（可能是 Consent required）
+          if (import.meta.env.DEV && !tokenError.message?.includes('Consent required')) {
+            console.warn('⚠️ 获取 Auth0 token 失败:', tokenError.message)
+          }
+        }
+      }
     }
-    else {
-      if (import.meta.env.DEV)
-        console.warn('⚠️ 未找到认证 token (Auth0 待集成)')
+    catch (error) {
+      // Auth0 未初始化，使用备用方案
+      const authStore = useAuthStore()
+      const token = authStore.token || localStorage.getItem('token')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
 
     return config

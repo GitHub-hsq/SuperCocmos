@@ -111,14 +111,14 @@ export async function findUserByEmail(email: string): Promise<SupabaseUser | nul
 }
 
 /**
- * 根据 Clerk ID 查找用户
+ * 根据 Auth0 ID 查找用户
  */
-export async function findUserByClerkId(clerkId: string): Promise<SupabaseUser | null> {
+export async function findUserByAuth0Id(auth0Id: string): Promise<SupabaseUser | null> {
   try {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('clerk_id', clerkId)
+      .eq('clerk_id', auth0Id) // 复用 clerk_id 字段存储 auth0_id
       .single()
 
     if (error) {
@@ -133,6 +133,14 @@ export async function findUserByClerkId(clerkId: string): Promise<SupabaseUser |
     console.error('❌ [SupabaseUserService] 查找用户失败:', error.message)
     return null
   }
+}
+
+/**
+ * 根据 Clerk ID 查找用户（已废弃，保留兼容性）
+ * @deprecated 使用 findUserByAuth0Id 替代
+ */
+export async function findUserByClerkId(clerkId: string): Promise<SupabaseUser | null> {
+  return findUserByAuth0Id(clerkId)
 }
 
 /**
@@ -302,6 +310,122 @@ export async function getAllUsers(): Promise<SupabaseUser[]> {
   catch (error: any) {
     console.error('❌ [SupabaseUserService] 获取用户列表失败:', error.message)
     throw new Error(`获取用户列表失败: ${error.message}`)
+  }
+}
+
+/**
+ * 创建或更新用户（用于 Auth0 登录）
+ */
+export async function upsertUserFromAuth0(input: {
+  auth0_id: string // Auth0 用户 ID (user.sub)
+  email: string
+  username?: string
+  avatar_url?: string
+  email_verified?: boolean
+}): Promise<SupabaseUser> {
+  try {
+    // 1. 先通过 auth0_id (存储在 clerk_id 字段) 查找用户
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('clerk_id', input.auth0_id)
+      .maybeSingle()
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw findError
+    }
+
+    if (existingUser) {
+      // 用户已存在，更新信息
+      console.log(`📝 [Supabase] 更新 Auth0 用户: ${input.email}`)
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          email: input.email,
+          username: input.username || existingUser.username,
+          avatar_url: input.avatar_url || existingUser.avatar_url,
+          status: 1, // 确保用户状态为激活
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', existingUser.user_id)
+        .select()
+        .single()
+
+      if (error)
+        throw error
+
+      return data
+    }
+
+    // 2. 通过 email 查找（可能是已存在的邮箱用户）
+    const emailUser = await findUserByEmail(input.email)
+
+    if (emailUser) {
+      // 用户已存在，关联到 Auth0
+      console.log(`🔗 [Supabase] 关联现有用户到 Auth0: ${input.email}`)
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          clerk_id: input.auth0_id, // 复用 clerk_id 字段存储 auth0_id
+          username: input.username || emailUser.username,
+          avatar_url: input.avatar_url || emailUser.avatar_url,
+          provider: 'auth0',
+          login_method: 'auth0',
+          status: 1,
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', emailUser.user_id)
+        .select()
+        .single()
+
+      if (error)
+        throw error
+
+      return data
+    }
+
+    // 3. 用户不存在，创建新用户
+    console.log(`➕ [Supabase] 创建新 Auth0 用户: ${input.email}`)
+
+    // 生成唯一的用户名
+    let username = input.username || input.email.split('@')[0]
+
+    // 检查用户名是否已存在
+    const existingUsername = await findUserByUsername(username)
+    if (existingUsername) {
+      const randomSuffix = Math.random().toString(36).substring(2, 8)
+      username = `${username}_${randomSuffix}`
+      console.log(`⚠️  [Supabase] 用户名已存在，使用新用户名: ${username}`)
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        clerk_id: input.auth0_id, // 复用 clerk_id 字段存储 auth0_id
+        username,
+        email: input.email,
+        avatar_url: input.avatar_url,
+        provider: 'auth0',
+        login_method: 'auth0',
+        status: 1,
+        last_login_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error)
+      throw error
+
+    console.log(`✅ [Supabase] Auth0 用户创建成功: ${input.email}`)
+    return data
+  }
+  catch (error: any) {
+    console.error('❌ [Supabase] Auth0 用户同步失败:', error.message)
+    throw new Error(`Auth0 用户同步失败: ${error.message}`)
   }
 }
 

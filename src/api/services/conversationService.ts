@@ -48,4 +48,3 @@ export function fetchConversations(params: { limit?: number, offset?: number } =
 export function fetchConversationMessages(conversationId: string, params: { limit?: number, offset?: number } = {}) {
   return request.get<ConversationWithMessages>(`/conversations/${conversationId}/messages`, { params })
 }
-

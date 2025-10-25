@@ -7,8 +7,12 @@
     <div class="w-full max-w-md" style="width: 400px; min-width: 300px;">
       <!-- TODO: 添加 Auth0 登录组件 -->
       <div class="text-center p-8">
-        <h2 class="text-2xl font-bold mb-4">登录</h2>
-        <p class="text-gray-600 mb-4">Auth0 登录组件待集成</p>
+        <h2 class="text-2xl font-bold mb-4">
+          登录
+        </h2>
+        <p class="text-gray-600 mb-4">
+          Auth0 登录组件待集成
+        </p>
         <div class="text-sm text-gray-500">
           <p>请先配置 Auth0 认证</p>
         </div>

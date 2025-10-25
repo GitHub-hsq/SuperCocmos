@@ -28,6 +28,10 @@ export default {
     verify: 'Verify',
     unauthorizedTips: 'Unauthorized, please verify first.',
     stopResponding: 'Stop Responding',
+    accessDenied: 'Access Denied',
+    noPermission: 'You do not have permission to access this page. Please contact your administrator.',
+    goBack: 'Go Back',
+    backToHome: 'Back to Home',
   },
   auth: {
     login: 'Log in to your account',

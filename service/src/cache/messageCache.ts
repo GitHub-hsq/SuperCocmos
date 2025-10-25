@@ -227,4 +227,3 @@ export async function getConversationContextWithCache(
     return systemPrompt ? [{ role: 'system', content: systemPrompt }] : []
   }
 }
-

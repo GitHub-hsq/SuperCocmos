@@ -57,18 +57,18 @@ export const useConfigStore = defineStore('config', {
         if (response.status === 'Success' && response.data) {
           // 🔥 从数据库字段映射到前端字段（snake_case -> camelCase）
           const data = response.data
-          
+
           // 处理 user_settings -> userSettings
           this.userSettings = data.userSettings || data.user_settings || null
-          
+
           // 处理 chat_config -> chatConfig
           this.chatConfig = data.chatConfig || data.chat_config || null
-          
+
           // 处理 workflow_config -> workflowConfig
           this.workflowConfig = data.workflowConfig || data.workflow_config || null
-          
+
           this.loaded = true
-          
+
           console.log('✅ [ConfigStore] 配置加载成功:', {
             userSettings: !!this.userSettings,
             chatConfig: !!this.chatConfig,

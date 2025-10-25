@@ -6,8 +6,7 @@ console.warn('🔍 检查环境变量...\n')
 const checks = [
   { name: 'SUPABASE_URL', value: process.env.SUPABASE_URL },
   { name: 'SUPABASE_ANON_KEY', value: process.env.SUPABASE_ANON_KEY },
-  { name: 'CLERK_SECRET_KEY', value: process.env.CLERK_SECRET_KEY },
-  { name: 'CLERK_WEBHOOK_SECRET', value: process.env.CLERK_WEBHOOK_SECRET },
+  // Clerk 相关环境变量已移除，现在使用 Auth0
 ]
 
 let allOk = true

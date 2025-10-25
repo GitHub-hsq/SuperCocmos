@@ -8,7 +8,7 @@ import { request } from '../client'
 
 export interface User {
   id: number
-  clerkId?: string
+  auth0Id?: string
   username: string
   email: string
   phone?: string
@@ -59,7 +59,7 @@ export async function register(data: RegisterRequest) {
 }
 
 /**
- * 获取当前用户信息（Clerk）
+ * 获取当前用户信息（Auth0）
  */
 export async function getCurrentUser() {
   const response = await request.get<ApiResponse<{ user: User }>>('/auth/me')

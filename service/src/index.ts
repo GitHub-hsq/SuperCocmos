@@ -1,27 +1,31 @@
 /* eslint-disable no-console */
 import type { ChatMessage } from './chatgpt' // 聊天消息类型
-import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
 
+import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
 // 引入自定义类型和模块
 // 请求参数类型
 // 引入 Node.js 内置模块：文件系统（fs）和路径（path）
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
 
+import { join } from 'node:path'
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
+
 import multer from 'multer'
 import { nanoid } from 'nanoid'
-import clerkRoutes from './api/routes' // Clerk + Supabase 路由
+import auth0Routes from './api/routes' // Auth0 + Supabase 路由
+
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
 import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
-import { authMiddleware as clerkAuth, requireAuth } from './middleware/auth' // 临时认证中间件（待替换为 Auth0）
+import { requireAuth, unifiedAuth } from './middleware/authUnified' // 统一认证中间件（仅支持 Auth0）
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
 import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
 import { initUserTable, testConnection } from './utils/db' // 数据库连接
 import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字符串
 import { createUser, deleteUser, findUserByEmail, findUserById, findUserByUsername, getAllUsers, updateUser, validateUserPassword } from './utils/userService' // 用户服务
+// 加载环境变量 - 必须在所有其他导入之前
+import 'dotenv/config'
 
 const app = express()
 const router = express.Router()
@@ -36,7 +40,7 @@ app.use(express.json())
 app.set('x-powered-by', false)
 app.set('etag', false)
 
-// 全局 CORS 配置：支持 Clerk 认证
+// 全局 CORS 配置：支持 Auth0 认证
 app.all('*', (req, res, next) => {
   // 允许的来源（开发环境）
   const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3002']
@@ -47,7 +51,7 @@ app.all('*', (req, res, next) => {
     res.header('Access-Control-Allow-Credentials', 'true')
   }
 
-  res.header('Access-Control-Allow-Headers', 'authorization, Content-Type, clerk-session-id, x-clerk-auth-status, x-clerk-auth-message')
+  res.header('Access-Control-Allow-Headers', 'authorization, Content-Type')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
 
   // 处理 OPTIONS 预检请求
@@ -59,7 +63,7 @@ app.all('*', (req, res, next) => {
 })
 
 // 🚀 流式返回 LLM 的回复内容 - 优化版：支持消息历史
-router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) => {
+router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res) => {
   // 🔥 设置正确的响应头以支持真正的流式传输
   res.setHeader('Content-Type', 'text/event-stream') // 使用 SSE 格式
   res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -121,16 +125,15 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     }
 
     // 🚀 步骤2：快速获取用户 ID
-    // TODO: 使用 Auth0 认证后更新此处
-    const clerkUserId = req.userId
-    if (!clerkUserId) {
+    const auth0UserId = req.userId
+    if (!auth0UserId) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '认证失败' } }))
       return res.end()
     }
 
     // 🔥 获取 Supabase 用户信息
-    const { findUserByClerkId } = await import('./db/supabaseUserService')
-    const user = await findUserByClerkId(clerkUserId)
+    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
+    const user = await findUserByAuth0Id(auth0UserId)
     if (!user) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '用户不存在' } }))
       return res.end()
@@ -202,13 +205,13 @@ router.post('/chat-process', clerkAuth, requireAuth, limiter, async (req, res) =
     /*
     const authCheckPromise = (async () => {
       try {
-        const { findUserByClerkId } = await import('./db/supabaseUserService')
+        const { findUserByAuth0Id } = await import('./db/supabaseUserService')
         const { userHasRole } = await import('./db/userRoleService')
         const { userCanAccessModel } = await import('./db/modelRoleAccessService')
 
-        const user = await findUserByClerkId(clerkUserId)
+        const user = await findUserByAuth0Id(auth0UserId)
         if (!user) {
-          console.error(`❌ [异步验证] 用户不存在: ${clerkUserId}`)
+          console.error(`❌ [异步验证] 用户不存在: ${auth0UserId}`)
           authCheckFailed = true
           return
         }
@@ -412,7 +415,7 @@ const upload = multer({
 })
 
 // Upload endpoint: returns saved filePath and starts classification
-router.post('/upload', clerkAuth, requireAuth, upload.single('file'), async (req, res) => {
+router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (req, res) => {
   console.log('📤 [上传] 接收到文件上传请求')
 
   if (!req.file) {
@@ -468,7 +471,7 @@ router.post('/upload', clerkAuth, requireAuth, upload.single('file'), async (req
 })
 
 // Delete uploaded file
-router.post('/upload/delete', clerkAuth, requireAuth, async (req, res) => {
+router.post('/upload/delete', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { filePath } = req.body as { filePath: string }
     if (!filePath)
@@ -492,7 +495,7 @@ router.post('/upload/delete', clerkAuth, requireAuth, async (req, res) => {
 })
 
 // Quiz workflow: run
-router.post('/quiz/run', clerkAuth, requireAuth, limiter, async (req, res) => {
+router.post('/quiz/run', unifiedAuth, requireAuth, limiter, async (req, res) => {
   try {
     const { filePath, numQuestions, workflowConfig: customConfig } = req.body as {
       filePath: string
@@ -513,7 +516,7 @@ router.post('/quiz/run', clerkAuth, requireAuth, limiter, async (req, res) => {
 })
 
 // Quiz generate: generate questions from note with specific types
-router.post('/quiz/generate', clerkAuth, requireAuth, limiter, async (req, res) => {
+router.post('/quiz/generate', unifiedAuth, requireAuth, limiter, async (req, res) => {
   try {
     const { filePath, questionTypes } = req.body as {
       filePath: string
@@ -537,7 +540,7 @@ router.post('/quiz/generate', clerkAuth, requireAuth, limiter, async (req, res) 
 })
 
 // Quiz feedback: submit user feedback
-router.post('/quiz/feedback', clerkAuth, requireAuth, limiter, async (req, res) => {
+router.post('/quiz/feedback', unifiedAuth, requireAuth, limiter, async (req, res) => {
   try {
     const { workflowId, feedback, revision_note } = req.body as {
       workflowId: string
@@ -559,7 +562,7 @@ router.post('/quiz/feedback', clerkAuth, requireAuth, limiter, async (req, res) 
 })
 
 // Quiz save: after user confirmation
-router.post('/quiz/save', clerkAuth, requireAuth, limiter, async (req, res) => {
+router.post('/quiz/save', unifiedAuth, requireAuth, limiter, async (req, res) => {
   try {
     const payload = req.body as SavePayload
     if (!payload || !Array.isArray(payload.questions))
@@ -626,13 +629,12 @@ router.post('/quiz/test-llm', async (req, res) => {
 // ============================================
 
 // 获取用户的对话列表
-router.get('/conversations', clerkAuth, requireAuth, async (req, res) => {
+router.get('/conversations', unifiedAuth, requireAuth, async (req, res) => {
   try {
-    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
     const { getUserConversations } = await import('./db/conversationService')
 
-    // TODO: 使用 Auth0 认证后更新此处
-    const user = await findUserByClerkId(req.userId!)
+    const user = await findUserByAuth0Id(req.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -643,8 +645,8 @@ router.get('/conversations', clerkAuth, requireAuth, async (req, res) => {
     }
 
     // 获取分页参数
-    const limit = parseInt(req.query.limit as string) || 50
-    const offset = parseInt(req.query.offset as string) || 0
+    const limit = Number.parseInt(req.query.limit as string) || 50
+    const offset = Number.parseInt(req.query.offset as string) || 0
 
     const conversations = await getUserConversations(user.user_id, { limit, offset })
 
@@ -665,14 +667,13 @@ router.get('/conversations', clerkAuth, requireAuth, async (req, res) => {
 })
 
 // 获取对话的消息历史
-router.get('/conversations/:conversationId/messages', clerkAuth, requireAuth, async (req, res) => {
+router.get('/conversations/:conversationId/messages', unifiedAuth, requireAuth, async (req, res) => {
   try {
-    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
     const { getConversationById } = await import('./db/conversationService')
     const { getConversationMessages } = await import('./db/messageService')
 
-    // TODO: 使用 Auth0 认证后更新此处
-    const user = await findUserByClerkId(req.userId!)
+    const user = await findUserByAuth0Id(req.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -683,8 +684,8 @@ router.get('/conversations/:conversationId/messages', clerkAuth, requireAuth, as
     }
 
     const { conversationId } = req.params
-    const limit = parseInt(req.query.limit as string) || 100
-    const offset = parseInt(req.query.offset as string) || 0
+    const limit = Number.parseInt(req.query.limit as string) || 100
+    const offset = Number.parseInt(req.query.offset as string) || 0
 
     // 验证对话是否属于该用户
     const conversation = await getConversationById(conversationId)
@@ -727,16 +728,15 @@ router.get('/conversations/:conversationId/messages', clerkAuth, requireAuth, as
 })
 
 // 获取所有模型（基于用户角色过滤，管理员可以看到完整配置）
-router.get('/models', clerkAuth, requireAuth, async (req, res) => {
+router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { getAllProvidersWithModels } = await import('./db/providerService')
     const { getUserAccessibleProvidersWithModels } = await import('./db/modelRoleAccessService')
     const { userHasRole } = await import('./db/userRoleService')
-    const { findUserByClerkId } = await import('./db/supabaseUserService')
+    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
 
     // 获取当前用户
-    // TODO: 使用 Auth0 认证后更新此处
-    const user = await findUserByClerkId(req.userId!)
+    const user = await findUserByAuth0Id(req.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -828,7 +828,7 @@ router.get('/workflow/config', async (req, res) => {
 })
 
 // 更新工作流配置
-router.post('/workflow/config', clerkAuth, requireAuth, async (req, res) => {
+router.post('/workflow/config', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const config = req.body as import('./quiz/types').WorkflowNodeConfig[]
     if (!Array.isArray(config)) {
@@ -856,7 +856,7 @@ router.post('/workflow/config', clerkAuth, requireAuth, async (req, res) => {
 })
 
 ////////////////////////////////////////////////////////////////
-router.post('/config', clerkAuth, requireAuth, async (req, res) => {
+router.post('/config', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const response = await chatConfig()
     res.send(response)
@@ -896,9 +896,9 @@ router.post('/verify', async (req, res) => {
 // ============================================
 // 注意：旧的用户管理接口已移除
 // ============================================
-// 现在使用 Clerk + Supabase 进行用户管理
+// 现在使用 Auth0 + Supabase 进行用户管理
 // 详见 service/src/api/authController.ts 和 service/src/api/routes.ts
-// - POST /api/webhooks/clerk - Clerk Webhook
+// - POST /api/webhooks/auth0 - Auth0 Webhook
 // - GET /api/auth/me - 获取当前用户信息
 
 // 旧的注册接口（已废弃，保留用于兼容）
@@ -1026,7 +1026,7 @@ router.post('/auth/login', async (req, res) => {
 })
 
 // 获取用户信息 API
-router.get('/user/:id', clerkAuth, requireAuth, async (req, res) => {
+router.get('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
 
@@ -1065,7 +1065,7 @@ router.get('/user/:id', clerkAuth, requireAuth, async (req, res) => {
 })
 
 // 更新用户信息 API
-router.put('/user/:id', clerkAuth, requireAuth, async (req, res) => {
+router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
     const { username, nickname, email, password } = req.body as {
@@ -1152,7 +1152,7 @@ router.put('/user/:id', clerkAuth, requireAuth, async (req, res) => {
 })
 
 // 删除用户 API
-router.delete('/user/:id', clerkAuth, requireAuth, async (req, res) => {
+router.delete('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
 
@@ -1194,7 +1194,7 @@ router.delete('/user/:id', clerkAuth, requireAuth, async (req, res) => {
 })
 
 // 获取用户列表 API
-router.get('/users', clerkAuth, requireAuth, async (req, res) => {
+router.get('/users', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const users = await getAllUsers()
 
@@ -1226,8 +1226,8 @@ router.get('/users', clerkAuth, requireAuth, async (req, res) => {
 
 app.use('', router)
 app.use('/api', router)
-// 集成 Clerk + Supabase 路由
-app.use('/api', clerkRoutes)
+// 集成 Auth0 + Supabase 路由
+app.use('/api', auth0Routes)
 app.set('trust proxy', 1)
 
 // 支持 History 模式：将所有非 API 路由返回 index.html

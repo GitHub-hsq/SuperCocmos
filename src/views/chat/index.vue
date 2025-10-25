@@ -2,9 +2,10 @@
 /* eslint-disable no-console */
 import type { UploadFileInfo } from 'naive-ui'
 import type { Ref } from 'vue'
+import { useAuth0 } from '@auth0/auth0-vue'
 import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
-import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage } from 'naive-ui'
+import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage, useNotification } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -20,13 +21,14 @@ import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConf
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore } from '@/store'
+// 🔥 导入消息缓存工具
+import { appendMessageToLocalCache } from '@/utils/messageCache'
+import { getUserPermissions } from '@/utils/permissions'
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
 import HeaderComponent from './components/Header/index.vue'
 import { useChat } from './hooks/useChat'
 import { useScroll } from './hooks/useScroll'
 import { useUsingContext } from './hooks/useUsingContext'
-// 🔥 导入消息缓存工具
-import { appendMessageToLocalCache } from '@/utils/messageCache'
 
 /**
  * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
@@ -38,12 +40,20 @@ const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
 const route = useRoute()
 const dialog = useDialog()
 const ms = useMessage()
+const notification = useNotification()
+const auth0 = useAuth0()
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const configStore = useConfigStore()
 const modelStore = useModelStore()
+
+// 🔐 用户权限
+const userPermissions = ref<string[]>([])
+// 使用全局标记防止重复显示（因为路由从 /chat → /chat/[uuid] 会重新加载组件）
+const PERMISSION_SHOWN_KEY = '__permission_notification_shown__'
+const PERMISSIONS_CACHE_KEY = '__user_permissions_cache__'
 
 const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
@@ -482,7 +492,7 @@ async function onRegenerate(index: number) {
               message = ''
               return fetchChatAPIOnce()
             }
-            
+
             // 🔥 累积最后的文本
             if (!isThinking && data.text) {
               lastText = displayText
@@ -991,6 +1001,48 @@ onMounted(async () => {
   if (inputRef.value && !isMobile.value)
     inputRef.value?.focus()
 
+  // 🔐 加载并显示用户权限（使用全局标记，确保只显示一次）
+  if (auth0.isAuthenticated.value) {
+    const w = window as any
+
+    // 检查缓存的权限
+    let permissions: string[] = w[PERMISSIONS_CACHE_KEY] || []
+
+    // 如果没有缓存，则获取
+    if (permissions.length === 0) {
+      try {
+        permissions = await getUserPermissions(auth0.getAccessTokenSilently)
+        // 缓存权限（整个会话期间共享）
+        w[PERMISSIONS_CACHE_KEY] = permissions
+        userPermissions.value = permissions
+      }
+      catch (error) {
+        console.error('❌ 获取权限失败:', error)
+      }
+    }
+    else {
+      // 使用缓存的权限
+      userPermissions.value = permissions
+    }
+
+    // 只显示一次通知
+    if (!w[PERMISSION_SHOWN_KEY] && permissions.length >= 0) {
+      w[PERMISSION_SHOWN_KEY] = true
+
+      // 显示权限通知（手动关闭）
+      notification.success({
+        title: '🔐 登录成功',
+        description: auth0.user.value?.name || auth0.user.value?.email || '用户',
+        content: permissions.length > 0
+          ? `您的权限：${permissions.join(', ')}`
+          : '当前账号暂无特殊权限',
+        meta: new Date().toLocaleString(),
+        duration: 0, // 🔑 设置为 0 表示需要手动关闭
+        closable: true, // 显示关闭按钮
+      })
+    }
+  }
+
   // 🔥 加载模型列表（优先使用缓存，Store内部已做防重复加载处理）
   if (!modelStore.isProvidersLoaded) {
     try {
@@ -1236,371 +1288,371 @@ function handleSelectModel(model: ModelItem) {
 <template>
   <!-- TODO: 添加 Auth0 登录检查 -->
   <div class="flex flex-col w-full h-full bg-white dark:bg-[#161618]">
-      <transition name="fade" mode="out-in">
-        <!-- 设置页面 - 整体替换 -->
-        <div v-if="showSettingsPage" key="settings" class="flex-1 overflow-hidden flex flex-col">
-          <div class="flex-1 overflow-y-auto bg-white dark:bg-[#161618]" style="padding: 10px 30px;">
-            <div class="w-full max-w-full">
-              <transition name="fade-fast" mode="out-in">
-                <!-- 🔥 个人设置 - 使用新的 UserSettingsPanel -->
-                <UserSettingsPanel v-if="activeSettingTab === 'General'" key="general" />
+    <transition name="fade" mode="out-in">
+      <!-- 设置页面 - 整体替换 -->
+      <div v-if="showSettingsPage" key="settings" class="flex-1 overflow-hidden flex flex-col">
+        <div class="flex-1 overflow-y-auto bg-white dark:bg-[#161618]" style="padding: 10px 30px;">
+          <div class="w-full max-w-full">
+            <transition name="fade-fast" mode="out-in">
+              <!-- 🔥 个人设置 - 使用新的 UserSettingsPanel -->
+              <UserSettingsPanel v-if="activeSettingTab === 'General'" key="general" />
 
-                <!-- 🔥 聊天配置 - 使用新的 ChatConfigPanel -->
-                <ChatConfigPanel v-else-if="activeSettingTab === 'ChatConfig'" key="chat-config" />
+              <!-- 🔥 聊天配置 - 使用新的 ChatConfigPanel -->
+              <ChatConfigPanel v-else-if="activeSettingTab === 'ChatConfig'" key="chat-config" />
 
-                <!-- Advanced 设置 - 保持不变 -->
-                <Advanced v-else-if="activeSettingTab === 'Advanced' && isChatGPTAPI" key="advanced" />
+              <!-- Advanced 设置 - 保持不变 -->
+              <Advanced v-else-if="activeSettingTab === 'Advanced' && isChatGPTAPI" key="advanced" />
 
-                <!-- API 配置 - 保持 About 组件（API使用量） -->
-                <About v-else-if="activeSettingTab === 'Config'" key="config" ref="aboutRef" />
+              <!-- API 配置 - 保持 About 组件（API使用量） -->
+              <About v-else-if="activeSettingTab === 'Config'" key="config" ref="aboutRef" />
 
-                <!-- 🔥 工作流配置 - 使用新的 WorkflowConfigPanel -->
-                <WorkflowConfigPanel v-else-if="activeSettingTab === 'WorkflowModel'" key="workflow" />
+              <!-- 🔥 工作流配置 - 使用新的 WorkflowConfigPanel -->
+              <WorkflowConfigPanel v-else-if="activeSettingTab === 'WorkflowModel'" key="workflow" />
 
-                <!-- 🔥 供应商管理 - 使用新的 ProviderConfigPanel 包装器 -->
-                <ProviderConfigPanel v-else-if="activeSettingTab === 'ProviderConfig'" key="provider" />
-              </transition>
-            </div>
+              <!-- 🔥 供应商管理 - 使用新的 ProviderConfigPanel 包装器 -->
+              <ProviderConfigPanel v-else-if="activeSettingTab === 'ProviderConfig'" key="provider" />
+            </transition>
           </div>
         </div>
+      </div>
 
-        <!-- 聊天页面 - 包含Header -->
-        <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col relative bg-white dark:bg-[#161618]">
-          <HeaderComponent
-            v-if="isMobile"
-            :using-context="usingContext"
-            @export="handleExport"
-            @handle-clear="handleClear"
-          />
+      <!-- 聊天页面 - 包含Header -->
+      <div v-else key="chat" class="flex-1 overflow-hidden flex flex-col relative bg-white dark:bg-[#161618]">
+        <HeaderComponent
+          v-if="isMobile"
+          :using-context="usingContext"
+          @export="handleExport"
+          @handle-clear="handleClear"
+        />
 
-          <!-- Web端Header - 悬浮透明 -->
-          <header v-if="!isMobile" class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-transparent">
-            <div class="flex items-center space-x-4">
-              <NPopover
-                v-model:show="showModelSelector"
-                trigger="click"
-                placement="bottom-start"
-                :show-arrow="false"
-                :width="700"
-                @update:show="(show) => show && loadCurrentModel()"
-              >
-                <template #trigger>
-                  <NButton quaternary>
-                    <template #icon>
-                      <SvgIcon icon="ri:openai-fill" />
-                    </template>
-                    {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
-                  </NButton>
-                </template>
+        <!-- Web端Header - 悬浮透明 -->
+        <header v-if="!isMobile" class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-transparent">
+          <div class="flex items-center space-x-4">
+            <NPopover
+              v-model:show="showModelSelector"
+              trigger="click"
+              placement="bottom-start"
+              :show-arrow="false"
+              :width="700"
+              @update:show="(show) => show && loadCurrentModel()"
+            >
+              <template #trigger>
+                <NButton quaternary>
+                  <template #icon>
+                    <SvgIcon icon="ri:openai-fill" />
+                  </template>
+                  {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
+                </NButton>
+              </template>
 
-                <!-- 弹出内容 -->
-                <div v-if="availableVendors.length > 0" class="model-selector-popup">
-                  <NLayout has-sider style="height: 400px">
-                    <!-- 左侧供应商列表 -->
-                    <NLayoutSider :width="180" bordered class="vendor-sidebar">
+              <!-- 弹出内容 -->
+              <div v-if="availableVendors.length > 0" class="model-selector-popup">
+                <NLayout has-sider style="height: 400px">
+                  <!-- 左侧供应商列表 -->
+                  <NLayoutSider :width="180" bordered class="vendor-sidebar">
+                    <NScrollbar style="height: 100%">
+                      <div class="vendor-list">
+                        <div
+                          v-for="vendor in availableVendors"
+                          :key="vendor.key"
+                          class="vendor-item"
+                          :class="{ active: activeVendor === vendor.key }"
+                          @mouseenter="handleVendorHover(vendor.key)"
+                        >
+                          <span class="vendor-name">{{ vendor.label }}</span>
+                        </div>
+                      </div>
+                    </NScrollbar>
+                  </NLayoutSider>
+
+                  <!-- 右侧模型列表 -->
+                  <NLayout class="model-content">
+                    <NLayoutHeader bordered class="search-header">
+                      <NInput
+                        v-model:value="modelSearch"
+                        placeholder="🔍 搜索模型名称..."
+                        clearable
+                        size="small"
+                      />
+                    </NLayoutHeader>
+                    <NLayoutContent>
                       <NScrollbar style="height: 100%">
-                        <div class="vendor-list">
-                          <div
-                            v-for="vendor in availableVendors"
-                            :key="vendor.key"
-                            class="vendor-item"
-                            :class="{ active: activeVendor === vendor.key }"
-                            @mouseenter="handleVendorHover(vendor.key)"
+                        <div v-if="currentVendorModels.length === 0" class="empty-state">
+                          {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
+                        </div>
+                        <NList v-else bordered>
+                          <NListItem
+                            v-for="model in currentVendorModels"
+                            :key="model.id"
+                            class="model-item"
+                            :class="{ selected: selectedModelFromPopover === model.id }"
+                            @click="handleSelectModel(model)"
                           >
-                            <span class="vendor-name">{{ vendor.label }}</span>
+                            <div class="model-item-content">
+                              <div class="model-info">
+                                <span class="model-name">{{ model.displayName }}</span>
+                              </div>
+                              <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
+                                <CheckmarkOutline />
+                              </NIcon>
+                            </div>
+                          </NListItem>
+                        </NList>
+                      </NScrollbar>
+                    </NLayoutContent>
+                  </NLayout>
+                </NLayout>
+              </div>
+              <div v-else class="empty-vendor">
+                <p>暂无可用模型</p>
+                <p class="text-sm text-gray-500 mt-2">
+                  请先在设置中配置模型
+                </p>
+              </div>
+            </NPopover>
+          </div>
+          <div class="flex items-center space-x-2">
+            <HoverButton v-if="!isMobile" @click="handleExport">
+              <span class="text-xl text-[#4f555e] dark:text-white">
+                <SvgIcon icon="ri:download-2-line" />
+              </span>
+            </HoverButton>
+          </div>
+        </header>
+
+        <!-- 聊天区域主体 -->
+        <main class="flex-1 overflow-hidden flex flex-col relative bg-white dark:bg-[#161618]">
+          <div
+            class="flex-1 overflow-hidden transition-all duration-300"
+            :style="{
+              marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
+            }"
+          >
+            <article class="h-full overflow-hidden flex flex-col bg-white dark:bg-[#161618]">
+              <div class="flex-1 overflow-hidden">
+                <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
+                  <div
+                    class="w-full max-w-screen-xl m-auto bg-white dark:bg-[#161618]"
+                    :class="[isMobile ? 'p-2' : 'p-4']"
+                  >
+                    <div id="image-wrapper" class="relative">
+                      <template v-if="!dataSources.length">
+                        <div class="flex items-center justify-center mt-4 text-center text-neutral-400 dark:text-neutral-500">
+                          <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
+                          <span>{{ t('chat.newChatTitle') }}</span>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div>
+                          <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
+                          <div v-if="!isMobile" class="h-24" />
+                          <Message
+                            v-for="(item, index) of dataSources"
+                            :key="index"
+                            :date-time="item.dateTime"
+                            :text="item.text"
+                            :inversion="item.inversion"
+                            :error="item.error"
+                            :loading="item.loading"
+                            @regenerate="onRegenerate(index)"
+                            @delete="handleDelete(index)"
+                          />
+                          <div class="sticky bottom-0 left-0 flex justify-center">
+                            <NButton v-if="loading" type="warning" @click="handleStop">
+                              <template #icon>
+                                <SvgIcon icon="ri:stop-circle-line" />
+                              </template>
+                              {{ t('common.stopResponding') }}
+                            </NButton>
                           </div>
                         </div>
-                      </NScrollbar>
-                    </NLayoutSider>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                    <!-- 右侧模型列表 -->
-                    <NLayout class="model-content">
-                      <NLayoutHeader bordered class="search-header">
+              <!-- Footer 固定在底部 -->
+              <footer :class="footerClass">
+                <div class="w-full max-w-screen-xl m-auto">
+                  <div class="flex items-center justify-between space-x-2">
+                    <HoverButton v-if="!isMobile" @click="handleClear">
+                      <span class="text-xl text-[#4f555e] dark:text-white">
+                        <SvgIcon icon="ri:delete-bin-line" />
+                      </span>
+                    </HoverButton>
+                    <HoverButton v-if="!isMobile" @click="handleExport">
+                      <span class="text-xl text-[#4f555e] dark:text-white">
+                        <SvgIcon icon="ri:download-2-line" />
+                      </span>
+                    </HoverButton>
+                    <HoverButton @click="toggleUsingContext">
+                      <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
+                        <SvgIcon icon="ri:chat-history-line" />
+                      </span>
+                    </HoverButton>
+                    <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
+                      <template #default="{ handleInput, handleBlur, handleFocus }">
                         <NInput
-                          v-model:value="modelSearch"
-                          placeholder="🔍 搜索模型名称..."
-                          clearable
-                          size="small"
+                          ref="inputRef"
+                          v-model:value="prompt"
+                          type="textarea"
+                          :placeholder="placeholder"
+                          :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
+                          style="font-size: 16px; line-height: 1.5;"
+                          @input="handleInput"
+                          @focus="handleFocus"
+                          @blur="handleBlur"
+                          @keypress="handleEnter"
                         />
-                      </NLayoutHeader>
-                      <NLayoutContent>
-                        <NScrollbar style="height: 100%">
-                          <div v-if="currentVendorModels.length === 0" class="empty-state">
-                            {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
-                          </div>
-                          <NList v-else bordered>
-                            <NListItem
-                              v-for="model in currentVendorModels"
-                              :key="model.id"
-                              class="model-item"
-                              :class="{ selected: selectedModelFromPopover === model.id }"
-                              @click="handleSelectModel(model)"
-                            >
-                              <div class="model-item-content">
-                                <div class="model-info">
-                                  <span class="model-name">{{ model.displayName }}</span>
-                                </div>
-                                <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
-                                  <CheckmarkOutline />
-                                </NIcon>
-                              </div>
-                            </NListItem>
-                          </NList>
-                        </NScrollbar>
-                      </NLayoutContent>
-                    </NLayout>
-                  </NLayout>
+                      </template>
+                    </NAutoComplete>
+                    <NButton type="primary" :disabled="buttonDisabled" size="large" @click="handleSubmit">
+                      <template #icon>
+                        <span class="dark:text-black">
+                          <SvgIcon icon="ri:send-plane-fill" />
+                        </span>
+                      </template>
+                    </NButton>
+                  </div>
                 </div>
-                <div v-else class="empty-vendor">
-                  <p>暂无可用模型</p>
-                  <p class="text-sm text-gray-500 mt-2">
-                    请先在设置中配置模型
-                  </p>
-                </div>
-              </NPopover>
-            </div>
-            <div class="flex items-center space-x-2">
-              <HoverButton v-if="!isMobile" @click="handleExport">
-                <span class="text-xl text-[#4f555e] dark:text-white">
-                  <SvgIcon icon="ri:download-2-line" />
-                </span>
-              </HoverButton>
-            </div>
-          </header>
+              </footer>
+            </article>
+          </div>
 
-          <!-- 聊天区域主体 -->
-          <main class="flex-1 overflow-hidden flex flex-col relative bg-white dark:bg-[#161618]">
+          <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
+          <div
+            v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
+            class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
+            @click="toggleRightSider"
+          >
+            <SvgIcon
+              icon="ri:arrow-left-s-line"
+              class="text-lg text-neutral-600 dark:text-neutral-400"
+            />
+          </div>
+
+          <!-- 右侧侧边栏 -->
+          <aside
+            v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
+            class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
+            :style="{
+              width: `${rightSiderWidth}%`,
+            }"
+          >
+            <!-- 拖拽调整宽度的分隔条 -->
             <div
-              class="flex-1 overflow-hidden transition-all duration-300"
-              :style="{
-                marginRight: (chatStore.chatMode === 'noteToQuestion' || chatStore.chatMode === 'noteToStory') && !isMobile && !rightSiderCollapsed ? `${rightSiderWidth}%` : '0',
-              }"
+              class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors group"
+              @mousedown="handleResizeStart"
             >
-              <article class="h-full overflow-hidden flex flex-col bg-white dark:bg-[#161618]">
-                <div class="flex-1 overflow-hidden">
-                  <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
-                    <div
-                      class="w-full max-w-screen-xl m-auto bg-white dark:bg-[#161618]"
-                      :class="[isMobile ? 'p-2' : 'p-4']"
-                    >
-                      <div id="image-wrapper" class="relative">
-                        <template v-if="!dataSources.length">
-                          <div class="flex items-center justify-center mt-4 text-center text-neutral-400 dark:text-neutral-500">
-                            <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
-                            <span>{{ t('chat.newChatTitle') }}</span>
-                          </div>
-                        </template>
-                        <template v-else>
-                          <div>
-                            <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
-                            <div v-if="!isMobile" class="h-24" />
-                            <Message
-                              v-for="(item, index) of dataSources"
-                              :key="index"
-                              :date-time="item.dateTime"
-                              :text="item.text"
-                              :inversion="item.inversion"
-                              :error="item.error"
-                              :loading="item.loading"
-                              @regenerate="onRegenerate(index)"
-                              @delete="handleDelete(index)"
-                            />
-                            <div class="sticky bottom-0 left-0 flex justify-center">
-                              <NButton v-if="loading" type="warning" @click="handleStop">
-                                <template #icon>
-                                  <SvgIcon icon="ri:stop-circle-line" />
-                                </template>
-                                {{ t('common.stopResponding') }}
-                              </NButton>
-                            </div>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Footer 固定在底部 -->
-                <footer :class="footerClass">
-                  <div class="w-full max-w-screen-xl m-auto">
-                    <div class="flex items-center justify-between space-x-2">
-                      <HoverButton v-if="!isMobile" @click="handleClear">
-                        <span class="text-xl text-[#4f555e] dark:text-white">
-                          <SvgIcon icon="ri:delete-bin-line" />
-                        </span>
-                      </HoverButton>
-                      <HoverButton v-if="!isMobile" @click="handleExport">
-                        <span class="text-xl text-[#4f555e] dark:text-white">
-                          <SvgIcon icon="ri:download-2-line" />
-                        </span>
-                      </HoverButton>
-                      <HoverButton @click="toggleUsingContext">
-                        <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
-                          <SvgIcon icon="ri:chat-history-line" />
-                        </span>
-                      </HoverButton>
-                      <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
-                        <template #default="{ handleInput, handleBlur, handleFocus }">
-                          <NInput
-                            ref="inputRef"
-                            v-model:value="prompt"
-                            type="textarea"
-                            :placeholder="placeholder"
-                            :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
-                            style="font-size: 16px; line-height: 1.5;"
-                            @input="handleInput"
-                            @focus="handleFocus"
-                            @blur="handleBlur"
-                            @keypress="handleEnter"
-                          />
-                        </template>
-                      </NAutoComplete>
-                      <NButton type="primary" :disabled="buttonDisabled" size="large" @click="handleSubmit">
-                        <template #icon>
-                          <span class="dark:text-black">
-                            <SvgIcon icon="ri:send-plane-fill" />
-                          </span>
-                        </template>
-                      </NButton>
-                    </div>
-                  </div>
-                </footer>
-              </article>
+              <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-neutral-300 dark:bg-neutral-600 group-hover:bg-blue-500 rounded-full transition-colors" />
             </div>
 
-            <!-- 右侧侧边栏展开/收起按钮（仅在收起时显示） -->
+            <!-- 收起按钮 -->
             <div
-              v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && rightSiderCollapsed"
-              class="absolute right-0 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all duration-300 shadow-md z-10"
+              class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
               @click="toggleRightSider"
             >
               <SvgIcon
-                icon="ri:arrow-left-s-line"
+                icon="ri:arrow-right-s-line"
                 class="text-lg text-neutral-600 dark:text-neutral-400"
               />
             </div>
 
-            <!-- 右侧侧边栏 -->
-            <aside
-              v-if="(chatStore.chatMode === 'noteToStory' || chatStore.chatMode === 'noteToQuestion') && !isMobile && !rightSiderCollapsed"
-              class="absolute right-0 top-0 bottom-0 bg-white dark:bg-[#161618] border-l border-neutral-200 dark:border-neutral-700 transition-all duration-300 flex flex-col shadow-lg"
-              :style="{
-                width: `${rightSiderWidth}%`,
-              }"
-            >
-              <!-- 拖拽调整宽度的分隔条 -->
+            <!-- 右侧内容区域 -->
+            <div class="flex-1 overflow-hidden flex flex-col">
+              <!-- 笔记转题目 -->
               <div
-                class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 transition-colors group"
-                @mousedown="handleResizeStart"
+                v-if="chatStore.chatMode === 'noteToQuestion'"
+                class="flex-1 overflow-y-auto p-4"
               >
-                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-neutral-300 dark:bg-neutral-600 group-hover:bg-blue-500 rounded-full transition-colors" />
-              </div>
-
-              <!-- 收起按钮 -->
-              <div
-                class="absolute -left-8 top-[15px] w-8 h-8 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-700 rounded-l-lg flex items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-md"
-                @click="toggleRightSider"
-              >
-                <SvgIcon
-                  icon="ri:arrow-right-s-line"
-                  class="text-lg text-neutral-600 dark:text-neutral-400"
-                />
-              </div>
-
-              <!-- 右侧内容区域 -->
-              <div class="flex-1 overflow-hidden flex flex-col">
-                <!-- 笔记转题目 -->
-                <div
-                  v-if="chatStore.chatMode === 'noteToQuestion'"
-                  class="flex-1 overflow-y-auto p-4"
+                <NUpload
+                  directory-dnd
+                  :show-file-list="true"
+                  :default-upload="true"
+                  action="/api/upload"
+                  :max="1"
+                  :on-before-upload="handleBeforeUpload"
+                  :on-change="handleUploadChange"
+                  :on-finish="handleUploadSuccess"
+                  :on-error="handleUploadError"
+                  :on-remove="handleUploadRemove"
                 >
-                  <NUpload
-                    directory-dnd
-                    :show-file-list="true"
-                    :default-upload="true"
-                    action="/api/upload"
-                    :max="1"
-                    :on-before-upload="handleBeforeUpload"
-                    :on-change="handleUploadChange"
-                    :on-finish="handleUploadSuccess"
-                    :on-error="handleUploadError"
-                    :on-remove="handleUploadRemove"
-                  >
-                    <NUploadDragger>
-                      <div style="margin-bottom: 12px;">
-                        <SvgIcon icon="ri:folder-upload-fill" class="mx-auto text-3xl" />
-                      </div>
-                      <NText depth="3">
-                        将文件拖拽到此处，或点击选择文件
-                      </NText>
-                      <div style="margin-top: 8px;" class="text-xs text-neutral-500">
-                        支持TXT、PDF、Markdown、Word等纯文本文件
-                      </div>
-                    </NUploadDragger>
-                  </NUpload>
-
-                  <!-- 工作流阶段展示 -->
-                  <div class="mt-4">
-                    <!-- 题目配置阶段 -->
-                    <QuizConfig
-                      v-if="workflowStage === 'config' || workflowStage === 'generating'"
-                      :loading="quizLoading || workflowStage === 'generating'"
-                      @submit="handleQuizConfigSubmit"
-                    />
-
-                    <!-- 题目预览阶段 -->
-                    <QuizPreview
-                      v-else-if="workflowStage === 'preview'"
-                      :questions="generatedQuestions"
-                      :score-distribution="scoreDistribution"
-                      @accept="handleQuizAccept"
-                      @reject="handleQuizReject"
-                      @revise="handleQuizRevise"
-                    />
-
-                    <!-- 答题阶段 -->
-                    <QuizAnswer
-                      v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
-                      :questions="generatedQuestions"
-                      :score-distribution="scoreDistribution"
-                      @submit="handleQuizSubmit"
-                    />
-
-                    <!-- 空闲状态提示 -->
-                    <div
-                      v-else-if="workflowStage === 'idle' && !uploadedFilePath"
-                      class="text-center text-neutral-500 dark:text-neutral-400"
-                    >
-                      <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
-                      <p>笔记转题目功能</p>
-                      <p class="text-sm mt-1">
-                        请上传笔记文件
-                      </p>
+                  <NUploadDragger>
+                    <div style="margin-bottom: 12px;">
+                      <SvgIcon icon="ri:folder-upload-fill" class="mx-auto text-3xl" />
                     </div>
-                  </div>
-                </div>
+                    <NText depth="3">
+                      将文件拖拽到此处，或点击选择文件
+                    </NText>
+                    <div style="margin-top: 8px;" class="text-xs text-neutral-500">
+                      支持TXT、PDF、Markdown、Word等纯文本文件
+                    </div>
+                  </NUploadDragger>
+                </NUpload>
 
-                <!-- 笔记转故事 -->
-                <div
-                  v-if="chatStore.chatMode === 'noteToStory'"
-                  class="flex-1 overflow-y-auto p-4"
-                >
-                  <div class="text-center text-neutral-500 dark:text-neutral-400">
-                    <SvgIcon icon="ri:book-open-line" class="mx-auto mb-2 text-4xl" />
-                    <p>
-                      笔记转故事功能
-                    </p>
+                <!-- 工作流阶段展示 -->
+                <div class="mt-4">
+                  <!-- 题目配置阶段 -->
+                  <QuizConfig
+                    v-if="workflowStage === 'config' || workflowStage === 'generating'"
+                    :loading="quizLoading || workflowStage === 'generating'"
+                    @submit="handleQuizConfigSubmit"
+                  />
+
+                  <!-- 题目预览阶段 -->
+                  <QuizPreview
+                    v-else-if="workflowStage === 'preview'"
+                    :questions="generatedQuestions"
+                    :score-distribution="scoreDistribution"
+                    @accept="handleQuizAccept"
+                    @reject="handleQuizReject"
+                    @revise="handleQuizRevise"
+                  />
+
+                  <!-- 答题阶段 -->
+                  <QuizAnswer
+                    v-else-if="workflowStage === 'answering' || workflowStage === 'finished'"
+                    :questions="generatedQuestions"
+                    :score-distribution="scoreDistribution"
+                    @submit="handleQuizSubmit"
+                  />
+
+                  <!-- 空闲状态提示 -->
+                  <div
+                    v-else-if="workflowStage === 'idle' && !uploadedFilePath"
+                    class="text-center text-neutral-500 dark:text-neutral-400"
+                  >
+                    <SvgIcon icon="ri:file-text-line" class="mx-auto mb-2 text-4xl" />
+                    <p>笔记转题目功能</p>
                     <p class="text-sm mt-1">
-                      此功能正在开发中...
+                      请上传笔记文件
                     </p>
                   </div>
                 </div>
               </div>
-            </aside>
-          </main>
-        </div>
-      </transition>
-    </div>
+
+              <!-- 笔记转故事 -->
+              <div
+                v-if="chatStore.chatMode === 'noteToStory'"
+                class="flex-1 overflow-y-auto p-4"
+              >
+                <div class="text-center text-neutral-500 dark:text-neutral-400">
+                  <SvgIcon icon="ri:book-open-line" class="mx-auto mb-2 text-4xl" />
+                  <p>
+                    笔记转故事功能
+                  </p>
+                  <p class="text-sm mt-1">
+                    此功能正在开发中...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </main>
+      </div>
+    </transition>
+  </div>
 </template>
 
 <style scoped>

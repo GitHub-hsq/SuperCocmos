@@ -36,10 +36,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     // TODO: 从 Auth0 获取用户信息
     // 临时：允许所有请求通过
     console.warn('⚠️ [Auth] 临时跳过登录检查（Auth0 待集成）')
-    
+
     // 临时：使用模拟用户 ID
     req.userId = 'temp-user-id'
-    
+
     next()
   }
   catch (error: any) {
@@ -60,10 +60,10 @@ export async function requireAuthWithUser(req: Request, res: Response, next: Nex
   try {
     // TODO: 从 Auth0 获取用户信息并查询数据库
     console.warn('⚠️ [Auth] 临时跳过用户加载（Auth0 待集成）')
-    
+
     req.userId = 'temp-user-id'
     req.dbUserId = 'temp-db-user-id'
-    
+
     next()
   }
   catch (error: any) {
@@ -84,10 +84,10 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   try {
     // TODO: 从 Auth0 获取用户信息并检查角色
     console.warn('⚠️ [Auth] 临时跳过管理员检查（Auth0 待集成）')
-    
+
     req.userId = 'temp-admin-id'
     req.dbUserId = 'temp-db-admin-id'
-    
+
     next()
   }
   catch (error: any) {

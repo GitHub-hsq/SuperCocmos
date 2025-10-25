@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { NButton, NCheckbox, NCheckboxGroup, NForm, NFormItem, NInput, NSpace, NSwitch } from 'naive-ui'
-import { ref, watch, onMounted } from 'vue'
-import { getAllRoles, getModelRoles, setModelRoles } from '@/api/services/roleService'
 import type { Role } from '@/api/services/roleService'
+import { NButton, NCheckbox, NCheckboxGroup, NForm, NFormItem, NInput, NSpace, NSwitch } from 'naive-ui'
+import { onMounted, ref, watch } from 'vue'
+import { getAllRoles, getModelRoles, setModelRoles } from '@/api/services/roleService'
 
 interface Model {
   id?: string
@@ -113,7 +113,7 @@ async function handleSubmit() {
     if (props.model?.id) {
       await setModelRoles(props.model.id, selectedRoleIds.value)
     }
-    
+
     // 提取需要提交的数据，排除id字段
     // eslint-disable-next-line unused-imports/no-unused-vars
     const { id, ...submitData } = formData.value

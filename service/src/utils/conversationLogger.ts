@@ -4,7 +4,7 @@
  * 便于调试上下文注入是否成功
  */
 
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**

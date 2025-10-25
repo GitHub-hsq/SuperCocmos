@@ -1,24 +1,46 @@
-/* eslint-disable no-console */
 /**
  * 认证控制器
- * TODO: 更新为 Auth0 认证
+ * 支持 Auth0 认证
  */
 
 import type { Request, Response } from 'express'
-import { findUserByClerkId } from '../db/supabaseUserService'
+import { findUserByAuth0Id } from '../db/supabaseUserService'
 import { getUserWithRoles } from '../db/userRoleService'
 
 /**
- * Webhook 处理器
- * TODO: 更新为 Auth0 Webhook
+ * Auth0 Webhook 处理器
+ */
+export async function handleAuth0Webhook(req: Request, res: Response) {
+  try {
+    console.log('📥 [Auth0 Webhook] 接收到 Auth0 Webhook 请求')
+    // TODO: 实现 Auth0 Webhook 处理逻辑
+    console.warn('⚠️ [Webhook] Auth0 Webhook 处理逻辑待实现')
+    return res.status(200).send({
+      status: 'Success',
+      message: 'Auth0 Webhook received',
+      data: null,
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [Auth0 Webhook] 处理失败:', error.message)
+    return res.status(500).send({
+      status: 'Fail',
+      message: error?.message || String(error),
+      data: null,
+    })
+  }
+}
+
+/**
+ * Clerk Webhook 处理器（已废弃）
+ * @deprecated 使用 handleAuth0Webhook 替代
  */
 export async function handleClerkWebhook(req: Request, res: Response) {
   try {
-    // TODO: 实现 Auth0 Webhook
-    console.warn('⚠️ [Webhook] Clerk Webhook 已废弃，待实现 Auth0 Webhook')
+    console.warn('⚠️ [Webhook] Clerk Webhook 已废弃，请使用 Auth0 Webhook')
     return res.status(501).send({
       status: 'Fail',
-      message: 'Webhook not implemented',
+      message: 'Clerk Webhook deprecated, use Auth0 Webhook',
       data: null,
     })
   }
@@ -49,7 +71,7 @@ export async function getCurrentUser(req: Request, res: Response) {
     }
 
     // 从用户 ID 获取用户信息
-    const user = await findUserByClerkId(userId)
+    const user = await findUserByAuth0Id(userId)
     if (!user) {
       return res.status(404).send({
         status: 'Fail',

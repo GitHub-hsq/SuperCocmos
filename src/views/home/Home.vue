@@ -1,14 +1,58 @@
 <script setup lang="ts">
+import { useAuth0 } from '@auth0/auth0-vue'
 import { NButton, NCollapse, NCollapseItem } from 'naive-ui'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const { t } = useI18n()
+const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0()
 
+// 检查是否是切换账号操作
+onMounted(() => {
+  const urlParams = new URLSearchParams(window.location.search)
+  if (urlParams.has('switchAccount')) {
+    // 清理 URL 参数
+    window.history.replaceState({}, '', '/')
+    // 自动触发登录
+    setTimeout(() => {
+      goToSignIn()
+    }, 500)
+  }
+})
+
+/**
+ * 立即开始 - 跳转到 Auth0 登录或聊天页面
+ */
 function goToSignIn() {
-  router.push('/signin')
+  // 1. 等待 Auth0 初始化完成
+  if (isLoading.value) {
+    // 等待初始化完成后再次检查
+    const checkInterval = setInterval(() => {
+      if (!isLoading.value) {
+        clearInterval(checkInterval)
+        goToSignIn() // 递归调用，重新检查登录状态
+      }
+    }, 100)
+    return
+  }
+
+  // 2. 如果已登录，直接进入聊天页面
+  if (isAuthenticated.value) {
+    router.push('/chat')
+  }
+  else {
+    // 3. 未登录，跳转到 Auth0 登录页面
+    loginWithRedirect({
+      appState: {
+        target: '/chat', // 登录成功后跳转到聊天页面
+      },
+      authorizationParams: {
+        prompt: 'login', // 🔑 强制显示登录页面，允许切换账号
+      },
+    })
+  }
 }
 
 function scrollToSection(sectionId: string) {

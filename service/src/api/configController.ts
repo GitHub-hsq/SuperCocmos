@@ -15,7 +15,7 @@ import {
   updateUserSettings,
   updateWorkflowConfig,
 } from '../db/configService'
-import { findUserByClerkId } from '../db/supabaseUserService'
+import { findUserByAuth0Id } from '../db/supabaseUserService'
 
 /**
  * 获取当前用户的数据库 user_id
@@ -28,7 +28,7 @@ async function getUserIdFromRequest(req: Request): Promise<string | null> {
   }
 
   try {
-    const user = await findUserByClerkId(userId)
+    const user = await findUserByAuth0Id(userId)
     return user?.user_id || null
   }
   catch (error: any) {

@@ -1,12 +1,13 @@
 <script setup lang='ts'>
 import type { CSSProperties } from 'vue'
-import { NButton, NLayoutSider, NTag, useDialog } from 'naive-ui'
+import { NButton, NLayoutSider, useDialog } from 'naive-ui'
 import { nanoid } from 'nanoid'
 import { computed, ref, watch } from 'vue'
 import { PromptStore, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { useAppStore, useAuthStore, useChatStore } from '@/store'
+import Profile from '@/views/chat/components/User/Profile.vue'
 import List from './List.vue'
 
 const appStore = useAppStore()
@@ -20,71 +21,26 @@ const show = ref(false)
 
 const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 
-// 获取用户角色（优先使用 roles 数组，兼容单个 role 字段）
-const userRoles = computed(() => {
-  const roles = authStore.userInfo?.roles || []
-  const singleRole = authStore.userInfo?.role
-
-  // 如果 roles 数组为空，使用单个 role 字段
-  if (roles.length === 0 && singleRole) {
-    return [singleRole]
-  }
-
-  return roles
-})
-
-// 获取主要显示的角色（优先级：Admin > Ultra > Pro > Free）
-const primaryRole = computed(() => {
-  const roles = userRoles.value
-
-  // 检查是否为管理员（不区分大小写）
-  if (roles.some(r => r.toLowerCase() === 'admin')) {
-    return 'Admin'
-  }
-
-  // 按会员等级优先级排序
-  if (roles.includes('Ultra'))
-    return 'Ultra'
-  if (roles.includes('Pro'))
-    return 'Pro'
-  if (roles.includes('free') || roles.includes('Free'))
-    return 'Free'
-
-  // 默认返回免费用户（兼容旧数据）
-  return 'Free'
-})
-
-// 用户角色显示文本
-const roleText = computed(() => {
-  const roleMap: Record<string, string> = {
-    Admin: '超级管理员',
-    Ultra: 'Ultra会员',
-    Pro: 'Pro会员',
-    Free: '免费用户',
-  }
-
-  return roleMap[primaryRole.value] || '免费用户'
-})
-
-// 角色标签类型
-const roleTagType = computed(() => {
-  const typeMap: Record<string, 'error' | 'warning' | 'success' | 'info'> = {
-    Admin: 'error', // 红色 - 管理员
-    Ultra: 'warning', // 橙色 - Ultra会员
-    Pro: 'success', // 绿色 - Pro会员
-    Free: 'info', // 蓝色 - 免费用户
-  }
-
-  return typeMap[primaryRole.value] || 'info'
-})
-
 // 计算属性：从 store 获取设置页面状态
 const showSettingsPage = computed(() => appStore.showSettingsPage)
 const activeSettingTab = computed(() => appStore.activeSettingTab)
 
 // 判断是否为管理员
 const isAdmin = computed(() => {
-  return primaryRole.value === 'Admin'
+  const roles = authStore.userInfo?.roles || []
+  const singleRole = authStore.userInfo?.role
+
+  // 检查 roles 数组
+  if (roles.some((r: string) => r.toLowerCase() === 'admin')) {
+    return true
+  }
+
+  // 兼容单个 role 字段
+  if (singleRole && singleRole.toLowerCase() === 'admin') {
+    return true
+  }
+
+  return false
 })
 
 // 设置导航项列表
@@ -316,15 +272,12 @@ watch(
         </div>
       </div>
 
-      <!-- Footer - 独立于面板切换，根据状态显示不同图标 -->
+      <!-- Footer - 用户信息和设置按钮 -->
       <footer class="flex items-center justify-between min-w-0 p-4 overflow-hidden border-t dark:border-neutral-800">
-        <div class="flex items-center space-x-2 flex-1 min-w-0">
-          <!-- TODO: 添加 Auth0 用户按钮 -->
-          <!-- 用户角色标签 -->
-          <NTag :type="roleTagType" size="small" round>
-            {{ roleText }}
-          </NTag>
-        </div>
+        <!-- Auth0 用户信息组件 -->
+        <Profile />
+
+        <!-- 设置按钮 -->
         <NButton quaternary circle @click="showSettingsPage ? handleBackToMenu() : handleShowSettings()">
           <template #icon>
             <span class="text-xl text-[#4f555e] dark:text-white">

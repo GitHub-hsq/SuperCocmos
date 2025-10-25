@@ -1,20 +1,91 @@
 <script setup lang="ts">
+import { useAuth0 } from '@auth0/auth0-vue'
 import { NConfigProvider } from 'naive-ui'
-import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { getCurrentUser } from '@/api/services/authService'
+import { onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { syncAuth0UserToSupabase } from '@/api/services/auth0Service'
+import { setAuth0Client } from '@/auth'
 import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
-import { useAppStore, useAuthStore, useConfigStore, useUserStore } from '@/store'
+import { setupAuthGuard } from '@/router'
+import { useAuthStore } from '@/store'
 
-const route = useRoute()
+// ✅ 初始化 Auth0 客户端实例
+const auth0Client = useAuth0()
+// 设置路由守卫,传入Auth0客户端实例
+setupAuthGuard(auth0Client)
+const router = useRouter()
 const { theme, themeOverrides } = useTheme()
 const { language } = useLanguage()
-const appStore = useAppStore()
 const authStore = useAuthStore()
-const userStore = useUserStore()
-const configStore = useConfigStore()
+
+// 用户同步状态
+const hasSyncedUser = ref(false)
+
+// 保存 Auth0 客户端实例，供路由守卫使用
+setAuth0Client(auth0Client)
+
+// 🎯 监听 Auth0 认证状态变化，处理登录后跳转和用户同步
+const hasHandledLoginRedirect = ref(false)
+const isAuthLoading = ref(false) // 认证后跳转的 Loading 状态
+
+watch(
+  () => [auth0Client.isLoading.value, auth0Client.isAuthenticated.value] as const,
+  async (newVals, oldVals) => {
+    const [isLoading, isAuthenticated] = newVals
+    const [wasLoading] = oldVals || [true, false]
+
+    // 当从加载中变为加载完成，且用户已登录
+    if (wasLoading && !isLoading && isAuthenticated && !hasHandledLoginRedirect.value) {
+      hasHandledLoginRedirect.value = true
+
+      // 检查 URL 是否包含 code 参数（说明是从 Auth0 登录回来的）
+      const urlParams = new URLSearchParams(window.location.search)
+      const isFromAuth0 = urlParams.has('code') || urlParams.has('state')
+
+      if (isFromAuth0) {
+        // 显示全局 Loading
+        isAuthLoading.value = true
+
+        // 立即跳转（不等待同步完成）
+        router.push('/chat').then(() => {
+          // 路由跳转完成后，延迟关闭 Loading（确保页面渲染完成）
+          setTimeout(() => {
+            isAuthLoading.value = false
+          }, 300)
+        })
+      }
+
+      // 🔐 异步同步用户到 Supabase（不阻塞登录流程）
+      if (auth0Client.user.value && !hasSyncedUser.value) {
+        hasSyncedUser.value = true // 立即标记，避免重复调用
+
+        // 异步执行，不阻塞
+        syncAuth0UserToSupabase(auth0Client.user.value)
+          .then((result) => {
+            if (result.success) {
+              console.warn('✅ 用户已同步到 Supabase:', result.data?.username)
+            }
+          })
+          .catch((error) => {
+            console.warn('⚠️ 同步用户失败（不影响使用）:', error.message)
+          })
+      }
+    }
+  },
+  { immediate: true },
+)
+
+// 监听错误（只显示非 Consent 错误）
+watch(
+  () => auth0Client.error.value,
+  (error) => {
+    if (error && !error.toString().includes('Consent required')) {
+      console.error('❌ [Auth0] 错误:', error)
+    }
+  },
+)
 
 // 🔥 开发环境：暴露 store 到 window 对象，方便调试
 if (import.meta.env.DEV) {
@@ -30,29 +101,34 @@ const isAppLoading = ref(true)
 // 应用启动时的初始化
 onMounted(async () => {
   try {
-    // TODO: 集成 Auth0 后，在这里检查登录状态并加载用户信息
-    
-    // 临时：快速显示页面
-    if (import.meta.env.DEV) {
-      console.warn('⚠️ [App] Auth0 尚未集成，跳过用户信息加载')
-    }
+    // 等待 Auth0 初始化完成
+    if (auth0Client.isLoading.value) {
+      // 等待 Auth0 加载完成
+      const checkAuth = setInterval(() => {
+        if (!auth0Client.isLoading.value) {
+          clearInterval(checkAuth)
+          isAppLoading.value = false
+        }
+      }, 100)
 
-    // 对于公开路由，立即显示页面
-    const isPublicRoute = route.meta?.public === true
-    if (isPublicRoute) {
+      // 超时保护（5秒后强制显示）
+      setTimeout(() => {
+        clearInterval(checkAuth)
+        isAppLoading.value = false
+      }, 5000)
+    }
+    else {
+      // Auth0 已加载完成
       isAppLoading.value = false
-      return
     }
 
-    // TODO: 非公开路由应该检查 Auth0 登录状态
-    // 临时：允许访问
-    console.warn('⚠️ [App] Auth0 尚未集成，暂时允许访问所有路由')
+    // 开发环境：输出认证状态
+    if (import.meta.env.DEV && auth0Client.isAuthenticated.value) {
+      console.warn('✅ [App] Auth0 已初始化，用户已登录')
+    }
   }
   catch (error) {
     console.error('❌ [App] 初始化失败:', error)
-  }
-  finally {
-    // 立即关闭 Loading
     isAppLoading.value = false
   }
 })
@@ -66,8 +142,8 @@ onMounted(async () => {
     :locale="language"
   >
     <NaiveProvider>
-      <!-- 应用启动Loading -->
-      <Loading v-if="isAppLoading" />
+      <!-- 应用启动Loading 或 认证后跳转Loading -->
+      <Loading v-if="isAppLoading || isAuthLoading" />
       <!-- 主应用内容 -->
       <RouterView v-else />
     </NaiveProvider>

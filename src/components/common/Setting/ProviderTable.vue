@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
-import { NButton, NDataTable, NPopconfirm, NSpace, NSwitch, NTag, NBadge } from 'naive-ui'
-import { ref, onMounted, h } from 'vue'
-import { SvgIcon } from '@/components/common'
-import { getAllRoles } from '@/api/services/roleService'
 import type { Role } from '@/api/services/roleService'
+import { NBadge, NButton, NDataTable, NPopconfirm, NSpace, NSwitch, NTag } from 'naive-ui'
+import { h, onMounted, ref } from 'vue'
+import { getAllRoles } from '@/api/services/roleService'
+import { SvgIcon } from '@/components/common'
 import ModelRoleDialog from './ModelRoleDialog.vue'
 
 interface ModelItem {
@@ -109,7 +109,6 @@ function handleToggleModel(model: ModelItem) {
 function handleAddModel(providerId: string) {
   emit('addModel', providerId)
 }
-
 
 // 处理编辑模型角色权限
 function handleEditModelRoles(model: ModelItem) {
@@ -225,21 +224,19 @@ const modelColumns: DataTableColumns<ModelItem> = [
       const roles = row.accessibleRoles || []
       if (roles.length === 0) {
         return h(NBadge, { value: '公开', type: 'info' }, {
-          default: () => h('span', { class: 'text-xs text-blue-600' }, '所有人')
+          default: () => h('span', { class: 'text-xs text-blue-600' }, '所有人'),
         })
       }
-      
+
       return h('div', { class: 'space-y-1' }, [
         h('div', { class: 'text-xs text-gray-600' }, `限制访问 (${roles.length}个角色)`),
-        h('div', { class: 'flex flex-wrap gap-1' }, 
-          roles.slice(0, 2).map((role: any) => 
-            h(NTag, { 
-              size: 'small', 
-              type: 'success' 
-            }, { default: () => role.roleName })
-          )
-        ),
-        roles.length > 2 && h('div', { class: 'text-xs text-gray-500' }, `+${roles.length - 2} 更多`)
+        h('div', { class: 'flex flex-wrap gap-1' }, roles.slice(0, 2).map((role: any) =>
+          h(NTag, {
+            size: 'small',
+            type: 'success',
+          }, { default: () => role.roleName }),
+        )),
+        roles.length > 2 && h('div', { class: 'text-xs text-gray-500' }, `+${roles.length - 2} 更多`),
       ])
     },
   },

@@ -32,6 +32,10 @@ export default {
     newChat: '新建聊天',
     settings: '设置',
     promptStore: '提示词商店',
+    accessDenied: '访问被拒绝',
+    noPermission: '您没有权限访问此页面，请联系管理员获取访问权限。',
+    goBack: '返回',
+    backToHome: '返回首页',
   },
   auth: {
     login: '登录您的账户',

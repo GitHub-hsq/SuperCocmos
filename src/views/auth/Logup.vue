@@ -339,8 +339,8 @@ import signupui from './SignUpUi.vue'
   }
 }
 
-// Clerk 组件容器
-.clerk-container {
+// Auth0 组件容器
+.auth0-container {
   width: 100%;
   max-width: 400px;
   margin: 0 auto;

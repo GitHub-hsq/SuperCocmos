@@ -51,11 +51,12 @@ export function useTheme() {
         document.documentElement.classList.add('dark')
       else
         document.documentElement.classList.remove('dark')
-      
+
       // 🔥 确保 body 元素也同步更新背景色
       if (dark) {
         document.body.style.backgroundColor = 'rgb(22, 22, 24)' // #161618
-      } else {
+      }
+      else {
         document.body.style.backgroundColor = 'white'
       }
     },

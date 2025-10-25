@@ -211,7 +211,7 @@ export async function deleteConversationMessages(
 export function estimateTokens(text: string): number {
   // 简单估算：中文1个字=1.5 tokens，英文1个单词=1.3 tokens
   const chineseChars = (text.match(/[\u4E00-\u9FA5]/g) || []).length
-  const englishWords = (text.match(/[a-zA-Z]+/g) || []).length
+  const englishWords = (text.match(/[a-z]+/gi) || []).length
 
   return Math.ceil(chineseChars * 1.5 + englishWords * 1.3)
 }
@@ -257,4 +257,3 @@ export async function getConversationContext(
     return []
   }
 }
-

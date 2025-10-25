@@ -184,7 +184,7 @@ onUnmounted(() => {
   margin: 8px 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   min-height: 120px; // 🔥 设置最小高度，让思考窗口更大
-  
+
   .thinking-header {
     display: flex;
     align-items: center;
@@ -192,17 +192,17 @@ onUnmounted(() => {
     margin-bottom: 12px;
     font-weight: 600;
     color: #475569;
-    
+
     .thinking-icon {
       font-size: 18px;
       animation: pulse 2s infinite;
     }
-    
+
     .thinking-title {
       font-size: 14px;
     }
   }
-  
+
   .thinking-text {
     font-size: 14px; // 🔥 增大字体
     line-height: 1.6;
@@ -224,11 +224,11 @@ onUnmounted(() => {
 .dark .thinking-content {
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   border-color: #475569;
-  
+
   .thinking-header {
     color: #cbd5e1;
   }
-  
+
   .thinking-text {
     color: #94a3b8;
     background: rgba(0, 0, 0, 0.3);
@@ -241,7 +241,8 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

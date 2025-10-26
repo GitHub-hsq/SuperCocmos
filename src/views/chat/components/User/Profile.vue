@@ -131,18 +131,21 @@ const userInitial = computed(() => {
   return name.charAt(0).toUpperCase()
 })
 
-// 获取主要显示的角色（优先级：Admin > Ultra > Pro > Free）
+// 获取主要显示的角色（优先级：Admin > Beta > Ultra > Plus > Pro > Free）
 const primaryRole = computed(() => {
   const roles = userRoles.value
 
   // 检查是否为管理员（不区分大小写）
-  if (roles.some(r => r.toLowerCase() === 'admin')) {
+  if (roles.some(r => r.toLowerCase() === 'admin'))
     return 'Admin'
-  }
 
   // 按会员等级优先级排序
+  if (roles.includes('Beta'))
+    return 'Beta'
   if (roles.includes('Ultra'))
     return 'Ultra'
+  if (roles.includes('Plus'))
+    return 'Plus'
   if (roles.includes('Pro'))
     return 'Pro'
   if (roles.includes('free') || roles.includes('Free'))
@@ -152,25 +155,37 @@ const primaryRole = computed(() => {
   return 'Free'
 })
 
-// 用户角色显示文本
+// 🔥 用户角色显示文本（格式：角色 + Plan）
 const roleText = computed(() => {
-  const roleMap: Record<string, string> = {
-    Admin: '超级管理员',
-    Ultra: 'Ultra会员',
-    Pro: 'Pro会员',
-    Free: '免费用户',
-  }
+  const role = primaryRole.value
 
-  return roleMap[primaryRole.value] || '免费用户'
+  // 特殊角色：管理员、内测等
+  if (role === 'Admin')
+    return 'Admin'
+  if (role === 'Beta')
+    return 'Beta'
+
+  // 付费会员：显示 "角色 Plan"
+  if (role === 'Ultra')
+    return 'Ultra Plan'
+  if (role === 'Plus')
+    return 'Plus Plan'
+  if (role === 'Pro')
+    return 'Pro Plan'
+
+  // 免费用户
+  return 'Free Plan'
 })
 
-// 角色标签类型
+// 🔥 角色标签类型（更鲜艳的配色）
 const roleTagType = computed(() => {
   const typeMap: Record<string, 'error' | 'warning' | 'success' | 'info'> = {
     Admin: 'error', // 红色 - 管理员
-    Ultra: 'warning', // 橙色 - Ultra会员
-    Pro: 'success', // 绿色 - Pro会员
-    Free: 'info', // 蓝色 - 免费用户
+    Beta: 'warning', // 橙色 - 内测
+    Ultra: 'warning', // 橙色 - Ultra
+    Plus: 'success', // 绿色 - Plus
+    Pro: 'success', // 绿色 - Pro
+    Free: 'info', // 蓝色 - 免费
   }
 
   return typeMap[primaryRole.value] || 'info'

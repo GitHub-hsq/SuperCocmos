@@ -15,7 +15,8 @@ export interface SupabaseUser {
   phone?: string
   status: number
   login_method: string
-  clerk_id?: string
+  clerk_id?: string // ⚠️ 已废弃字段，保留用于向后兼容
+  auth0_id?: string // Auth0 用户 ID (sub)
   avatar_url?: string
   provider?: string
   created_at: string
@@ -30,7 +31,8 @@ export interface CreateUserInput {
   password?: string
   phone?: string
   login_method?: string
-  clerk_id?: string
+  clerk_id?: string // ⚠️ 已废弃，使用 auth0_id
+  auth0_id?: string // Auth0 用户 ID (sub)
   avatar_url?: string
   provider?: string
 }
@@ -44,7 +46,8 @@ export interface UpdateUserInput {
   avatar_url?: string
   last_login_at?: string
   department_id?: number
-  clerk_id?: string
+  clerk_id?: string // ⚠️ 已废弃，使用 auth0_id
+  auth0_id?: string // Auth0 用户 ID (sub)
   provider?: string
   login_method?: string
 }
@@ -65,7 +68,7 @@ export async function createUser(input: CreateUserInput): Promise<SupabaseUser> 
         password: hashedPassword,
         phone: input.phone,
         login_method: input.login_method || 'email',
-        clerk_id: input.clerk_id,
+        auth0_id: input.auth0_id, // 使用 auth0_id 字段存储 Auth0 ID
         avatar_url: input.avatar_url,
         provider: input.provider,
         status: 1, // 默认激活
@@ -118,7 +121,7 @@ export async function findUserByAuth0Id(auth0Id: string): Promise<SupabaseUser |
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('clerk_id', auth0Id) // 复用 clerk_id 字段存储 auth0_id
+      .eq('auth0_id', auth0Id)
       .single()
 
     if (error) {
@@ -133,14 +136,6 @@ export async function findUserByAuth0Id(auth0Id: string): Promise<SupabaseUser |
     console.error('❌ [SupabaseUserService] 查找用户失败:', error.message)
     return null
   }
-}
-
-/**
- * 根据 Clerk ID 查找用户（已废弃，保留兼容性）
- * @deprecated 使用 findUserByAuth0Id 替代
- */
-export async function findUserByClerkId(clerkId: string): Promise<SupabaseUser | null> {
-  return findUserByAuth0Id(clerkId)
 }
 
 /**
@@ -314,6 +309,95 @@ export async function getAllUsers(): Promise<SupabaseUser[]> {
 }
 
 /**
+ * 同步用户角色到数据库
+ * 根据 Auth0 的角色名称（role_name）同步到 user_roles 表
+ */
+async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Promise<void> {
+  try {
+    if (!auth0Roles || auth0Roles.length === 0) {
+      console.warn('⚠️ [UserRoleSync] 无角色需要同步')
+      return
+    }
+
+    console.warn(`🔄 [UserRoleSync] 开始同步角色: ${auth0Roles.join(', ')}`)
+
+    // 1. 根据 role_name 查找数据库中的角色
+    const { data: dbRoles, error: rolesError } = await supabase
+      .from('roles')
+      .select('role_id, role_name')
+      .in('role_name', auth0Roles)
+
+    if (rolesError) {
+      console.error('❌ [UserRoleSync] 查询角色失败:', rolesError)
+      return
+    }
+
+    if (!dbRoles || dbRoles.length === 0) {
+      console.warn(`⚠️ [UserRoleSync] 未找到匹配的角色: ${auth0Roles.join(', ')}`)
+      return
+    }
+
+    // 2. 获取用户当前的角色
+    const { data: currentUserRoles } = await supabase
+      .from('user_roles')
+      .select('role_id')
+      .eq('user_id', userId)
+
+    const currentRoleIds = currentUserRoles?.map(ur => ur.role_id) || []
+
+    // 3. 添加新角色
+    const roleIdsToAdd = dbRoles
+      .filter(role => !currentRoleIds.includes(role.role_id))
+      .map(role => role.role_id)
+
+    if (roleIdsToAdd.length > 0) {
+      const { error: insertError } = await supabase
+        .from('user_roles')
+        .insert(
+          roleIdsToAdd.map(roleId => ({
+            user_id: userId,
+            role_id: roleId,
+          })),
+        )
+
+      if (insertError) {
+        console.error('❌ [UserRoleSync] 添加角色失败:', insertError)
+      }
+      else {
+        const addedRoles = dbRoles
+          .filter(r => roleIdsToAdd.includes(r.role_id))
+          .map(r => r.role_name)
+        console.warn(`➕ [UserRoleSync] 添加角色: ${addedRoles.join(', ')}`)
+      }
+    }
+
+    // 4. 删除不再拥有的非系统角色
+    const targetRoleIds = dbRoles.map(r => r.role_id)
+    const roleIdsToRemove = currentRoleIds.filter(roleId => !targetRoleIds.includes(roleId))
+
+    if (roleIdsToRemove.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .in('role_id', roleIdsToRemove)
+
+      if (deleteError) {
+        console.error('❌ [UserRoleSync] 删除角色失败:', deleteError)
+      }
+      else {
+        console.warn(`🗑️ [UserRoleSync] 删除旧角色: ${roleIdsToRemove.length} 个`)
+      }
+    }
+
+    console.warn(`✅ [UserRoleSync] 角色同步完成`)
+  }
+  catch (error: any) {
+    console.error('❌ [UserRoleSync] 角色同步异常:', error)
+  }
+}
+
+/**
  * 创建或更新用户（用于 Auth0 登录）
  */
 export async function upsertUserFromAuth0(input: {
@@ -322,13 +406,15 @@ export async function upsertUserFromAuth0(input: {
   username?: string
   avatar_url?: string
   email_verified?: boolean
+  subscription_status?: string // 订阅状态 (Free, Pro, Plus, Ultra, Beta, Admin)
+  roles?: string[] // Auth0 角色数组 (Free, Pro, Plus, Ultra, Beta, Admin)
 }): Promise<SupabaseUser> {
   try {
-    // 1. 先通过 auth0_id (存储在 clerk_id 字段) 查找用户
+    // 1. 先通过 auth0_id 字段查找用户
     const { data: existingUser, error: findError } = await supabase
       .from('users')
       .select('*')
-      .eq('clerk_id', input.auth0_id)
+      .eq('auth0_id', input.auth0_id)
       .maybeSingle()
 
     if (findError && findError.code !== 'PGRST116') {
@@ -337,24 +423,36 @@ export async function upsertUserFromAuth0(input: {
 
     if (existingUser) {
       // 用户已存在，更新信息
-      console.log(`📝 [Supabase] 更新 Auth0 用户: ${input.email}`)
+      console.warn(`📝 [Supabase] 更新 Auth0 用户: ${input.email}`)
+
+      const updateData: any = {
+        email: input.email,
+        username: input.username || existingUser.username,
+        avatar_url: input.avatar_url || existingUser.avatar_url,
+        status: 1, // 确保用户状态为激活
+        last_login_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      // 更新订阅状态（如果提供）
+      if (input.subscription_status) {
+        updateData.subscription_status = input.subscription_status
+        console.warn(`📊 [Supabase] 更新订阅状态: ${input.subscription_status}`)
+      }
 
       const { data, error } = await supabase
         .from('users')
-        .update({
-          email: input.email,
-          username: input.username || existingUser.username,
-          avatar_url: input.avatar_url || existingUser.avatar_url,
-          status: 1, // 确保用户状态为激活
-          last_login_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('user_id', existingUser.user_id)
         .select()
         .single()
 
       if (error)
         throw error
+
+      // 同步角色到 user_roles 表
+      if (input.roles && input.roles.length > 0)
+        await syncUserRolesToDatabase(existingUser.user_id, input.roles)
 
       return data
     }
@@ -364,20 +462,28 @@ export async function upsertUserFromAuth0(input: {
 
     if (emailUser) {
       // 用户已存在，关联到 Auth0
-      console.log(`🔗 [Supabase] 关联现有用户到 Auth0: ${input.email}`)
+      console.warn(`🔗 [Supabase] 关联现有用户到 Auth0: ${input.email}`)
+
+      const updateData: any = {
+        auth0_id: input.auth0_id, // 设置 auth0_id 字段
+        username: input.username || emailUser.username,
+        avatar_url: input.avatar_url || emailUser.avatar_url,
+        provider: 'auth0',
+        login_method: 'auth0',
+        status: 1,
+        last_login_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      // 更新订阅状态（如果提供）
+      if (input.subscription_status) {
+        updateData.subscription_status = input.subscription_status
+        console.warn(`📊 [Supabase] 设置订阅状态: ${input.subscription_status}`)
+      }
 
       const { data, error } = await supabase
         .from('users')
-        .update({
-          clerk_id: input.auth0_id, // 复用 clerk_id 字段存储 auth0_id
-          username: input.username || emailUser.username,
-          avatar_url: input.avatar_url || emailUser.avatar_url,
-          provider: 'auth0',
-          login_method: 'auth0',
-          status: 1,
-          last_login_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('user_id', emailUser.user_id)
         .select()
         .single()
@@ -385,11 +491,24 @@ export async function upsertUserFromAuth0(input: {
       if (error)
         throw error
 
+      // 同步角色到 user_roles 表
+      if (input.roles && input.roles.length > 0)
+        await syncUserRolesToDatabase(emailUser.user_id, input.roles)
+
       return data
     }
 
     // 3. 用户不存在，创建新用户
-    console.log(`➕ [Supabase] 创建新 Auth0 用户: ${input.email}`)
+    console.warn(`➕ [Supabase] 创建新 Auth0 用户: ${input.email}`)
+    console.warn('📋 [Supabase] 新用户数据:', JSON.stringify({
+      auth0_id: input.auth0_id,
+      email: input.email,
+      username: input.username,
+      avatar_url: input.avatar_url,
+      email_verified: input.email_verified,
+      subscription_status: input.subscription_status,
+      roles: input.roles,
+    }, null, 2))
 
     // 生成唯一的用户名
     let username = input.username || input.email.split('@')[0]
@@ -399,122 +518,45 @@ export async function upsertUserFromAuth0(input: {
     if (existingUsername) {
       const randomSuffix = Math.random().toString(36).substring(2, 8)
       username = `${username}_${randomSuffix}`
-      console.log(`⚠️  [Supabase] 用户名已存在，使用新用户名: ${username}`)
+      console.warn(`⚠️  [Supabase] 用户名已存在，使用新用户名: ${username}`)
+    }
+
+    const insertData: any = {
+      auth0_id: input.auth0_id, // 使用 auth0_id 字段存储
+      username,
+      email: input.email,
+      avatar_url: input.avatar_url,
+      provider: 'auth0',
+      login_method: 'auth0',
+      status: 1,
+      last_login_at: new Date().toISOString(),
+    }
+
+    // 设置订阅状态
+    if (input.subscription_status) {
+      insertData.subscription_status = input.subscription_status
+      console.warn(`📊 [Supabase] 新用户订阅状态: ${input.subscription_status}`)
     }
 
     const { data, error } = await supabase
       .from('users')
-      .insert({
-        clerk_id: input.auth0_id, // 复用 clerk_id 字段存储 auth0_id
-        username,
-        email: input.email,
-        avatar_url: input.avatar_url,
-        provider: 'auth0',
-        login_method: 'auth0',
-        status: 1,
-        last_login_at: new Date().toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error)
       throw error
 
-    console.log(`✅ [Supabase] Auth0 用户创建成功: ${input.email}`)
+    console.warn(`✅ [Supabase] Auth0 用户创建成功: ${input.email}`)
+
+    // 同步角色到 user_roles 表
+    if (input.roles && input.roles.length > 0)
+      await syncUserRolesToDatabase(data.user_id, input.roles)
+
     return data
   }
   catch (error: any) {
     console.error('❌ [Supabase] Auth0 用户同步失败:', error.message)
     throw new Error(`Auth0 用户同步失败: ${error.message}`)
-  }
-}
-
-/**
- * 创建或更新用户（用于 OAuth/Clerk 登录）
- */
-export async function upsertUserFromOAuth(input: {
-  clerk_id: string
-  email: string
-  username?: string
-  avatar_url?: string
-  provider: string
-}): Promise<SupabaseUser> {
-  try {
-    // 先通过 clerk_id 查找用户
-    let user = await findUserByClerkId(input.clerk_id)
-
-    if (user) {
-      // 用户已存在，更新信息
-      const wasDeleted = user.status === 0
-      if (wasDeleted) {
-        console.log(`🔄 [SupabaseUserService] 恢复已删除用户: ${input.email}`)
-      }
-      else {
-        console.log(`📝 [SupabaseUserService] 更新现有用户: ${input.email}`)
-      }
-
-      const updated = await updateUser(user.user_id, {
-        email: input.email,
-        username: input.username,
-        avatar_url: input.avatar_url,
-        status: 1, // 确保用户状态为激活
-        last_login_at: new Date().toISOString(),
-      })
-      return updated!
-    }
-
-    // 通过 email 查找用户（可能是已存在的邮箱注册用户）
-    user = await findUserByEmail(input.email)
-
-    if (user) {
-      // 用户已存在，更新 clerk_id 和其他信息
-      const wasDeleted = user.status === 0
-      if (wasDeleted) {
-        console.log(`🔄 [SupabaseUserService] 恢复已删除用户并关联到 Clerk: ${input.email}`)
-      }
-      else {
-        console.log(`🔗 [SupabaseUserService] 关联现有用户到 Clerk: ${input.email}`)
-      }
-
-      const updated = await updateUser(user.user_id, {
-        clerk_id: input.clerk_id,
-        username: input.username || user.username,
-        avatar_url: input.avatar_url || user.avatar_url,
-        provider: input.provider,
-        login_method: input.provider,
-        status: 1, // 确保用户状态为激活
-        last_login_at: new Date().toISOString(),
-      })
-      return updated!
-    }
-
-    // 用户不存在，创建新用户
-    console.log(`➕ [SupabaseUserService] 创建新用户: ${input.email}`)
-
-    // 生成唯一的用户名
-    let username = input.username || input.email.split('@')[0]
-
-    // 检查用户名是否已存在，如果存在则添加随机后缀
-    const existingUser = await findUserByUsername(username)
-    if (existingUser) {
-      const randomSuffix = Math.random().toString(36).substring(2, 8)
-      username = `${username}_${randomSuffix}`
-      console.log(`⚠️  [SupabaseUserService] 用户名已存在，使用新用户名: ${username}`)
-    }
-
-    user = await createUser({
-      clerk_id: input.clerk_id,
-      email: input.email,
-      username,
-      avatar_url: input.avatar_url,
-      provider: input.provider,
-      login_method: input.provider,
-    })
-
-    return user
-  }
-  catch (error: any) {
-    console.error('❌ [SupabaseUserService] upsertUserFromOAuth 失败:', error.message)
-    throw new Error(`OAuth 用户同步失败: ${error.message}`)
   }
 }

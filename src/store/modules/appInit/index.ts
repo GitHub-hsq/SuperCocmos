@@ -90,12 +90,37 @@ export const useAppInitStore = defineStore('app-init', {
         // 动态导入 store（避免循环依赖）
         const { useModelStore } = await import('../model')
         const { useConfigStore } = await import('../config')
+        const { useAuthStore } = await import('../auth')
 
         const modelStore = useModelStore()
         const configStore = useConfigStore()
+        const authStore = useAuthStore()
 
-        // 🔐 步骤 1: 加载用户权限（如果已登录）
-        if (auth0.isAuthenticated.value) {
+        // 🔐 步骤 1: 设置用户信息和加载权限（如果已登录）
+        if (auth0.isAuthenticated.value && auth0.user.value) {
+          const user = auth0.user.value
+
+          // 提取角色信息
+          const roles = user['https://supercocmos.com/roles'] as string[] || []
+
+          // 设置用户信息到 authStore
+          authStore.setUserInfo({
+            email: user.email || '',
+            id: user.sub || '',
+            createdAt: new Date().toISOString(),
+            avatarUrl: user.picture,
+            roles, // 🔥 保存角色数组
+            role: roles[0] || 'Free', // 主要角色
+          })
+
+          if (import.meta.env.DEV) {
+            console.warn('✅ [AppInit] 用户信息已设置:', {
+              email: user.email,
+              roles,
+            })
+          }
+
+          // 加载权限
           try {
             this.userPermissions = await getUserPermissions(auth0.getAccessTokenSilently)
             this.permissionsLoaded = true

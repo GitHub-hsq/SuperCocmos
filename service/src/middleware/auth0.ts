@@ -8,18 +8,14 @@ import jwksRsa from 'jwks-rsa'
 // 加载环境变量 - 必须在所有其他导入之前
 import 'dotenv/config'
 
-// 扩展 Request 类型
-declare global {
-  namespace Express {
-    interface Request {
-      auth?: {
-        sub: string // Auth0 用户 ID
-        permissions?: string[]
-        [key: string]: any
-      }
-      userId?: string // 用户 ID（统一字段，兼容 Clerk）
-    }
+// 扩展 Request 类型（Auth0 JWT 和用户 ID）
+interface AuthRequest extends Request {
+  auth?: {
+    sub: string // Auth0 用户 ID
+    permissions?: string[]
+    [key: string]: any
   }
+  userId?: string // 用户 ID（Auth0 sub）
 }
 
 // 从环境变量获取配置
@@ -37,8 +33,14 @@ export const auth0Middleware = expressjwt({
   secret: jwksRsa.expressJwtSecret({
     cache: true,
     rateLimit: true,
-    jwksRequestsPerMinute: 5,
+    jwksRequestsPerMinute: 10,
     jwksUri: `https://${AUTH0_DOMAIN}/.well-known/jwks.json`,
+    timeout: 30000, // 30秒超时
+    handleSigningKeyError: (err: Error) => {
+      console.error('❌ [Auth0] JWKS 签名密钥错误:', err.message)
+      // 返回 null 会导致验证失败，但不会崩溃
+      return null
+    },
   }) as any,
   audience: AUTH0_AUDIENCE,
   issuer: `https://${AUTH0_DOMAIN}/`,
@@ -48,14 +50,41 @@ export const auth0Middleware = expressjwt({
 
 /**
  * 提取 Auth0 用户 ID 到 req.userId
- * 统一接口，兼容 Clerk 中间件
  */
-export function auth0UserExtractor(req: Request, res: Response, next: NextFunction) {
+export async function auth0UserExtractor(req: Request, res: Response, next: NextFunction) {
   try {
-    if (req.auth && req.auth.sub) {
+    const authReq = req as AuthRequest
+
+    // 调试：输出 Authorization Header
+    const authHeader = req.headers.authorization
+    if (process.env.NODE_ENV === 'development' && authHeader)
+      console.warn(`🔍 [Auth0Middleware] Authorization Header: ${authHeader.substring(0, 50)}...`)
+
+    // 调试：输出 req.auth 内容
+    if (process.env.NODE_ENV === 'development') {
+      if (authReq.auth) {
+        console.warn('🔍 [Auth0Middleware] req.auth 内容:', JSON.stringify(authReq.auth, null, 2))
+      }
+      else {
+        console.warn('⚠️ [Auth0Middleware] req.auth 为空')
+        if (authHeader)
+          console.warn('   ℹ️ Token 存在但未被解析，可能是验证失败（已忽略，因为 credentialsRequired=false）')
+        else
+          console.warn('   ℹ️ 请求未携带 Authorization Header')
+      }
+    }
+
+    if (authReq.auth && authReq.auth.sub) {
       // 将 Auth0 用户 ID (sub) 赋值给 req.userId
-      req.userId = req.auth.sub
-      console.warn(`✅ [Auth0] 用户已认证: ${req.userId}`)
+      authReq.userId = authReq.auth.sub
+
+      // ℹ️ 注意：不在中间件中同步用户
+      // Access Token 只包含 sub 和自定义 claims（如 roles）
+      // 完整的用户信息（email、name、picture）在 ID Token 中
+      // 用户同步由前端在 App.vue 中通过 syncAuth0UserToSupabase 主动触发
+
+      if (process.env.NODE_ENV === 'development')
+        console.warn(`✅ [Auth0] 用户已认证: ${authReq.userId}`)
     }
     next()
   }
@@ -67,7 +96,7 @@ export function auth0UserExtractor(req: Request, res: Response, next: NextFuncti
 
 /**
  * 组合的 Auth0 认证中间件
- * 等效于 Clerk 的 clerkAuth
+ * 包含：JWT 验证 -> 用户 ID 提取
  */
 export const auth0Auth = [auth0Middleware, auth0UserExtractor]
 
@@ -75,7 +104,8 @@ export const auth0Auth = [auth0Middleware, auth0UserExtractor]
  * 检查是否已认证
  */
 export function requireAuth0(req: Request, res: Response, next: NextFunction) {
-  if (!req.userId) {
+  const authReq = req as AuthRequest
+  if (!authReq.userId) {
     return res.status(401).json({
       success: false,
       message: '未授权，请先登录',
@@ -88,7 +118,8 @@ export function requireAuth0(req: Request, res: Response, next: NextFunction) {
  * 检查是否有管理员权限
  */
 export function requireAuth0Admin(req: Request, res: Response, next: NextFunction) {
-  if (!req.userId) {
+  const authReq = req as AuthRequest
+  if (!authReq.userId) {
     return res.status(401).json({
       success: false,
       message: '未授权，请先登录',
@@ -96,7 +127,7 @@ export function requireAuth0Admin(req: Request, res: Response, next: NextFunctio
   }
 
   // 检查权限
-  const permissions = req.auth?.permissions || []
+  const permissions = authReq.auth?.permissions || []
   const hasAdminPermission = permissions.includes('read:admin') || permissions.includes('write:admin')
 
   if (!hasAdminPermission) {

@@ -32,34 +32,10 @@ export async function handleAuth0Webhook(req: Request, res: Response) {
 }
 
 /**
- * Clerk Webhook 处理器（已废弃）
- * @deprecated 使用 handleAuth0Webhook 替代
- */
-export async function handleClerkWebhook(req: Request, res: Response) {
-  try {
-    console.warn('⚠️ [Webhook] Clerk Webhook 已废弃，请使用 Auth0 Webhook')
-    return res.status(501).send({
-      status: 'Fail',
-      message: 'Clerk Webhook deprecated, use Auth0 Webhook',
-      data: null,
-    })
-  }
-  catch (error: any) {
-    console.error('❌ [Webhook] 处理失败:', error.message)
-    return res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-}
-
-/**
  * 获取当前登录用户信息（包含角色）
  */
 export async function getCurrentUser(req: Request, res: Response) {
   try {
-    // TODO: 使用 Auth0 认证
     const userId = req.userId
 
     if (!userId) {
@@ -93,7 +69,7 @@ export async function getCurrentUser(req: Request, res: Response) {
       data: {
         user: {
           id: user.user_id,
-          clerkId: user.clerk_id,
+          auth0Id: user.auth0_id, // Auth0 用户 ID
           username: user.username,
           email: user.email,
           phone: user.phone,

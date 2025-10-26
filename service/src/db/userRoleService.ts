@@ -20,7 +20,6 @@ export interface UserWithRoles {
   phone?: string
   status: number
   login_method: string
-  clerk_id?: string
   avatar_url?: string
   provider?: string
   created_at: string

@@ -54,7 +54,8 @@ declare namespace Chat {
   }
 
   interface ConversationRequest {
-    conversationId?: string
+    conversationId?: string // 后端 UUID（可能为空）
+    frontendUuid?: string // 🔥 前端 nanoid（用于数据库映射）
     parentMessageId?: string
     model?: string
     providerId?: string // 供应商 ID

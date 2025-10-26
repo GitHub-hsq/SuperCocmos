@@ -187,7 +187,7 @@ export const useAppInitStore = defineStore('app-init', {
                 console.warn(`✅ [AppInit] 已从数据库加载 ${result.count} 个会话`)
               }
               else {
-                console.warn('ℹ️ [AppInit] 数据库无会话，创建默认会话')
+                console.warn('ℹ️ [AppInit] 数据库无会话，等待用户创建')
               }
             }
             else {

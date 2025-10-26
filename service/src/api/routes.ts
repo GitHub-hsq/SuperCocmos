@@ -214,6 +214,12 @@ router.get('/conversations/:id', auth0Auth[0], auth0Auth[1], requireAuth, conver
 router.patch('/conversations/:id', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.updateConversationHandler)
 
 /**
+ * 删除会话
+ * DELETE /api/conversations/:id
+ */
+router.delete('/conversations/:id', auth0Auth[0], auth0Auth[1], requireAuth, conversationController.deleteConversationHandler)
+
+/**
  * 获取会话的所有消息
  * GET /api/conversations/:id/messages
  */

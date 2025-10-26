@@ -89,8 +89,43 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     async deleteHistory(index: number) {
+      // 🔥 获取要删除的会话信息
+      const historyToDelete = this.history[index]
+      if (!historyToDelete) {
+        console.warn('⚠️ [ChatStore] 要删除的会话不存在')
+        return
+      }
+
+      // 🔥 如果有后端 UUID，先调用后端 API 删除数据库记录
+      const backendUuid = historyToDelete.backendConversationId
+      if (backendUuid) {
+        try {
+          const { deleteConversation } = await import('@/api/services/conversationService')
+          await deleteConversation(backendUuid)
+          if (import.meta.env.DEV) {
+            console.log('✅ [ChatStore] 已删除数据库会话:', backendUuid)
+          }
+        }
+        catch (error: any) {
+          // 静默处理 404（会话可能已被删除）
+          if (error?.response?.status !== 404) {
+            console.error('❌ [ChatStore] 删除数据库会话失败:', error)
+          }
+        }
+      }
+
+      // 🔥 删除本地数据
       this.history.splice(index, 1)
       this.chat.splice(index, 1)
+
+      // 🔥 同时清理对应的工作流状态
+      const workflowIndex = this.workflowStates.findIndex(item => item.uuid === historyToDelete.uuid)
+      if (workflowIndex !== -1) {
+        this.workflowStates.splice(workflowIndex, 1)
+      }
+
+      // 🔥 立即保存状态，确保映射关系被清除
+      this.recordStateImmediate()
 
       if (this.history.length === 0) {
         this.active = null
@@ -233,7 +268,29 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    clearHistory() {
+    async clearHistory() {
+      // 🔥 批量删除数据库会话（后台执行，不阻塞 UI）
+      const backendUuidsToDelete = this.history
+        .filter(h => h.backendConversationId)
+        .map(h => h.backendConversationId!)
+
+      if (backendUuidsToDelete.length > 0) {
+        // 异步删除，不等待完成
+        const { deleteConversation } = await import('@/api/services/conversationService')
+        Promise.all(
+          backendUuidsToDelete.map(uuid =>
+            deleteConversation(uuid).catch((err) => {
+              console.error(`❌ [ChatStore] 删除会话 ${uuid} 失败:`, err)
+            }),
+          ),
+        ).then(() => {
+          if (import.meta.env.DEV) {
+            console.log(`✅ [ChatStore] 已批量删除 ${backendUuidsToDelete.length} 个数据库会话`)
+          }
+        })
+      }
+
+      // 🔥 立即清空本地数据
       this.$state = { ...defaultState() }
       debouncedRecordState(this.$state)
     },
@@ -314,6 +371,7 @@ export const useChatStore = defineStore('chat-store', {
             title: string
             modelId: string
             providerId: string
+            frontend_uuid?: string // 🔥 后端保存的前端 nanoid
             createdAt: string
             updatedAt: string
             messageCount: number
@@ -330,15 +388,19 @@ export const useChatStore = defineStore('chat-store', {
 
           // 转换为前端格式
           for (const conv of conversations) {
+            // 🔥 优先使用数据库中保存的 frontend_uuid，如果没有则使用后端 UUID
+            const frontendUuid = conv.frontend_uuid || conv.id
+
             this.history.push({
-              uuid: conv.id,
+              uuid: frontendUuid, // 🔥 使用前端 nanoid（如果有）
+              backendConversationId: conv.id, // 🔥 保存后端 UUID 映射
               title: conv.title,
               isEdit: false,
               mode: 'normal', // 默认模式，可以根据需要扩展
             })
 
             this.chat.push({
-              uuid: conv.id,
+              uuid: frontendUuid,
               data: [], // 消息稍后按需加载
             })
           }

@@ -89,14 +89,20 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       top_p,
       model, // model 现在是 model_id
       maxTokens,
-      conversationId: clientConversationId, // 前端传来的对话 ID
+      conversationId: clientConversationId, // 前端传来的后端 UUID（可能为空）
+      frontendUuid, // 🔥 前端传来的 nanoid（用于路由）
       parentMessageId: _parentMessageId,
       providerId, // 供应商 ID
       contextMessages, // 🔥 前端传来的本地缓存消息（可选）
     } = requestBody
 
     // console.warn('⏱️ [后端-性能] 请求到达时间:', new Date().toISOString())
-    console.log('📝 [后端] 接收请求:', { model, providerId, conversationId: clientConversationId })
+    console.log('📝 [后端] 接收请求:', {
+      model,
+      providerId,
+      conversationId: clientConversationId,
+      frontendUuid: frontendUuid || '（未提供）',
+    })
 
     if (!model || !providerId) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '未指定模型或供应商' } }))
@@ -149,13 +155,32 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
     let conversation = null
     let isNewConversation = false // 🔥 标记是否是新会话（用于决定是否加载历史）
 
-    if (isValidUuid) {
-      // 🔥 有效的 UUID，尝试查找现有会话
+    // 🔥 步骤1：优先使用 frontendUuid 查找会话（防止后端出错时重复创建）
+    if (frontendUuid) {
+      try {
+        const { getConversationByFrontendUuid } = await import('./db/conversationService')
+        conversation = await getConversationByFrontendUuid(frontendUuid, user.user_id)
+        if (conversation) {
+          console.log('✅ [Conversation] 通过 frontendUuid 找到现有对话:', {
+            frontendUuid,
+            backendUuid: conversation.id,
+          })
+          isNewConversation = false
+        }
+      }
+      catch (error: any) {
+        console.error('❌ [Conversation] 通过 frontendUuid 查询对话失败:', error.message)
+        // 继续尝试其他方式
+      }
+    }
+
+    // 🔥 步骤2：如果没找到，尝试使用后端 UUID 查找
+    if (!conversation && isValidUuid) {
       try {
         const { getConversationById } = await import('./db/conversationService')
         conversation = await getConversationById(clientConversationId!)
         if (conversation) {
-          console.log('✅ [Conversation] 找到现有对话:', clientConversationId)
+          console.log('✅ [Conversation] 通过后端 UUID 找到现有对话:', clientConversationId)
           isNewConversation = false
         }
       }
@@ -165,23 +190,26 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       }
     }
 
+    // 🔥 步骤3：如果都没找到，创建新会话
     if (!conversation) {
-      // 🔥 创建新对话（空 ID 或无效 ID）
       isNewConversation = true
       const { createConversation } = await import('./db/conversationService')
 
-      // 🔥 直接创建新会话，不尝试复用
       conversation = await createConversation({
         user_id: user.user_id,
         model_id: modelConfig.id,
         provider_id: modelConfig.provider_id,
+        frontend_uuid: frontendUuid, // 🔥 保存前端 nanoid
         title: prompt.substring(0, 50), // 使用前50个字符作为标题
         temperature: temperature ?? 0.7,
         top_p: top_p ?? 1.0,
         max_tokens: maxTokens ?? 2048,
         system_prompt: systemMessage,
       })
-      console.log('🆕 [Conversation] 创建新会话:', conversation?.id)
+      console.log('🆕 [Conversation] 创建新会话:', {
+        backendUUID: conversation?.id,
+        frontendUUID: frontendUuid || '（未提供）',
+      })
     }
 
     if (!conversation) {

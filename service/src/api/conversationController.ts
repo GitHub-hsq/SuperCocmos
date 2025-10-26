@@ -6,6 +6,7 @@
 import type { Request, Response } from 'express'
 import {
   createConversation,
+  deleteConversation,
   getConversationById,
   getUserConversations,
   updateConversation,
@@ -246,6 +247,68 @@ export async function updateConversationHandler(req: Request, res: Response) {
     res.status(500).json({
       status: 'Fail',
       message: error.message || '更新会话失败',
+      data: null,
+    })
+  }
+}
+
+/**
+ * 删除会话
+ * DELETE /api/conversations/:id
+ */
+export async function deleteConversationHandler(req: Request, res: Response) {
+  try {
+    const userId = await getUserIdFromRequest(req)
+    if (!userId) {
+      return res.status(401).json({
+        status: 'Fail',
+        message: '未授权：用户未登录',
+        data: null,
+      })
+    }
+
+    const { id } = req.params
+
+    // 验证会话所有权
+    const conversation = await getConversationById(id)
+    if (!conversation) {
+      return res.status(404).json({
+        status: 'Fail',
+        message: '会话不存在',
+        data: null,
+      })
+    }
+
+    if (conversation.user_id !== userId) {
+      return res.status(403).json({
+        status: 'Fail',
+        message: '无权删除此会话',
+        data: null,
+      })
+    }
+
+    // 删除会话（会级联删除所有消息）
+    const success = await deleteConversation(id)
+
+    if (!success) {
+      return res.status(500).json({
+        status: 'Fail',
+        message: '删除会话失败',
+        data: null,
+      })
+    }
+
+    res.json({
+      status: 'Success',
+      message: '删除会话成功',
+      data: { id },
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [Conversation] 删除会话失败:', error)
+    res.status(500).json({
+      status: 'Fail',
+      message: error.message || '删除会话失败',
       data: null,
     })
   }

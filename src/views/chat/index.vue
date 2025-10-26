@@ -89,7 +89,11 @@ dataSources.value.forEach((item, index) => {
     updateChatSome(uuid.value, index, { loading: false })
 })
 
-// 🔥 监听路由变化，切换对话时恢复后端 UUID
+// 🔥 【方案 A 核心】监听路由变化，实现组件复用时的数据更新
+// 当路由从 /chat → /chat/abc123 或 /chat/abc → /chat/def 时：
+// - 组件实例不重建（复用）→ 页面不闪烁 ✅
+// - 只有 route.params.uuid 变化 → 触发此 watch
+// - 根据新的 uuid 加载对应会话数据
 watch(
   () => route.params.uuid,
   (newUuid) => {
@@ -109,7 +113,7 @@ watch(
       }
     }
     else {
-      // 新建会话，重置 conversationId
+      // 用户在 /chat（无 uuid），准备接收第一条消息
       currentConversationId.value = ''
       if (import.meta.env.DEV) {
         console.log('🔄 [对话] 准备新建会话')
@@ -140,16 +144,22 @@ async function onConversation() {
 
   controller = new AbortController()
 
-  // 🔥 如果是新会话（没有 UUID），先创建会话并跳转路由
+  // 🔥 【方案 A 核心】如果是新会话，立即创建并跳转路由
+  // 工作流程：
+  // 1. 用户在 /chat 输入消息
+  // 2. 生成 nanoid → 添加到会话列表（左侧显示）
+  // 3. 跳转到 /chat/{nanoid} → 组件复用，watch 触发
+  // 4. 发送消息到后端（携带 nanoid）
+  // 5. 后端返回 uuid → 建立映射
   let actualUuid = uuid.value
   const isNewConversation = !uuid.value || uuid.value === 'undefined'
 
   if (isNewConversation) {
-    // 生成新的 UUID（使用 nanoid）
+    // 生成新的 nanoid（用于前端路由和后端映射）
     const newUuid = nanoid()
     actualUuid = newUuid
 
-    // 创建新会话历史记录
+    // 创建新会话历史记录（左侧列表立即显示）
     chatStore.addHistory({
       uuid: newUuid,
       title: message.slice(0, 20), // 使用消息前20字作为标题
@@ -157,7 +167,10 @@ async function onConversation() {
       mode: 'normal',
     }, [])
 
-    // 🔥 立即跳转路由（在发送消息前）- 使用 replace 避免历史记录
+    // 🔥 立即跳转路由：/chat → /chat/{nanoid}
+    // - 使用 replace 而不是 push，避免 /chat 留在历史记录中
+    // - 组件会复用，不重建 → 页面不闪烁 ✅
+    // - watch 会触发，更新 currentConversationId
     await router.replace({ name: 'Chat', params: { uuid: newUuid } })
 
     if (import.meta.env.DEV) {
@@ -187,12 +200,13 @@ async function onConversation() {
   const backendUuid = chatStore.getBackendConversationId(actualUuid) || ''
 
   const options: Chat.ConversationRequest = {
-    conversationId: backendUuid, // 🔥 使用后端 UUID
+    conversationId: backendUuid, // 🔥 后端 UUID（可能为空）
+    frontendUuid: actualUuid, // 🔥 前端 nanoid（保存到数据库用于跨浏览器映射）
   }
 
   if (import.meta.env.DEV) {
     console.log('📤 [请求] 发送参数:', {
-      前端UUID: actualUuid,
+      前端nanoid: actualUuid,
       后端UUID: backendUuid || '（空，将创建新会话）',
     })
   }
@@ -1193,6 +1207,8 @@ function loadCurrentModel() {
 
         if (import.meta.env.DEV) {
           console.warn('✅ [模型] 加载已保存的模型:', currentSelectedModel.value?.displayName)
+          console.warn('🔍 [模型] currentSelectedModel.value:', currentSelectedModel.value)
+          console.warn('🔍 [模型] modelStore.currentModel:', modelStore.currentModel)
         }
       }
       else {

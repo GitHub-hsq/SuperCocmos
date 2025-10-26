@@ -12,7 +12,10 @@ const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 
-router.replace({ name: 'Chat', params: { uuid: chatStore.active } })
+// 🔥 只在有 active 会话时才导航，否则保持在 /chat
+if (chatStore.active) {
+  router.replace({ name: 'Chat', params: { uuid: chatStore.active } })
+}
 
 const { isMobile } = useBasicLayout()
 

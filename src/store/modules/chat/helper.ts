@@ -9,12 +9,12 @@ const LOCAL_NAME = 'chatStorage'
 const ss = createLocalStorage({ expire: 60 * 60 * 24 * 7 }) // 7天过期
 
 export function defaultState(): Chat.ChatState {
-  const uuid = nanoid()
+  // 🔥 修改：不自动创建会话，让用户发送第一条消息时再创建
   return {
-    active: uuid,
+    active: null,
     usingContext: true,
-    history: [{ uuid, title: t('chat.newChatTitle'), isEdit: false, mode: 'normal' }],
-    chat: [{ uuid, data: [] }],
+    history: [],
+    chat: [],
     chatMode: 'normal',
     workflowStates: [],
   }

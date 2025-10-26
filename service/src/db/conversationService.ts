@@ -9,6 +9,7 @@ export interface Conversation {
   title: string
   model_id: string
   provider_id: string
+  frontend_uuid?: string // 🔥 前端路由使用的 nanoid
   temperature: number
   top_p: number
   max_tokens: number
@@ -23,6 +24,7 @@ export interface CreateConversationParams {
   user_id: string
   title?: string
   model_id: string
+  frontend_uuid?: string // 🔥 前端传递的 nanoid
   provider_id: string
   temperature?: number
   top_p?: number
@@ -52,6 +54,7 @@ export async function createConversation(
           title: params.title || '新对话',
           model_id: params.model_id,
           provider_id: params.provider_id,
+          frontend_uuid: params.frontend_uuid, // 🔥 保存前端 nanoid
           temperature: params.temperature ?? 0.7,
           top_p: params.top_p ?? 1.0,
           max_tokens: params.max_tokens ?? 2048,
@@ -98,6 +101,40 @@ export async function getConversationById(
   }
   catch (error) {
     console.error('❌ [Conversation] 获取对话异常:', error)
+    return null
+  }
+}
+
+/**
+ * 🔍 根据前端 UUID 获取对话
+ * 用于防止重复创建会话（当后端出错时）
+ */
+export async function getConversationByFrontendUuid(
+  frontendUuid: string,
+  userId: string,
+  client: SupabaseClient = supabase,
+): Promise<Conversation | null> {
+  try {
+    const { data, error } = await client
+      .from('conversations')
+      .select('*')
+      .eq('frontend_uuid', frontendUuid)
+      .eq('user_id', userId)
+      .single()
+
+    if (error) {
+      // 404 是正常的（会话不存在）
+      if (error.code === 'PGRST116') {
+        return null
+      }
+      console.error('❌ [Conversation] 根据 frontendUuid 获取对话失败:', error)
+      return null
+    }
+
+    return data as Conversation
+  }
+  catch (error) {
+    console.error('❌ [Conversation] 根据 frontendUuid 获取对话异常:', error)
     return null
   }
 }

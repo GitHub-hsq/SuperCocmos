@@ -27,11 +27,10 @@ const routes: RouteRecordRaw[] = [
     path: '/chat',
     name: 'Root',
     component: ChatLayout,
-    redirect: '/chat/index',
     meta: { requiresAuth: true }, // 只需要登录，不需要特殊权限
     children: [
       {
-        path: '/chat/:uuid?',
+        path: ':uuid?',
         name: 'Chat',
         component: () => import('@/views/chat/index.vue'),
         meta: { requiresAuth: true }, // ⚠️ 子路由必须配置 meta，不会继承父路由

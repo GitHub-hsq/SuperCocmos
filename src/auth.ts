@@ -36,7 +36,12 @@ export const auth0 = createAuth0({
   authorizationParams: {
     redirect_uri: import.meta.env.VITE_AUTH0_REDIRECT_URI || window.location.origin,
     audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+    // 🔥 必须添加 offline_access scope 才能获取 refresh token
+    scope: 'openid profile email offline_access',
   },
+  // 🔥 关键配置：持久化 token，支持页面刷新
+  cacheLocation: 'localstorage', // 将 token 存储在 localStorage 而不是内存中
+  useRefreshTokens: true, // 启用 refresh token，自动刷新 access token
 })
 
 export default auth0

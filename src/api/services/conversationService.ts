@@ -3,7 +3,7 @@
  * 用于从数据库加载和保存用户的聊天会话
  */
 
-import { get, post } from '@/utils/request'
+import { del, get, post } from '@/utils/request'
 
 /**
  * 会话数据结构（与后端对应）
@@ -14,6 +14,7 @@ export interface Conversation {
   title: string
   modelId: string
   providerId: string
+  frontend_uuid?: string // 🔥 前端路由使用的 nanoid
   temperature?: number
   topP?: number
   maxTokens?: number
@@ -105,8 +106,8 @@ export function updateConversation<T = Conversation>(
  * DELETE /api/conversations/:id
  */
 export function deleteConversation<T = any>(conversationId: string) {
-  return post<T>({
-    url: `/conversations/${conversationId}/delete`,
+  return del<T>({
+    url: `/conversations/${conversationId}`,
   })
 }
 

@@ -35,4 +35,9 @@ coverage
 service/.env
 service/.env.local
 
-/docs
+# Technical documentation (generated)
+SOLUTION_*.md
+IMPLEMENTATION_*.md
+TEST_CHECKLIST.md
+QUICKSTART.md
+CHAT_ROUTING_*.md

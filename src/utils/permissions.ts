@@ -71,7 +71,7 @@ export async function getUserPermissions(
       // const permissions = payload['https://your-namespace/permissions'] || payload.permissions || [];
 
       if (Array.isArray(permissions)) {
-        console.log('解析token为:', payload)
+        // console.log('解析token为:', payload)
         return permissions
       }
 

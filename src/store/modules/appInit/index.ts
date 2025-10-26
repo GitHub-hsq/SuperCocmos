@@ -96,12 +96,14 @@ export const useAppInitStore = defineStore('app-init', {
         const configStore = useConfigStore()
         const authStore = useAuthStore()
 
-        // 🔐 步骤 1: 设置用户信息和加载权限（如果已登录）
+        // 🔐 步骤 1: 设置用户信息、同步用户到数据库、加载权限（如果已登录）
         if (auth0.isAuthenticated.value && auth0.user.value) {
           const user = auth0.user.value
 
-          // 提取角色信息
-          const roles = user['https://supercocmos.com/roles'] as string[] || []
+          // 提取角色信息（支持两种命名空间）
+          const roles = (user['http://supercocmos.com/roles'] as string[]
+            || user['https://supercocmos.com/roles'] as string[]
+            || [])
 
           // 设置用户信息到 authStore
           authStore.setUserInfo({
@@ -116,23 +118,38 @@ export const useAppInitStore = defineStore('app-init', {
           if (import.meta.env.DEV) {
             console.warn('✅ [AppInit] 用户信息已设置:', {
               email: user.email,
+              sub: user.sub,
               roles,
             })
+          }
+
+          // 🔥 确保用户已同步到数据库（解决首次登录 401 问题）
+          try {
+            const { syncAuth0UserToSupabase } = await import('@/api/services/auth0Service')
+            const syncResult = await syncAuth0UserToSupabase(user)
+            if (syncResult.success) {
+              if (import.meta.env.DEV)
+                console.warn('✅ [AppInit] 用户已同步到数据库:', syncResult.data?.username)
+            }
+          }
+          catch (error: any) {
+            // 用户同步失败，可能是网络问题或用户已存在
+            if (import.meta.env.DEV)
+              console.warn('⚠️ [AppInit] 用户同步失败（可能已存在）:', error.message)
           }
 
           // 加载权限
           try {
             this.userPermissions = await getUserPermissions(auth0.getAccessTokenSilently)
             this.permissionsLoaded = true
-            if (import.meta.env.DEV) {
+            if (import.meta.env.DEV)
               console.warn('✅ [AppInit] 权限加载完成:', this.userPermissions)
-            }
           }
           catch (error: any) {
             // 权限加载失败不影响应用使用
-            if (!error?.message?.includes('Consent required')) {
+            if (!error?.message?.includes('Consent required'))
               console.error('⚠️ [AppInit] 权限加载失败:', error)
-            }
+
             this.permissionsLoaded = true // 标记为已尝试加载
           }
         }
@@ -167,28 +184,28 @@ export const useAppInitStore = defineStore('app-init', {
           }
         }
 
-        // ⚙️ 步骤 3: 加载用户配置
-        if (!configStore.loaded) {
+        // ⚙️ 步骤 3: 加载用户配置（仅在已登录时）
+        if (auth0.isAuthenticated.value && !configStore.loaded) {
           try {
             const loadConfig = (configStore as any).loadAllConfig
             if (typeof loadConfig === 'function') {
               await loadConfig()
-              if (import.meta.env.DEV) {
+              if (import.meta.env.DEV)
                 console.warn('✅ [AppInit] 用户配置加载完成')
-              }
             }
             this.configLoaded = true
           }
-          catch (error) {
-            console.error('❌ [AppInit] 用户配置加载失败:', error)
+          catch (error: any) {
+            // 配置加载失败不阻止应用
+            if (import.meta.env.DEV)
+              console.error('❌ [AppInit] 用户配置加载失败:', error.message)
             this.configLoaded = true // 标记但不阻止
           }
         }
         else {
           this.configLoaded = true
-          if (import.meta.env.DEV) {
-            console.warn('✅ [AppInit] 用户配置已加载')
-          }
+          if (import.meta.env.DEV && !auth0.isAuthenticated.value)
+            console.warn('ℹ️ [AppInit] 未登录，跳过配置加载')
         }
 
         // ⚙️ 步骤 4: 用户登录时从数据库同步会话

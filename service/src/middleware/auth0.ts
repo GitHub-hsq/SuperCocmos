@@ -38,7 +38,6 @@ export const auth0Middleware = expressjwt({
     timeout: 30000, // 30秒超时
     handleSigningKeyError: (err: Error) => {
       console.error('❌ [Auth0] JWKS 签名密钥错误:', err.message)
-      // 返回 null 会导致验证失败，但不会崩溃
       return null
     },
   }) as any,
@@ -46,6 +45,9 @@ export const auth0Middleware = expressjwt({
   issuer: `https://${AUTH0_DOMAIN}/`,
   algorithms: ['RS256'],
   credentialsRequired: false, // 允许未登录访问（由后续中间件判断）
+  onExpired: async (_req: any) => {
+    console.error('❌ [Auth0] Token 已过期')
+  },
 })
 
 /**
@@ -54,42 +56,39 @@ export const auth0Middleware = expressjwt({
 export async function auth0UserExtractor(req: Request, res: Response, next: NextFunction) {
   try {
     const authReq = req as AuthRequest
-
-    // 调试：输出 Authorization Header
     const authHeader = req.headers.authorization
-    if (process.env.NODE_ENV === 'development' && authHeader)
-      console.warn(`🔍 [Auth0Middleware] Authorization Header: ${authHeader.substring(0, 50)}...`)
 
-    // 调试：输出 req.auth 内容
-    if (process.env.NODE_ENV === 'development') {
-      if (authReq.auth) {
-        console.warn('🔍 [Auth0Middleware] req.auth 内容:', JSON.stringify(authReq.auth, null, 2))
-      }
-      else {
-        console.warn('⚠️ [Auth0Middleware] req.auth 为空')
-        if (authHeader)
-          console.warn('   ℹ️ Token 存在但未被解析，可能是验证失败（已忽略，因为 credentialsRequired=false）')
-        else
-          console.warn('   ℹ️ 请求未携带 Authorization Header')
-      }
+    // 总是在开发环境输出请求信息（针对 /config 路径）
+    if (process.env.NODE_ENV === 'development' && req.path.includes('/config')) {
+      console.warn(`🔍 [Auth0] 处理请求: ${req.path}`)
+      console.warn(`   - Authorization Header: ${authHeader ? `exists (length: ${authHeader.length})` : 'missing'}`)
+      console.warn(`   - req.auth: ${authReq.auth ? 'exists' : 'null'}`)
+      console.warn(`   - req.auth.sub: ${authReq.auth?.sub || 'null'}`)
     }
 
     if (authReq.auth && authReq.auth.sub) {
       // 将 Auth0 用户 ID (sub) 赋值给 req.userId
       authReq.userId = authReq.auth.sub
 
-      // ℹ️ 注意：不在中间件中同步用户
-      // Access Token 只包含 sub 和自定义 claims（如 roles）
-      // 完整的用户信息（email、name、picture）在 ID Token 中
-      // 用户同步由前端在 App.vue 中通过 syncAuth0UserToSupabase 主动触发
-
+      // 开发环境下输出认证成功信息
       if (process.env.NODE_ENV === 'development')
-        console.warn(`✅ [Auth0] 用户已认证: ${authReq.userId}`)
+        console.warn(`✅ [Auth0] 用户已认证: ${authReq.userId}, path: ${req.path}`)
+    }
+    else if (process.env.NODE_ENV === 'development') {
+      // 输出详细的失败信息
+      console.warn(`⚠️ [Auth0] 认证失败详情:`, {
+        path: req.path,
+        hasAuthHeader: !!authHeader,
+        authHeaderPrefix: authHeader ? `${authHeader.substring(0, 20)}...` : 'N/A',
+        hasReqAuth: !!authReq.auth,
+        reqAuthKeys: authReq.auth ? Object.keys(authReq.auth) : [],
+        authSub: authReq.auth?.sub || 'no sub',
+      })
     }
     next()
   }
   catch (error: any) {
-    console.error('❌ [Auth0] 提取用户 ID 失败:', error.message)
+    console.error('❌ [Auth0] 提取用户 ID 失败:', error.message, error.stack)
     next(error)
   }
 }

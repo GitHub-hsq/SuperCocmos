@@ -37,6 +37,17 @@ export function unifiedAuth(req: Request, res: Response, next: NextFunction) {
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.userId) {
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      const authHeader = req.headers.authorization
+      console.error('❌ [RequireAuth] 认证失败:', {
+        hasAuthHeader: !!authHeader,
+        hasReqAuth: !!(req as any).auth,
+        hasReqUserId: !!req.userId,
+        path: req.path,
+      })
+    }
+
     return res.status(401).json({
       success: false,
       message: '未授权，请先登录',

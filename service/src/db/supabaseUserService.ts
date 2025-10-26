@@ -314,12 +314,8 @@ export async function getAllUsers(): Promise<SupabaseUser[]> {
  */
 async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Promise<void> {
   try {
-    if (!auth0Roles || auth0Roles.length === 0) {
-      console.warn('⚠️ [UserRoleSync] 无角色需要同步')
+    if (!auth0Roles || auth0Roles.length === 0)
       return
-    }
-
-    console.warn(`🔄 [UserRoleSync] 开始同步角色: ${auth0Roles.join(', ')}`)
 
     // 1. 根据 role_name 查找数据库中的角色
     const { data: dbRoles, error: rolesError } = await supabase
@@ -360,15 +356,8 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
           })),
         )
 
-      if (insertError) {
+      if (insertError)
         console.error('❌ [UserRoleSync] 添加角色失败:', insertError)
-      }
-      else {
-        const addedRoles = dbRoles
-          .filter(r => roleIdsToAdd.includes(r.role_id))
-          .map(r => r.role_name)
-        console.warn(`➕ [UserRoleSync] 添加角色: ${addedRoles.join(', ')}`)
-      }
     }
 
     // 4. 删除不再拥有的非系统角色
@@ -382,15 +371,9 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
         .eq('user_id', userId)
         .in('role_id', roleIdsToRemove)
 
-      if (deleteError) {
+      if (deleteError)
         console.error('❌ [UserRoleSync] 删除角色失败:', deleteError)
-      }
-      else {
-        console.warn(`🗑️ [UserRoleSync] 删除旧角色: ${roleIdsToRemove.length} 个`)
-      }
     }
-
-    console.warn(`✅ [UserRoleSync] 角色同步完成`)
   }
   catch (error: any) {
     console.error('❌ [UserRoleSync] 角色同步异常:', error)
@@ -435,10 +418,8 @@ export async function upsertUserFromAuth0(input: {
       }
 
       // 更新订阅状态（如果提供）
-      if (input.subscription_status) {
+      if (input.subscription_status)
         updateData.subscription_status = input.subscription_status
-        console.warn(`📊 [Supabase] 更新订阅状态: ${input.subscription_status}`)
-      }
 
       const { data, error } = await supabase
         .from('users')
@@ -476,10 +457,8 @@ export async function upsertUserFromAuth0(input: {
       }
 
       // 更新订阅状态（如果提供）
-      if (input.subscription_status) {
+      if (input.subscription_status)
         updateData.subscription_status = input.subscription_status
-        console.warn(`📊 [Supabase] 设置订阅状态: ${input.subscription_status}`)
-      }
 
       const { data, error } = await supabase
         .from('users')
@@ -499,16 +478,7 @@ export async function upsertUserFromAuth0(input: {
     }
 
     // 3. 用户不存在，创建新用户
-    console.warn(`➕ [Supabase] 创建新 Auth0 用户: ${input.email}`)
-    console.warn('📋 [Supabase] 新用户数据:', JSON.stringify({
-      auth0_id: input.auth0_id,
-      email: input.email,
-      username: input.username,
-      avatar_url: input.avatar_url,
-      email_verified: input.email_verified,
-      subscription_status: input.subscription_status,
-      roles: input.roles,
-    }, null, 2))
+    console.warn(`➕ [Supabase] 创建新用户: ${input.email} | 角色: ${input.roles?.join(', ') || 'Free'} | 订阅: ${input.subscription_status || 'Free'}`)
 
     // 生成唯一的用户名
     let username = input.username || input.email.split('@')[0]
@@ -533,10 +503,8 @@ export async function upsertUserFromAuth0(input: {
     }
 
     // 设置订阅状态
-    if (input.subscription_status) {
+    if (input.subscription_status)
       insertData.subscription_status = input.subscription_status
-      console.warn(`📊 [Supabase] 新用户订阅状态: ${input.subscription_status}`)
-    }
 
     const { data, error } = await supabase
       .from('users')
@@ -547,12 +515,11 @@ export async function upsertUserFromAuth0(input: {
     if (error)
       throw error
 
-    console.warn(`✅ [Supabase] Auth0 用户创建成功: ${input.email}`)
-
     // 同步角色到 user_roles 表
     if (input.roles && input.roles.length > 0)
       await syncUserRolesToDatabase(data.user_id, input.roles)
 
+    console.warn(`✅ [Supabase] 新用户创建完成: ${input.email}`)
     return data
   }
   catch (error: any) {

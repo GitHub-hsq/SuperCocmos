@@ -4,7 +4,6 @@ import { NConfigProvider } from 'naive-ui'
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { setupApiClient } from '@/api/client'
-import { syncAuth0UserToSupabase } from '@/api/services/auth0Service'
 import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
@@ -23,10 +22,7 @@ const router = useRouter()
 const { theme, themeOverrides } = useTheme()
 const { language } = useLanguage()
 
-// 用户同步状态
-const hasSyncedUser = ref(false)
-
-// 🎯 监听 Auth0 认证状态变化，处理登录后跳转和用户同步
+// 🎯 监听 Auth0 认证状态变化，处理登录后跳转
 const hasHandledLoginRedirect = ref(false)
 const isAuthLoading = ref(false) // 认证后跳转的 Loading 状态
 
@@ -57,21 +53,8 @@ watch(
         })
       }
 
-      // 🔐 异步同步用户到 Supabase（不阻塞登录流程）
-      if (auth0Client.user.value && !hasSyncedUser.value) {
-        hasSyncedUser.value = true // 立即标记，避免重复调用
-
-        // 异步执行，不阻塞
-        syncAuth0UserToSupabase(auth0Client.user.value)
-          .then((result) => {
-            if (result.success) {
-              console.warn('✅ 用户已同步到 Supabase:', result.data?.username)
-            }
-          })
-          .catch((error) => {
-            console.warn('⚠️ 同步用户失败（不影响使用）:', error.message)
-          })
-      }
+      // ℹ️ 用户同步已移至 AppInit Store 中统一处理（initializeApp）
+      // 这样可以确保同步完成后再加载配置，避免首次登录 401 问题
     }
   },
   { immediate: true },

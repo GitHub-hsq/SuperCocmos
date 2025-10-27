@@ -60,7 +60,7 @@ async function loadModelRoles(modelId: string) {
     selectedRoleIds.value = response.data?.roleIds || []
   }
   catch (error) {
-    console.error('加载模型角色权限失败:', error)
+    console.error('加载模型角色权限失败2:', error)
     selectedRoleIds.value = []
   }
   finally {

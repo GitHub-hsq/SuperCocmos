@@ -107,6 +107,7 @@ export interface ModelRoleInfo {
  */
 export async function getAllModelsWithRoles() {
   const response = await request.get<ApiResponse<{ models: ModelWithRoles[] }>>('/model-roles/all')
+  console.log('请求所有模型及其可访问角色11111:')
   return response.data
 }
 

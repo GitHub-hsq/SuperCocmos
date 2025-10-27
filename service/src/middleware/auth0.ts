@@ -25,6 +25,9 @@ if (!AUTH0_DOMAIN || !AUTH0_AUDIENCE) {
   console.error('❌ [Auth0 Middleware] 缺少必要的环境变量: AUTH0_DOMAIN 和 AUTH0_AUDIENCE')
 }
 
+// 根据 AUDIENCE 自动构建角色命名空间（保持协议一致）
+const AUTH0_ROLES_NAMESPACE = AUTH0_AUDIENCE ? `${AUTH0_AUDIENCE}/roles` : 'http://supercocmos.com/roles'
+
 /**
  * Auth0 JWT 验证中间件
  * 使用 express-jwt 和 jwks-rsa 验证 Auth0 token
@@ -58,23 +61,62 @@ export async function auth0UserExtractor(req: Request, res: Response, next: Next
     const authReq = req as AuthRequest
     const authHeader = req.headers.authorization
 
-    // 总是在开发环境输出请求信息（针对 /config 路径）
-    if (process.env.NODE_ENV === 'development' && req.path.includes('/config')) {
-      console.warn(`🔍 [Auth0] 处理请求: ${req.path}`)
-      console.warn(`   - Authorization Header: ${authHeader ? `exists (length: ${authHeader.length})` : 'missing'}`)
-      console.warn(`   - req.auth: ${authReq.auth ? 'exists' : 'null'}`)
-      console.warn(`   - req.auth.sub: ${authReq.auth?.sub || 'null'}`)
+    // 🔍 详细输出 JWT token 内容（调试用）
+    // 临时移除环境检查，确保能看到日志
+    const separator = '='.repeat(80)
+    console.warn(`\n${separator}`)
+    console.warn('🔍 [JWT Debug] 请求路径:', req.path)
+    console.warn('🔍 [JWT Debug] NODE_ENV:', process.env.NODE_ENV || 'undefined')
+    console.warn(separator)
+
+    if (authHeader) {
+      console.warn('✅ Authorization Header 存在')
+      console.warn('   前缀:', `${authHeader.substring(0, 30)}...`)
     }
+    else {
+      console.warn('❌ Authorization Header 缺失')
+    }
+
+    if (authReq.auth) {
+      console.warn('\n📦 JWT Payload 完整内容:')
+      console.warn(JSON.stringify(authReq.auth, null, 2))
+
+      console.warn('\n🔑 关键字段提取:')
+      console.warn('   - sub (用户ID):', authReq.auth.sub || '❌ 缺失')
+      console.warn('   - iss (签发者):', authReq.auth.iss || '❌ 缺失')
+      console.warn('   - aud (受众):', authReq.auth.aud || '❌ 缺失')
+      console.warn('   - exp (过期时间):', authReq.auth.exp ? new Date(authReq.auth.exp * 1000).toISOString() : '❌ 缺失')
+
+      console.warn('\n👥 角色信息检查:')
+      const httpsRoles = (authReq.auth as any)[`https://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`]
+      const httpRoles = (authReq.auth as any)[`http://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`]
+      const configuredRoles = (authReq.auth as any)[AUTH0_ROLES_NAMESPACE]
+      const permissions = authReq.auth.permissions
+
+      console.warn(`   - ${AUTH0_ROLES_NAMESPACE}:`, configuredRoles || '❌ 不存在')
+      console.warn(`   - https://.../roles:`, httpsRoles || '❌ 不存在')
+      console.warn(`   - http://.../roles:`, httpRoles || '❌ 不存在')
+      console.warn('   - permissions:', permissions || '❌ 不存在')
+
+      console.warn('\n📋 Payload 中的所有自定义字段:')
+      Object.keys(authReq.auth).forEach((key) => {
+        if (!['sub', 'iss', 'aud', 'exp', 'iat', 'nbf', 'jti', 'azp', 'scope'].includes(key)) {
+          console.warn(`   - ${key}:`, (authReq.auth as any)[key])
+        }
+      })
+    }
+    else {
+      console.warn('\n❌ req.auth 为空 - JWT 验证可能失败')
+    }
+
+    console.warn(`${separator}\n`)
 
     if (authReq.auth && authReq.auth.sub) {
       // 将 Auth0 用户 ID (sub) 赋值给 req.userId
       authReq.userId = authReq.auth.sub
-
-      // 开发环境下输出认证成功信息
-      if (process.env.NODE_ENV === 'development')
-        console.warn(`✅ [Auth0] 用户已认证: ${authReq.userId}, path: ${req.path}`)
+      console.warn(`✅ [Auth0] 用户已认证: ${authReq.userId}, path: ${req.path}`)
     }
-    else if (process.env.NODE_ENV === 'development') {
+    else {
       // 输出详细的失败信息
       console.warn(`⚠️ [Auth0] 认证失败详情:`, {
         path: req.path,
@@ -114,7 +156,7 @@ export function requireAuth0(req: Request, res: Response, next: NextFunction) {
 }
 
 /**
- * 检查是否有管理员权限
+ * 检查是否有管理员权限（基于角色）
  */
 export function requireAuth0Admin(req: Request, res: Response, next: NextFunction) {
   const authReq = req as AuthRequest
@@ -125,16 +167,37 @@ export function requireAuth0Admin(req: Request, res: Response, next: NextFunctio
     })
   }
 
-  // 检查权限
-  const permissions = authReq.auth?.permissions || []
-  const hasAdminPermission = permissions.includes('read:admin') || permissions.includes('write:admin')
+  // 检查 Auth0 角色（从 JWT token 的自定义 claims 中获取）
+  // 优先使用配置的命名空间，然后尝试 https 和 http 版本
+  const httpsNamespace = `https://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`
+  const httpNamespace = `http://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`
 
-  if (!hasAdminPermission) {
-    return res.status(403).json({
-      success: false,
-      message: '需要管理员权限',
+  const roles: string[] = (authReq.auth as any)?.[AUTH0_ROLES_NAMESPACE]
+    || (authReq.auth as any)?.[httpsNamespace]
+    || (authReq.auth as any)?.[httpNamespace]
+    || []
+
+  // 输出调试信息（开发环境）
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('🔍 [RequireAuth0Admin] 角色检查:', {
+      userId: authReq.userId,
+      roles,
+      hasAdmin: roles.includes('Admin'),
+      path: req.path,
     })
   }
 
-  next()
+  // 检查是否有 Admin 角色
+  if (roles.includes('Admin')) {
+    return next()
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: '需要管理员权限',
+    data: {
+      requiredRole: 'Admin',
+      userRoles: roles,
+    },
+  })
 }

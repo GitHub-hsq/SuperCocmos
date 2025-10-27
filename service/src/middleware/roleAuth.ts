@@ -6,14 +6,18 @@
 import type { NextFunction, Request, Response } from 'express'
 import { supabase } from '../db/supabaseClient'
 
+// 从环境变量获取 Auth0 配置
+const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE || 'http://supercocmos.com'
+const AUTH0_ROLES_NAMESPACE = `${AUTH0_AUDIENCE}/roles`
+
 // 角色等级映射
 export const ROLE_LEVELS: Record<string, number> = {
-  'Admin': 100,
-  'Beta': 80,
-  'Ultra': 75,
-  'Plus': 50,
-  'Pro': 25,
-  'Free': 0,
+  Admin: 100,
+  Beta: 80,
+  Ultra: 75,
+  Plus: 50,
+  Pro: 25,
+  Free: 0,
 }
 
 /**
@@ -31,7 +35,14 @@ function getUserRoles(req: Request): string[] {
   if (!auth0User)
     return []
 
-  return auth0User['https://supercocmos.com/roles'] || []
+  // 优先使用配置的命名空间，然后尝试 https 和 http 版本
+  const httpsNamespace = `https://${AUTH0_AUDIENCE.replace('http://', '').replace('https://', '')}/roles`
+  const httpNamespace = `http://${AUTH0_AUDIENCE.replace('http://', '').replace('https://', '')}/roles`
+
+  return auth0User[AUTH0_ROLES_NAMESPACE]
+    || auth0User[httpsNamespace]
+    || auth0User[httpNamespace]
+    || []
 }
 
 /**
@@ -257,4 +268,3 @@ export default {
   getUserQuota,
   ROLE_LEVELS,
 }
-

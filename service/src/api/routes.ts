@@ -5,7 +5,7 @@
 
 import express from 'express'
 import { auth0Auth, requireAuth0Admin } from '../middleware/auth0'
-import { requireAuth, requireAdmin } from '../middleware/authUnified'
+import { requireAdmin, requireAuth } from '../middleware/authUnified'
 import * as auth0Controller from './auth0Controller'
 import * as authController from './authController'
 import * as configController from './configController'

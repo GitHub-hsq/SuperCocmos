@@ -80,10 +80,14 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
 
   const _perfStart = Date.now() // 🔥 在外层声明，以便在 catch 中使用
 
+  // 🔥 声明变量在外层作用域，以便在 catch 块中使用
+  let conversationId: string | undefined
+  let prompt: string | undefined
+
   try {
     const requestBody = req.body as any
     const {
-      prompt,
+      prompt: userPrompt,
       systemMessage,
       temperature,
       top_p,
@@ -95,6 +99,9 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       providerId, // 供应商 ID
       contextMessages, // 🔥 前端传来的本地缓存消息（可选）
     } = requestBody
+
+    // 🔥 赋值给外层变量
+    prompt = userPrompt
 
     // console.warn('⏱️ [后端-性能] 请求到达时间:', new Date().toISOString())
     console.log('📝 [后端] 接收请求:', {
@@ -217,7 +224,8 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       return res.end()
     }
 
-    const conversationId = conversation.id
+    // 🔥 赋值给外层变量（而非声明新的局部变量）
+    conversationId = conversation.id
     console.log('📝 [对话] 使用对话ID:', conversationId)
 
     // 🔥 加载历史消息（仅在已有会话时加载）
@@ -438,10 +446,78 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
     // console.warn(`⏱️ [后端-性能] 结束时间: ${new Date().toISOString()}`)
     // console.warn('⏱️ [后端-性能] ====================')
   }
-  catch (error) {
+  catch (error: any) {
     console.error('❌ [Chat] 聊天处理失败:', error)
     // console.warn(`⏱️ [后端-性能] 错误发生在: ${Date.now() - perfStart}ms`)
-    res.write(JSON.stringify(error))
+
+    // 🔥 在错误时也保存消息到数据库，确保数据库和前端同步
+    const saveErrorMessagesAsync = async () => {
+      try {
+        // 只有在已经创建了会话的情况下才保存消息
+        if (typeof conversationId !== 'undefined' && typeof prompt !== 'undefined') {
+          const { createMessage, estimateTokens } = await import('./db/messageService')
+
+          // 计算用户消息的 tokens
+          const userTokens = estimateTokens(prompt)
+
+          // 保存用户消息
+          const userMessage = await createMessage({
+            conversation_id: conversationId,
+            role: 'user',
+            content: prompt,
+            tokens: userTokens,
+          })
+
+          // 保存错误消息（作为助手回复）
+          const errorMessage = error?.message || String(error)
+          const errorTokens = estimateTokens(errorMessage)
+
+          const assistantMessage = await createMessage({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: `API 调用失败: ${errorMessage}`,
+            tokens: errorTokens,
+            model_info: {
+              error: true,
+              errorMessage,
+            },
+          })
+
+          // 更新 Redis 缓存
+          const { appendMessageToCache } = await import('./cache/messageCache')
+          if (userMessage) {
+            await appendMessageToCache(conversationId, userMessage)
+          }
+          if (assistantMessage) {
+            await appendMessageToCache(conversationId, assistantMessage)
+          }
+
+          // 更新对话统计
+          const { incrementConversationStats } = await import('./db/conversationService')
+          await incrementConversationStats(conversationId, userTokens + errorTokens)
+
+          console.log('✅ [保存] 错误消息已保存到数据库，保持与前端同步')
+        }
+      }
+      catch (saveError) {
+        console.error('❌ [保存] 保存错误消息失败:', saveError)
+        // 不影响错误响应的返回
+      }
+    }
+
+    // 启动异步保存（不等待完成）
+    saveErrorMessagesAsync()
+
+    // 构造错误响应
+    const errorResponse = {
+      role: 'assistant',
+      text: '',
+      error: {
+        message: error?.message || String(error),
+      },
+    }
+
+    res.write(JSON.stringify(errorResponse))
   }
   finally {
     res.end()

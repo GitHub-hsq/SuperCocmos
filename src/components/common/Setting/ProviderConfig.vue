@@ -396,7 +396,7 @@ async function loadModelRolesForAllModels() {
     }
   }
   catch (error) {
-    console.error('加载模型角色权限失败:', error)
+    console.error('加载模型角色权限失败1:', error)
   }
 }
 

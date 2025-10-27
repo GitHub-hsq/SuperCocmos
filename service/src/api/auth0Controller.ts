@@ -6,6 +6,10 @@
 import type { Request, Response } from 'express'
 import { upsertUserFromAuth0 } from '../db/supabaseUserService'
 
+// 从环境变量获取 Auth0 配置
+const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE || 'http://supercocmos.com'
+const AUTH0_ROLES_NAMESPACE = `${AUTH0_AUDIENCE}/roles`
+
 /**
  * 同步 Auth0 用户到 Supabase
  * POST /api/auth/sync-auth0-user
@@ -26,9 +30,13 @@ export async function syncAuth0User(req: Request, res: Response) {
     const authReq = req as any
     let roles: string[] = []
     if (authReq.auth) {
-      // 尝试两种可能的命名空间
-      roles = authReq.auth['http://supercocmos.com/roles']
-        || authReq.auth['https://supercocmos.com/roles']
+      // 优先使用配置的命名空间，然后尝试 https 和 http 版本
+      const httpsNamespace = `https://${AUTH0_AUDIENCE.replace('http://', '').replace('https://', '')}/roles`
+      const httpNamespace = `http://${AUTH0_AUDIENCE.replace('http://', '').replace('https://', '')}/roles`
+
+      roles = authReq.auth[AUTH0_ROLES_NAMESPACE]
+        || authReq.auth[httpsNamespace]
+        || authReq.auth[httpNamespace]
         || []
     }
 

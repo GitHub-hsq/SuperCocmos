@@ -7,14 +7,20 @@ import { supabase } from '../db/supabaseClient'
 import { createUser, findUserByAuth0Id, updateUser } from '../db/supabaseUserService'
 import { assignRoleToUser, removeRoleFromUser } from '../db/userRoleService'
 
+// 从环境变量获取 Auth0 配置
+const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE || 'http://supercocmos.com'
+
+// 动态创建角色命名空间类型
+type RolesNamespace = `${string}/roles`
+
 export interface Auth0User {
-  'sub': string // Auth0 user ID
-  'email': string
-  'name'?: string
-  'nickname'?: string
-  'picture'?: string
-  'email_verified'?: boolean
-  'https://supercocmos.com/roles'?: string[] // ✅ 只需要角色
+  sub: string // Auth0 user ID
+  email: string
+  name?: string
+  nickname?: string
+  picture?: string
+  email_verified?: boolean
+  [key: RolesNamespace]: string[] // 支持任意协议的 /roles 命名空间
 }
 
 /**
@@ -25,7 +31,16 @@ export async function syncAuth0UserToDatabase(auth0User: Auth0User) {
   try {
     const auth0Id = auth0User.sub
     const email = auth0User.email || 'unknown@auth0.user'
-    const auth0Roles = auth0User['https://supercocmos.com/roles'] || []
+
+    // 优先使用配置的命名空间，然后尝试 https 和 http 版本
+    const configuredNamespace = `${AUTH0_AUDIENCE}/roles` as RolesNamespace
+    const httpsNamespace = `https://${AUTH0_AUDIENCE.replace('http://', '').replace('https://', '')}/roles` as RolesNamespace
+    const httpNamespace = `http://${AUTH0_AUDIENCE.replace('http://', '').replace('https://', '')}/roles` as RolesNamespace
+
+    const auth0Roles = auth0User[configuredNamespace]
+      || auth0User[httpsNamespace]
+      || auth0User[httpNamespace]
+      || []
 
     console.warn('🔄 [Auth0] 同步用户:', email)
     console.warn('📋 [Auth0] 角色:', auth0Roles)

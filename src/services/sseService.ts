@@ -182,6 +182,44 @@ class SSEConnectionManager {
       chatStore.syncFromBackend()
     })
 
+    // ==================== 配置更新事件 ====================
+    this.eventSource.addEventListener('config_updated', async (event) => {
+      const data = JSON.parse(event.data)
+      console.log('[SSE] ⚙️ 配置更新:', data)
+
+      try {
+        // 动态导入 configStore
+        const { useConfigStore } = await import('@/store/modules/config')
+        const configStore = useConfigStore()
+
+        // 根据配置类型刷新对应的配置
+        if (data.type === 'user_settings' || data.type === 'all') {
+          console.log('[SSE] 🔄 刷新用户设置...')
+          await configStore.loadUserSettings()
+        }
+
+        if (data.type === 'chat_config' || data.type === 'all') {
+          console.log('[SSE] 🔄 刷新聊天配置...')
+          await configStore.loadChatConfig()
+        }
+
+        if (data.type === 'workflow_config' || data.type === 'all') {
+          console.log('[SSE] 🔄 刷新工作流配置...')
+          await configStore.loadWorkflowConfig()
+        }
+
+        if (data.type === 'additional_config' || data.type === 'all') {
+          console.log('[SSE] 🔄 刷新额外配置...')
+          await configStore.loadAdditionalConfig()
+        }
+
+        console.log('[SSE] ✅ 配置已同步')
+      }
+      catch (error) {
+        console.error('[SSE] ❌ 刷新配置失败:', error)
+      }
+    })
+
     // ==================== 错误处理 ====================
     this.eventSource.onerror = (error) => {
       console.error('[SSE] ❌ 连接错误:', error)

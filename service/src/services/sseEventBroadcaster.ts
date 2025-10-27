@@ -14,6 +14,7 @@ export type SSEEventType =
   | 'new_message'            // 新消息
   | 'message_updated'        // 消息更新
   | 'sync_required'          // 需要完整同步
+  | 'config_updated'         // 配置更新
 
 // SSE 事件数据结构
 export interface SSEEvent {

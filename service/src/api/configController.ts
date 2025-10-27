@@ -16,6 +16,7 @@ import {
   updateWorkflowConfig,
 } from '../db/configService'
 import { findUserByAuth0Id } from '../db/supabaseUserService'
+import { broadcastToUser } from '../services/sseEventBroadcaster'
 
 /**
  * 获取当前用户的数据库 user_id
@@ -128,6 +129,20 @@ export async function patchUserSettings(req: Request, res: Response) {
     }
 
     const result = await updateUserSettings(userId, updates)
+
+    // 🔥 广播配置更新事件到用户的所有设备
+    const auth0Id = req.userId // Auth0 用户 ID
+    if (auth0Id) {
+      broadcastToUser(auth0Id, {
+        event: 'config_updated',
+        data: {
+          type: 'user_settings',
+          updates: result,
+          timestamp: Date.now(),
+        },
+      })
+      console.log(`[SSE Broadcast] 📤 用户设置更新已广播: ${auth0Id}`)
+    }
 
     res.json({
       status: 'Success',

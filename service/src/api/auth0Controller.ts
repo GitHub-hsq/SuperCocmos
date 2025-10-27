@@ -77,6 +77,8 @@ export async function syncAuth0User(req: Request, res: Response) {
   }
   catch (error: any) {
     console.error('❌ [Auth0Controller] 同步用户失败:', error.message)
+    console.error('❌ [Auth0Controller] 错误详情:', error)
+    console.error('❌ [Auth0Controller] 错误堆栈:', error.stack)
     return res.status(500).json({
       success: false,
       message: '同步用户失败',

@@ -572,5 +572,185 @@ export const useChatStore = defineStore('chat-store', {
         return { success: false, error: error.message }
       }
     },
+
+    // ==================== 🔥 SSE 事件处理方法 ====================
+
+    /**
+     * SSE: 添加新会话（来自其他设备）
+     */
+    addConversationFromSSE(conversation: any) {
+      console.log('[SSE] 添加新会话:', conversation)
+
+      const frontendUuid = conversation.frontend_uuid || conversation.id
+
+      // 检查是否已存在
+      const exists = this.history.find(item =>
+        item.uuid === frontendUuid || item.backendConversationId === conversation.id,
+      )
+
+      if (exists) {
+        console.warn('[SSE] 会话已存在，跳过')
+        return
+      }
+
+      // 添加到列表
+      this.history.unshift({
+        uuid: frontendUuid,
+        backendConversationId: conversation.id,
+        title: conversation.title || t('chat.newChatTitle'),
+        isEdit: false,
+        mode: 'normal',
+      })
+
+      this.chat.unshift({
+        uuid: frontendUuid,
+        data: [],
+      })
+
+      debouncedRecordState(this.$state)
+    },
+
+    /**
+     * SSE: 更新会话信息
+     */
+    updateConversationFromSSE(conversationId: string, updates: any) {
+      console.log('[SSE] 更新会话:', conversationId, updates)
+
+      // 查找会话（通过 backendConversationId）
+      const index = this.history.findIndex(
+        item => item.backendConversationId === conversationId,
+      )
+
+      if (index !== -1) {
+        // 更新标题等信息
+        if (updates.title) {
+          this.history[index].title = updates.title
+        }
+
+        debouncedRecordState(this.$state)
+      }
+    },
+
+    /**
+     * SSE: 删除会话
+     */
+    removeConversationFromSSE(conversationId: string) {
+      console.log('[SSE] 删除会话:', conversationId)
+
+      // 查找会话
+      const index = this.history.findIndex(
+        item => item.backendConversationId === conversationId,
+      )
+
+      if (index !== -1) {
+        const uuid = this.history[index].uuid
+
+        // 删除会话
+        this.history.splice(index, 1)
+
+        // 删除消息
+        const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
+        if (chatIndex !== -1) {
+          this.chat.splice(chatIndex, 1)
+        }
+
+        // 删除工作流状态
+        const workflowIndex = this.workflowStates.findIndex(item => item.uuid === uuid)
+        if (workflowIndex !== -1) {
+          this.workflowStates.splice(workflowIndex, 1)
+        }
+
+        // 如果删除的是当前会话，切换到第一个
+        if (this.active === uuid) {
+          if (this.history.length > 0) {
+            this.active = this.history[0].uuid
+            this.reloadRoute(this.history[0].uuid)
+          }
+          else {
+            this.active = null
+            this.reloadRoute()
+          }
+        }
+
+        debouncedRecordState(this.$state)
+      }
+    },
+
+    /**
+     * SSE: 添加新消息
+     */
+    addMessageFromSSE(conversationId: string, message: any) {
+      console.log('[SSE] 添加新消息:', conversationId, message)
+
+      // 查找会话
+      const history = this.history.find(
+        item => item.backendConversationId === conversationId,
+      )
+
+      if (!history) {
+        console.warn('[SSE] 会话不存在，跳过消息')
+        return
+      }
+
+      const uuid = history.uuid
+
+      // 转换消息格式
+      const chatMessage: Chat.Chat = {
+        dateTime: new Date(message.created_at || Date.now()).toLocaleString(),
+        text: message.content,
+        inversion: message.role === 'user',
+        error: false,
+        loading: false,
+        conversationOptions: null,
+        requestOptions: { prompt: message.content, options: null },
+      }
+
+      // 添加到消息列表
+      this.addChatByUuid(uuid, chatMessage)
+    },
+
+    /**
+     * SSE: 更新消息
+     */
+    updateMessageFromSSE(conversationId: string, messageId: string, updates: any) {
+      console.log('[SSE] 更新消息:', conversationId, messageId, updates)
+
+      // 查找会话
+      const history = this.history.find(
+        item => item.backendConversationId === conversationId,
+      )
+
+      if (!history) {
+        console.warn('[SSE] 会话不存在，跳过')
+        return
+      }
+
+      // TODO: 实现消息更新逻辑
+      // 需要在消息中添加 ID 字段才能准确定位
+    },
+
+    /**
+     * SSE: 标记会话为未读
+     */
+    markConversationUnread(conversationId: string) {
+      const history = this.history.find(
+        item => item.backendConversationId === conversationId,
+      )
+
+      if (history) {
+        // TODO: 添加未读标记逻辑
+        console.log('[SSE] 标记未读:', conversationId)
+      }
+    },
+
+    /**
+     * SSE: 触发完整同步
+     */
+    async syncFromBackend() {
+      console.log('[SSE] 触发完整同步')
+
+      // 重新加载会话列表
+      await this.loadConversationsFromBackend()
+    },
   },
 })

@@ -81,22 +81,22 @@ export async function auth0UserExtractor(req: Request, res: Response, next: Next
       console.warn('\n📦 JWT Payload 完整内容:')
       console.warn(JSON.stringify(authReq.auth, null, 2))
 
-      console.warn('\n🔑 关键字段提取:')
-      console.warn('   - sub (用户ID):', authReq.auth.sub || '❌ 缺失')
-      console.warn('   - iss (签发者):', authReq.auth.iss || '❌ 缺失')
-      console.warn('   - aud (受众):', authReq.auth.aud || '❌ 缺失')
-      console.warn('   - exp (过期时间):', authReq.auth.exp ? new Date(authReq.auth.exp * 1000).toISOString() : '❌ 缺失')
+      // console.warn('\n🔑 关键字段提取:')
+      // console.warn('   - sub (用户ID):', authReq.auth.sub || '❌ 缺失')
+      // console.warn('   - iss (签发者):', authReq.auth.iss || '❌ 缺失')
+      // console.warn('   - aud (受众):', authReq.auth.aud || '❌ 缺失')
+      // console.warn('   - exp (过期时间):', authReq.auth.exp ? new Date(authReq.auth.exp * 1000).toISOString() : '❌ 缺失')
 
       console.warn('\n👥 角色信息检查:')
-      const httpsRoles = (authReq.auth as any)[`https://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`]
-      const httpRoles = (authReq.auth as any)[`http://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`]
-      const configuredRoles = (authReq.auth as any)[AUTH0_ROLES_NAMESPACE]
-      const permissions = authReq.auth.permissions
+      // const httpsRoles = (authReq.auth as any)[`https://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`]
+      // const httpRoles = (authReq.auth as any)[`http://${AUTH0_AUDIENCE?.replace('http://', '').replace('https://', '')}/roles`]
+      // const configuredRoles = (authReq.auth as any)[AUTH0_ROLES_NAMESPACE]
+      // const permissions = authReq.auth.permissions
 
-      console.warn(`   - ${AUTH0_ROLES_NAMESPACE}:`, configuredRoles || '❌ 不存在')
-      console.warn(`   - https://.../roles:`, httpsRoles || '❌ 不存在')
-      console.warn(`   - http://.../roles:`, httpRoles || '❌ 不存在')
-      console.warn('   - permissions:', permissions || '❌ 不存在')
+      // console.warn(`   - ${AUTH0_ROLES_NAMESPACE}:`, configuredRoles || '❌ 不存在')
+      // console.warn(`   - https://.../roles:`, httpsRoles || '❌ 不存在')
+      // console.warn(`   - http://.../roles:`, httpRoles || '❌ 不存在')
+      // console.warn('   - permissions:', permissions || '❌ 不存在')
 
       console.warn('\n📋 Payload 中的所有自定义字段:')
       Object.keys(authReq.auth).forEach((key) => {

@@ -117,21 +117,7 @@ if (import.meta.env.DEV) {
  */
 
 export function setupAuthGuard(auth0: Auth0VueClient) {
-  console.warn('=======================路由守卫触发=======================')
-  console.warn('11111 isLoading', auth0.isLoading.value)
-  console.warn('22222 isAuthenticated', auth0.isAuthenticated.value)
-
   router.beforeEach(async (to, from, next) => {
-    // 📊 记录路由跳转（可选）
-    const timestamp = new Date().toISOString().split('T')[1].split('.')[0]
-    routeHistory.push({
-      from: from.fullPath || '(初始)',
-      to: to.fullPath,
-      timestamp,
-    })
-    if (routeHistory.length > 20)
-      routeHistory.shift()
-
     try {
       const { isLoading, isAuthenticated, loginWithRedirect } = auth0
 

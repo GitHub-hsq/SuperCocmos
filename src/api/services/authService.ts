@@ -103,3 +103,12 @@ export async function completeSignup(data: {
   const response = await request.post<ApiResponse<LoginResponse>>('/auth/complete-signup', data)
   return response.data
 }
+
+/**
+ * 将 Access Token 设置到 Cookie（用于 SSE 认证）
+ * 方案 A：调用后端 API，让后端设置 HttpOnly Cookie（更安全）
+ */
+export async function setTokenCookie(token: string) {
+  const response = await request.post<ApiResponse<null>>('/auth/set-token-cookie', { token })
+  return response.data
+}

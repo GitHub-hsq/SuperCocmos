@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
+import cookieParser from 'cookie-parser'
 
 import multer from 'multer'
 import { nanoid } from 'nanoid'
@@ -35,15 +36,22 @@ let workflowConfig: import('./quiz/types').WorkflowNodeConfig[] = []
 
 app.use(express.static('public'))
 app.use(express.json())
+app.use(cookieParser()) // 🔥 添加 Cookie 解析中间件
 
 // 🔥 禁用响应压缩和缓冲（对于流式响应很重要）
 app.set('x-powered-by', false)
 app.set('etag', false)
 
-// 全局 CORS 配置：支持 Auth0 认证
+// 全局 CORS 配置：支持 Auth0 认证和 SSE
 app.all('*', (req, res, next) => {
   // 允许的来源（开发环境）
-  const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3002']
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3002',
+    'http://localhost:1002',  // 🔥 前端实际端口
+    'http://127.0.0.1:1002',  // 🔥 前端实际端口（127.0.0.1）
+  ]
   const origin = req.headers.origin
 
   if (origin && allowedOrigins.includes(origin)) {

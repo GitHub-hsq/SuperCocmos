@@ -13,6 +13,8 @@ import * as conversationController from './conversationController'
 import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
+import * as sseController from './sseController'
+import { sseAuth } from '../middleware/sseAuth'
 
 const router = express.Router()
 
@@ -26,6 +28,13 @@ const router = express.Router()
  * 需要 Auth0 认证
  */
 router.post('/auth/sync-auth0-user', ...auth0Auth, auth0Controller.syncAuth0User)
+
+/**
+ * 将 Access Token 写入 Cookie（用于 SSE 认证）
+ * POST /api/auth/set-token-cookie
+ * 前端登录后调用此接口
+ */
+router.post('/auth/set-token-cookie', authController.setTokenCookie)
 
 /**
  * 根据 Auth0 ID 获取用户信息
@@ -260,5 +269,31 @@ router.post('/model-roles/remove', ...auth0Auth, requireAdmin, modelRoleControll
  * 批量设置模型的角色（覆盖现有设置）
  */
 router.post('/model-roles/set', ...auth0Auth, requireAdmin, modelRoleController.setModelRolesHandler)
+
+// ==============================================
+// SSE 实时事件推送路由
+// ==============================================
+
+/**
+ * 建立 SSE 连接
+ * GET /api/events/sync
+ * 用于跨设备实时同步状态
+ *
+ * 🔥 认证方式（方案 A - 更安全）：
+ * - 优先从 Cookie 读取 token（HttpOnly Cookie，防止 XSS）
+ * - 降级支持：URL 参数传递 token（兼容旧版本）
+ *
+ * 前端配置：
+ * - EventSource({ withCredentials: true }) 自动发送 Cookie
+ * - 登录后调用 POST /api/auth/set-token-cookie 设置 Cookie
+ */
+router.get('/events/sync', ...sseAuth, sseController.handleSSEConnection)
+
+/**
+ * 获取 SSE 统计信息
+ * GET /api/events/stats
+ * 需要管理员权限
+ */
+router.get('/events/stats', ...auth0Auth, requireAdmin, sseController.getSSEStatsHandler)
 
 export default router

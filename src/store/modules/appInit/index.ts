@@ -138,6 +138,29 @@ export const useAppInitStore = defineStore('app-init', {
               console.warn('⚠️ [AppInit] 用户同步失败（可能已存在）:', error.message)
           }
 
+          // 🔥 设置 token 到 Cookie（用于 SSE 认证）
+          // 方案 A：调用后端 API，让后端设置 HttpOnly Cookie（更安全）
+          try {
+            const token = await auth0.getAccessTokenSilently({
+              authorizationParams: {
+                audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+              },
+            })
+
+            if (token) {
+              // 调用后端 API 设置 HttpOnly Cookie
+              const { setTokenCookie } = await import('@/api/services/authService')
+              await setTokenCookie(token)
+
+              if (import.meta.env.DEV)
+                console.warn('✅ [AppInit] Token 已通过后端设置到 HttpOnly Cookie')
+            }
+          }
+          catch (error: any) {
+            console.error('⚠️ [AppInit] 设置 token 到 Cookie 失败:', error)
+            // 不影响应用初始化，SSE 可能会降级到 URL 参数认证
+          }
+
           // 加载权限
           try {
             this.userPermissions = await getUserPermissions(auth0.getAccessTokenSilently)
@@ -250,6 +273,26 @@ export const useAppInitStore = defineStore('app-init', {
           catch (error) {
             console.error('❌ [AppInit] 会话同步失败:', error)
             // 同步失败不阻止应用使用，继续使用本地缓存
+          }
+        }
+
+        // ⚙️ 🔥 步骤 5: 启动 SSE 连接（跨设备实时同步）
+        if (auth0.isAuthenticated.value) {
+          try {
+            const { sseManager } = await import('@/services/sseService')
+
+            console.warn('🔄 [AppInit] 启动 SSE 连接...')
+
+            // 异步建立连接（不阻塞初始化）
+            sseManager.connect().catch((error) => {
+              console.error('❌ [AppInit] SSE 连接失败:', error)
+            })
+
+            console.warn('✅ [AppInit] SSE 连接请求已发送')
+          }
+          catch (error) {
+            console.error('❌ [AppInit] SSE 初始化失败:', error)
+            // SSE 连接失败不阻止应用使用
           }
         }
 

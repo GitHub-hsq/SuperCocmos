@@ -8,6 +8,7 @@ import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
 import { setupAuthGuard } from '@/router'
+import { setupSSEReconnect } from '@/services/sseReconnect'
 
 // ✅ 初始化 Auth0 客户端实例（只能在 setup 中调用）
 const auth0Client = useAuth0()
@@ -69,6 +70,9 @@ watch(
     }
   },
 )
+
+// 🔥 页面刷新后自动重连 SSE（使用闭包捕获 auth0Client）
+setupSSEReconnect(auth0Client)
 
 // 启动Loading状态
 const isAppLoading = ref(true)

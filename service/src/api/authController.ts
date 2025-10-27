@@ -8,6 +8,51 @@ import { findUserByAuth0Id } from '../db/supabaseUserService'
 import { getUserWithRoles } from '../db/userRoleService'
 
 /**
+ * 将 Access Token 写入 Cookie（用于 SSE 认证）
+ * POST /api/auth/set-token-cookie
+ * 前端登录后调用此接口，将 token 存储到 HttpOnly Cookie 中
+ */
+export async function setTokenCookie(req: Request, res: Response) {
+  try {
+    const { token } = req.body
+
+    if (!token) {
+      return res.status(400).json({
+        status: 'Fail',
+        message: '缺少 token 参数',
+        data: null,
+      })
+    }
+
+    // 🔥 设置 HttpOnly Cookie（更安全）
+    // maxAge: 24小时（与 Auth0 token 过期时间一致）
+    res.cookie('access_token', token, {
+      httpOnly: true, // 防止 XSS 攻击
+      secure: process.env.NODE_ENV === 'production', // 生产环境使用 HTTPS
+      sameSite: 'lax', // 防止 CSRF 攻击
+      maxAge: 24 * 60 * 60 * 1000, // 24小时
+      path: '/', // 全局路径
+    })
+
+    console.log('[Auth] ✅ Token 已写入 Cookie')
+
+    return res.json({
+      status: 'Success',
+      message: 'Token 已设置到 Cookie',
+      data: null,
+    })
+  }
+  catch (error: any) {
+    console.error('[Auth] ❌ 设置 Cookie 失败:', error)
+    return res.status(500).json({
+      status: 'Fail',
+      message: '设置 Cookie 失败',
+      data: null,
+    })
+  }
+}
+
+/**
  * Auth0 Webhook 处理器
  */
 export async function handleAuth0Webhook(req: Request, res: Response) {

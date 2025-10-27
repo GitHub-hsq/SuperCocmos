@@ -22,7 +22,7 @@ export function setupSSEReconnect(auth0: Auth0VueClient) {
     if (auth0.isAuthenticated.value) {
       console.log('[SSE Reconnect] 🔍 页面已加载，检查 SSE 连接状态...')
 
-      // 延迟 1 秒，确保 initializeApp 完成（包括设置 Cookie）
+      // 🔥 延迟 3 秒，确保 AppInit 完成（包括 SSE 首次连接）
       setTimeout(async () => {
         const status = sseManager.getStatus()
 
@@ -32,10 +32,11 @@ export function setupSSEReconnect(auth0: Auth0VueClient) {
           reconnectAttempts: status.reconnectAttempts,
         })
 
-        if (!status.connected) {
-          console.log('[SSE Reconnect] 🔄 SSE 未连接，尝试重连...')
+        // 🔥 只在连接断开时重连（不主动建立首次连接）
+        if (!status.connected && status.reconnectAttempts > 0) {
+          console.log('[SSE Reconnect] 🔄 SSE 连接已断开，尝试重连...')
 
-          // 🔥 如果 Cookie 可能过期，先刷新 token
+          // 如果 Cookie 可能过期，先刷新 token
           try {
             const token = await auth0.getAccessTokenSilently({
               authorizationParams: {
@@ -49,18 +50,19 @@ export function setupSSEReconnect(auth0: Auth0VueClient) {
             }
           }
           catch (tokenError) {
-            console.warn('[SSE Reconnect] ⚠️ 刷新 token 失败，尝试直接重连:', tokenError)
+            console.log('[SSE Reconnect] ⚠️ 刷新 token 失败，尝试直接重连:', tokenError)
           }
 
           // 重连 SSE
-          sseManager.connect().catch((error) => {
-            console.error('[SSE Reconnect] ❌ SSE 重连失败:', error)
-          })
+          sseManager.reconnect()
         }
-        else {
+        else if (status.connected) {
           console.log('[SSE Reconnect] ✅ SSE 已连接')
         }
-      }, 1000)
+        else {
+          console.log('[SSE Reconnect] ℹ️ SSE 首次连接由 AppInit 处理，跳过')
+        }
+      }, 3000)
     }
   })
 

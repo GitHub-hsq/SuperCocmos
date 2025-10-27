@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { CONVERSATION_KEYS } from '../cache/cacheKeys'
+import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
+import { redis } from '../cache/redisClient'
 import { supabase } from './supabaseClient'
 
 // 🔥 消息类型定义
@@ -48,6 +51,11 @@ export async function createMessage(
       return null
     }
 
+    // 🔥 清除该会话的消息缓存（因为有新消息）
+    const cacheKey = CONVERSATION_KEYS.messages(params.conversation_id)
+    await deleteCached(cacheKey)
+    console.log(`🧹 [MessageCache] 已清除缓存: ${params.conversation_id}`)
+
     console.log(`✅ [Message] 创建消息成功: ${params.role} - ${params.content.substring(0, 50)}...`)
     return data as Message
   }
@@ -83,6 +91,14 @@ export async function createMessages(
       return []
     }
 
+    // 🔥 清除所有涉及会话的消息缓存
+    const conversationIds = new Set(messages.map(msg => msg.conversation_id))
+    for (const convId of conversationIds) {
+      const cacheKey = CONVERSATION_KEYS.messages(convId)
+      await deleteCached(cacheKey)
+      console.log(`🧹 [MessageCache] 已清除缓存: ${convId}`)
+    }
+
     console.log(`✅ [Message] 批量创建 ${messages.length} 条消息成功`)
     return (data || []) as Message[]
   }
@@ -93,16 +109,68 @@ export async function createMessages(
 }
 
 /**
- * 🔍 获取对话的所有消息（按时间排序）
+ * 🔧 管理用户的会话消息缓存（只保留最新1个）
+ * 策略：每个用户只缓存当前使用的1个会话，节省内存
+ * @param userId 用户ID（Auth0 ID）
+ * @param conversationId 会话ID
+ */
+async function manageCachedConversations(userId: string, conversationId: string): Promise<void> {
+  const currentCachedKey = CONVERSATION_KEYS.userCurrentCached(userId)
+
+  try {
+    // 1. 获取用户当前缓存的会话ID
+    const currentCachedConvId = await redis.get(currentCachedKey)
+
+    // 2. 如果有旧缓存且不是当前会话，清除旧会话的消息缓存
+    if (currentCachedConvId && currentCachedConvId !== conversationId) {
+      const oldCacheKey = CONVERSATION_KEYS.messages(currentCachedConvId)
+      await deleteCached(oldCacheKey)
+      console.log(`🧹 [MessageCache] 清除旧缓存: ${currentCachedConvId.substring(0, 8)}...`)
+    }
+
+    // 3. 更新为新会话ID
+    await redis.set(currentCachedKey, conversationId, 'EX', CACHE_TTL.USER_SESSION)
+    console.log(`💾 [MessageCache] 当前缓存: ${conversationId.substring(0, 8)}...`)
+  }
+  catch (error) {
+    console.error('❌ [MessageCache] 缓存管理失败:', error)
+  }
+}
+
+/**
+ * 🔍 获取对话的所有消息（按时间排序）+ Redis 缓存
+ * 缓存策略：每用户只缓存1个最新会话，节省内存，适合免费数据库场景
+ * @param conversationId 会话ID
+ * @param userId 用户ID（用于缓存管理）
+ * @param options 分页选项
+ * @param client Supabase 客户端
  */
 export async function getConversationMessages(
   conversationId: string,
+  userId?: string,
   options: { limit?: number, offset?: number } = {},
   client: SupabaseClient = supabase,
 ): Promise<Message[]> {
   try {
     const { limit = 100, offset = 0 } = options
 
+    // 🔥 只缓存完整的消息列表（不分页）
+    const shouldCache = offset === 0 && limit === 100
+
+    // 1. 尝试从缓存获取
+    if (shouldCache) {
+      const cacheKey = CONVERSATION_KEYS.messages(conversationId)
+      const cached = await getCached<Message[]>(cacheKey)
+
+      if (cached) {
+        console.log(`✅ [MessageCache] 缓存命中: ${conversationId.substring(0, 8)}... (${cached.length}条)`)
+        return cached
+      }
+
+      console.log(`ℹ️ [MessageCache] 缓存未命中: ${conversationId.substring(0, 8)}...，从数据库读取`)
+    }
+
+    // 2. 从数据库查询
     const { data, error } = await client
       .from('messages')
       .select('*')
@@ -115,7 +183,19 @@ export async function getConversationMessages(
       return []
     }
 
-    return (data || []) as Message[]
+    const messages = (data || []) as Message[]
+
+    // 3. 保存到缓存并更新用户当前缓存的会话
+    if (shouldCache && messages.length > 0 && userId) {
+      const cacheKey = CONVERSATION_KEYS.messages(conversationId)
+      await setCached(cacheKey, messages, CACHE_TTL.USER_SESSION) // 24小时
+      console.log(`💾 [MessageCache] 已缓存消息: ${conversationId.substring(0, 8)}... (${messages.length}条)`)
+
+      // 管理用户的缓存会话（替换旧的）
+      await manageCachedConversations(userId, conversationId)
+    }
+
+    return messages
   }
   catch (error) {
     console.error('❌ [Message] 获取对话消息异常:', error)
@@ -194,6 +274,11 @@ export async function deleteConversationMessages(
       console.error('❌ [Message] 删除对话消息失败:', error)
       return false
     }
+
+    // 🔥 清除该会话的消息缓存
+    const cacheKey = CONVERSATION_KEYS.messages(conversationId)
+    await deleteCached(cacheKey)
+    console.log(`🧹 [MessageCache] 已清除缓存: ${conversationId}`)
 
     console.log('✅ [Message] 删除对话消息成功:', conversationId)
     return true

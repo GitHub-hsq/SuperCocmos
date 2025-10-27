@@ -13,6 +13,7 @@ export const CACHE_TTL = {
   PROVIDER_LIST: 30 * 60, // 供应商列表: 30分钟
   MODEL_LIST: 30 * 60, // 模型列表: 30分钟
   USER_ROLES: 60 * 60, // 用户角色: 1小时
+  USER_SESSION: 24 * 60 * 60, // 用户会话消息: 24小时
 }
 
 /**

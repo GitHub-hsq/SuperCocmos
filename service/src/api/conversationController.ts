@@ -41,7 +41,9 @@ async function getUserIdFromRequest(req: Request): Promise<string | null> {
  * GET /api/conversations
  */
 export async function getUserConversationsHandler(req: Request, res: Response) {
+  const startTime = performance.now()
   try {
+    const authStart = performance.now()
     const userId = await getUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
@@ -50,11 +52,19 @@ export async function getUserConversationsHandler(req: Request, res: Response) {
         data: null,
       })
     }
+    const authEnd = performance.now()
+    console.log(`⏱️ [Conversation API] 鉴权耗时: ${Math.round(authEnd - authStart)}ms`)
 
     const limit = Number.parseInt(req.query.limit as string) || 50
     const offset = Number.parseInt(req.query.offset as string) || 0
 
+    const dbStart = performance.now()
     const conversations = await getUserConversations(userId, { limit, offset })
+    const dbEnd = performance.now()
+    console.log(`⏱️ [Conversation API] 数据库查询耗时: ${Math.round(dbEnd - dbStart)}ms`)
+
+    const totalTime = performance.now() - startTime
+    console.log(`⏱️ [Conversation API] 总耗时: ${Math.round(totalTime)}ms`)
 
     res.json({
       status: 'Success',
@@ -319,7 +329,9 @@ export async function deleteConversationHandler(req: Request, res: Response) {
  * GET /api/conversations/:id/messages
  */
 export async function getConversationMessagesHandler(req: Request, res: Response) {
+  const startTime = performance.now()
   try {
+    const authStart = performance.now()
     const userId = await getUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
@@ -328,12 +340,15 @@ export async function getConversationMessagesHandler(req: Request, res: Response
         data: null,
       })
     }
+    const authEnd = performance.now()
+    console.log(`⏱️ [Messages API] 鉴权耗时: ${Math.round(authEnd - authStart)}ms`)
 
     const { id } = req.params
     const limit = Number.parseInt(req.query.limit as string) || 100
     const offset = Number.parseInt(req.query.offset as string) || 0
 
     // 验证会话所有权
+    const verifyStart = performance.now()
     const conversation = await getConversationById(id)
     if (!conversation) {
       return res.status(404).json({
@@ -350,8 +365,17 @@ export async function getConversationMessagesHandler(req: Request, res: Response
         data: null,
       })
     }
+    const verifyEnd = performance.now()
+    console.log(`⏱️ [Messages API] 会话验证耗时: ${Math.round(verifyEnd - verifyStart)}ms`)
 
-    const messages = await getConversationMessages(id, { limit, offset })
+    // 🔥 传递 userId（Auth0 ID）用于 Redis 缓存 LRU 管理
+    const dbStart = performance.now()
+    const messages = await getConversationMessages(id, userId, { limit, offset })
+    const dbEnd = performance.now()
+    console.log(`⏱️ [Messages API] 数据库查询耗时: ${Math.round(dbEnd - dbStart)}ms`)
+
+    const totalTime = performance.now() - startTime
+    console.log(`⏱️ [Messages API] 总耗时: ${Math.round(totalTime)}ms`)
 
     res.json({
       status: 'Success',

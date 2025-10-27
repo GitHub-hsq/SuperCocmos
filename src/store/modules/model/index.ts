@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia'
 import { fetchProviders } from '@/api'
 import { store } from '@/store/helper'
-import { clearCurrentModelId, clearProvidersCache, defaultModelState, getCurrentModelId, getLocalWorkflowConfig, getProvidersCache, saveCurrentModelId, saveProvidersCache, setLocalWorkflowConfig } from './helper'
+import { clearCurrentModelId, defaultModelState, getCurrentModelId, getLocalWorkflowConfig, saveCurrentModelId, setLocalWorkflowConfig } from './helper'
 
 // 后端供应商数据格式（使用下划线命名，匹配后端 API 和 Redis 缓存格式）
 interface BackendProviderInfo {
@@ -81,39 +81,37 @@ export const useModelStore = defineStore('model-store', {
   },
 
   actions: {
-    // 从后端加载模型列表（使用新的 Provider 结构，支持缓存优先）
+    // 从后端加载模型列表（移除 localStorage 缓存，始终从后端 API 获取最新数据）
     async loadModelsFromBackend(forceRefresh = false) {
       try {
-        // 🔥 如果不是强制刷新且已经加载过，直接返回
-        if (!forceRefresh && this.isProvidersLoaded)
+        console.log(`🔄 [ModelStore] loadModelsFromBackend 被调用: forceRefresh=${forceRefresh}, isProvidersLoaded=${this.isProvidersLoaded}`)
+
+        // 🔥 如果不是强制刷新且已经在内存中加载过，直接返回
+        if (!forceRefresh && this.isProvidersLoaded) {
+          console.log('✅ [ModelStore] 使用内存缓存的模型列表（跳过 API 请求）')
           return true
-
-        // 🔥 如果不是强制刷新，先尝试从缓存加载
-        if (!forceRefresh) {
-          const cachedProviders = getProvidersCache()
-          if (cachedProviders && cachedProviders.length > 0) {
-            this.providers = cachedProviders
-            this.isProvidersLoaded = true // 标记已加载
-
-            // 验证当前模型是否存在
-            this.validateCurrentModel()
-            return true
-          }
-        }
-        else {
-          clearProvidersCache()
-          this.isProvidersLoaded = false // 重置加载状态
         }
 
-        // 从后端加载
+        // 重置加载状态（强制刷新）
+        if (forceRefresh) {
+          this.isProvidersLoaded = false
+          console.log('🔄 [ModelStore] 强制刷新，重置加载状态')
+        }
+
+        // 🔥 从后端 API 加载（后端已使用 Redis 缓存，响应速度 1-5ms）
+        console.log('🔄 [ModelStore] 从后端 API 加载模型列表...')
+
         const response = await fetchProviders<BackendProviderInfo[]>()
+        console.log(`📥 [ModelStore] API 响应:`, response)
+
         if (response.status === 'Success' && response.data) {
           // 将后端数据转换为前端格式
           const providersData = response.data
+          console.log(`📊 [ModelStore] 收到 ${providersData.length} 个供应商数据`)
 
-          // 构建providers数组
+          // 构建 providers 数组
           this.providers = providersData.map((provider) => {
-            // 🔥 修复：使用后端提供的 UUID 作为 providerId，而不是 name.toLowerCase()
+            // 🔥 使用后端提供的 UUID 作为 providerId
             const providerId = provider.id as Model.ProviderType
             const hasEnabledModel = provider.models.some(m => m.enabled)
 
@@ -140,18 +138,24 @@ export const useModelStore = defineStore('model-store', {
             return mappedProvider
           })
 
-          // 🔥 保存到缓存
-          saveProvidersCache(this.providers)
-
-          // 🔥 标记已加载
+          // 🔥 标记已加载（仅内存缓存，不写 localStorage）
           this.isProvidersLoaded = true
 
           // 验证当前模型是否存在
           this.validateCurrentModel()
 
+          console.log('✅ [ModelStore] 模型列表加载成功:', {
+            供应商数量: this.providers.length,
+            启用的模型: this.enabledModels.length,
+            isProvidersLoaded: this.isProvidersLoaded,
+          })
+
           return true
         }
-        return false
+        else {
+          console.error('❌ [ModelStore] API 响应格式错误:', response)
+          return false
+        }
       }
       catch (error) {
         console.error('❌ [ModelStore] 从后端加载模型失败:', error)

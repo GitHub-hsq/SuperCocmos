@@ -103,9 +103,9 @@ if (import.meta.env.DEV) {
   const w = window as any
   w.__routeHistory = routeHistory
   w.__printRouteHistory = () => {
-    console.warn('📊 路由历史记录:')
+    console.log('📊 路由历史记录:')
     routeHistory.forEach((entry, index) => {
-      console.warn(`  ${index + 1}. ${entry.timestamp} | ${entry.from} → ${entry.to}`)
+      console.log(`  ${index + 1}. ${entry.timestamp} | ${entry.from} → ${entry.to}`)
     })
   }
 }
@@ -150,11 +150,23 @@ export function setupAuthGuard(auth0: Auth0VueClient) {
         return
       }
 
-      // 🔥 步骤 3.5: 应用级初始化（仅首次，使用 Pinia）
+      // 🔥 步骤 3.5: 等待应用初始化完成（初始化由 App.vue 的 onMounted 统一处理）
       const appInitStore = useAppInitStore()
-      if (!appInitStore.isInitialized && !appInitStore.isInitializing) {
-        // ✅ 传递 auth0 实例（从 setup 上下文传入，避免在 store 中调用 useAuth0）
-        await appInitStore.initializeApp(auth0)
+
+      // 如果正在初始化或未初始化，等待完成（最多等待 15 秒）
+      if (!appInitStore.isInitialized) {
+        console.log('⏳ [Router] 等待应用初始化完成...')
+        let waitCount = 0
+        while (!appInitStore.isInitialized && waitCount < 300) {
+          await new Promise(resolve => setTimeout(resolve, 50))
+          waitCount++
+        }
+        if (appInitStore.isInitialized) {
+          console.log('✅ [Router] 应用初始化完成，继续路由导航')
+        }
+        else {
+          console.log('⚠️ [Router] 应用初始化超时（15秒），强制继续')
+        }
       }
 
       // 🔹 步骤 4: 权限检查（使用 AppInitStore）

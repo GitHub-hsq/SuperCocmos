@@ -7,16 +7,16 @@
  */
 
 import type { Message } from '../db/messageService'
+import { CONVERSATION_KEYS } from './cacheKeys'
 import { redis } from './redisClient'
 
-const MESSAGE_CACHE_PREFIX = 'msg:'
 const MESSAGE_CACHE_TTL = 3600 // 1小时过期
 
 /**
- * 🔑 生成消息缓存 key
+ * 🔑 生成消息缓存 key（使用统一的缓存键格式）
  */
 function getMessageCacheKey(conversationId: string): string {
-  return `${MESSAGE_CACHE_PREFIX}${conversationId}`
+  return CONVERSATION_KEYS.messages(conversationId)
 }
 
 /**

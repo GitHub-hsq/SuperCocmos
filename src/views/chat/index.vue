@@ -274,7 +274,7 @@ async function onConversation() {
           if (firstChunkTime === null) {
             firstChunkTime = Date.now()
             const ttfb = firstChunkTime - requestStartTime
-            console.warn(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
+            console.log(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
           }
 
           // Always process the final line
@@ -1038,7 +1038,7 @@ onMounted(async () => {
   // ✅ 等待应用初始化完成（正常情况下路由守卫已完成）
   if (!appInitStore.isFullyInitialized && appInitStore.isInitializing) {
     if (import.meta.env.DEV) {
-      console.warn('⏳ [Chat] 等待应用初始化完成...')
+      console.log('⏳ [Chat] 等待应用初始化完成...')
     }
     // 可以添加 loading 状态或等待逻辑
   }
@@ -1065,7 +1065,7 @@ onMounted(async () => {
     if (firstEnabledProvider) {
       activeVendor.value = firstEnabledProvider.id
       if (import.meta.env.DEV) {
-        console.warn('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
+        console.log('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
       }
     }
   }
@@ -1201,20 +1201,20 @@ function loadCurrentModel() {
           activeVendor.value = currentModelFromStore.providerId
 
           if (import.meta.env.DEV) {
-            console.warn('🔗 [模型] 已绑定供应商:', currentModelFromStore.providerId)
+            console.log('🔗 [模型] 已绑定供应商:', currentModelFromStore.providerId)
           }
         }
 
         if (import.meta.env.DEV) {
-          console.warn('✅ [模型] 加载已保存的模型:', currentSelectedModel.value?.displayName)
-          console.warn('🔍 [模型] currentSelectedModel.value:', currentSelectedModel.value)
-          console.warn('🔍 [模型] modelStore.currentModel:', modelStore.currentModel)
+          console.log('✅ [模型] 加载已保存的模型:', currentSelectedModel.value?.displayName)
+          console.log('🔍 [模型] currentSelectedModel.value:', currentSelectedModel.value)
+          console.log('🔍 [模型] modelStore.currentModel:', modelStore.currentModel)
         }
       }
       else {
         // 模型不存在，重置为默认状态
         if (import.meta.env.DEV) {
-          console.warn('⚠️ [模型] 已保存的模型不存在，重置为默认状态')
+          console.log('⚠️ [模型] 已保存的模型不存在，重置为默认状态')
         }
         resetToDefaultModel()
       }
@@ -1248,7 +1248,7 @@ function handleSelectModel(model: ModelItem) {
   if (model.providerId && model.providerId !== modelStore.currentProviderId) {
     modelStore.setCurrentProvider(model.providerId as any)
     if (import.meta.env.DEV) {
-      console.warn('🔗 [模型] 已绑定供应商:', model.providerId)
+      console.log('🔗 [模型] 已绑定供应商:', model.providerId)
     }
   }
 

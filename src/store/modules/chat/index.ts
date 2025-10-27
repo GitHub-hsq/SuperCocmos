@@ -92,7 +92,7 @@ export const useChatStore = defineStore('chat-store', {
       // 🔥 获取要删除的会话信息
       const historyToDelete = this.history[index]
       if (!historyToDelete) {
-        console.warn('⚠️ [ChatStore] 要删除的会话不存在')
+        console.log('⚠️ [ChatStore] 要删除的会话不存在')
         return
       }
 
@@ -161,6 +161,26 @@ export const useChatStore = defineStore('chat-store', {
       const history = this.history.find(item => item.uuid === uuid)
       if (history)
         this.chatMode = history.mode
+
+      // 🔥 检查是否需要从数据库加载消息
+      const chatData = this.chat.find(item => item.uuid === uuid)
+      const backendUuid = history?.backendConversationId
+
+      if (backendUuid && chatData && chatData.data.length === 0) {
+        if (import.meta.env.DEV) {
+          console.log('🔄 [对话] 切换到会话:', {
+            前端nanoid: uuid,
+            后端UUID: backendUuid,
+          })
+        }
+
+        // 异步加载消息，不阻塞路由切换
+        this.loadConversationMessages(backendUuid).then((result) => {
+          if (result.success && import.meta.env.DEV) {
+            console.log(`✅ [对话] 消息加载成功: ${result.count} 条`)
+          }
+        })
+      }
 
       return await this.reloadRoute(uuid)
     },
@@ -357,13 +377,17 @@ export const useChatStore = defineStore('chat-store', {
      * 用于登录时同步会话
      */
     async loadConversationsFromBackend() {
+      const startTime = performance.now()
       try {
         // 动态导入避免循环依赖
         const { fetchUserConversations } = await import('@/api/services/conversationService')
 
-        console.warn('🔄 [ChatStore] 开始从数据库加载会话列表...')
+        console.log('🔄 [ChatStore] 开始从数据库加载会话列表...')
 
+        const apiStart = performance.now()
         const response = await fetchUserConversations<any>()
+        const apiEnd = performance.now()
+        console.log(`⏱️ [ChatStore] API 请求耗时: ${Math.round(apiEnd - apiStart)}ms`)
 
         if (response.status === 'Success' && response.data) {
           const conversations = response.data as Array<{
@@ -378,7 +402,7 @@ export const useChatStore = defineStore('chat-store', {
           }>
 
           if (conversations.length === 0) {
-            console.warn('ℹ️ [ChatStore] 数据库无会话，保持本地状态')
+            console.log('ℹ️ [ChatStore] 数据库无会话，保持本地状态')
             return { success: true, count: 0 }
           }
 
@@ -387,6 +411,7 @@ export const useChatStore = defineStore('chat-store', {
           this.chat = []
 
           // 转换为前端格式
+          const convertStart = performance.now()
           for (const conv of conversations) {
             // 🔥 优先使用数据库中保存的 frontend_uuid，如果没有则使用后端 UUID
             const frontendUuid = conv.frontend_uuid || conv.id
@@ -409,14 +434,21 @@ export const useChatStore = defineStore('chat-store', {
           if (this.history.length > 0) {
             this.active = this.history[0].uuid
           }
+          const convertEnd = performance.now()
+          console.log(`⏱️ [ChatStore] 数据转换耗时: ${Math.round(convertEnd - convertStart)}ms`)
 
           // 保存到 localStorage
+          const saveStart = performance.now()
           this.recordStateImmediate()
+          const saveEnd = performance.now()
+          console.log(`⏱️ [ChatStore] localStorage 保存耗时: ${Math.round(saveEnd - saveStart)}ms`)
 
-          console.warn('✅ [ChatStore] 会话列表加载成功:', {
+          const totalTime = performance.now() - startTime
+          console.log('✅ [ChatStore] 会话列表加载成功:', {
             总数: conversations.length,
             激活会话: this.active,
           })
+          console.log(`⏱️ [ChatStore] loadConversationsFromBackend 总耗时: ${Math.round(totalTime)}ms`)
 
           return { success: true, count: conversations.length }
         }
@@ -426,7 +458,7 @@ export const useChatStore = defineStore('chat-store', {
       catch (error: any) {
         // 静默处理 404（用户未登录或没有会话）
         if (error?.response?.status === 404 || error?.message?.includes('404')) {
-          console.warn('ℹ️ [ChatStore] 用户暂无会话记录')
+          console.log('ℹ️ [ChatStore] 用户暂无会话记录')
           return { success: true, count: 0 }
         }
 
@@ -438,17 +470,23 @@ export const useChatStore = defineStore('chat-store', {
     /**
      * 从数据库加载指定会话的消息
      * 用于切换会话时按需加载
+     * @param backendConversationId 后端会话 UUID
      */
-    async loadConversationMessages(conversationId: string) {
+    async loadConversationMessages(backendConversationId: string) {
+      const startTime = performance.now()
       try {
         const { fetchConversationMessages } = await import('@/api/services/conversationService')
 
-        console.warn(`🔄 [ChatStore] 加载会话 ${conversationId} 的消息...`)
+        console.log(`🔄 [ChatStore] 加载会话 ${backendConversationId} 的消息...`)
 
-        const response = await fetchConversationMessages<any>(conversationId)
+        const apiStart = performance.now()
+        const response = await fetchConversationMessages<any>(backendConversationId)
+        const apiEnd = performance.now()
+        console.log(`⏱️ [ChatStore] 消息API 请求耗时: ${Math.round(apiEnd - apiStart)}ms`)
 
         if (response.status === 'Success' && response.data) {
-          const messages = response.data as Array<{
+          // 🔥 后端返回的是 { conversation, messages }，需要访问 data.messages
+          const messages = (response.data.messages || response.data) as Array<{
             id: string
             role: 'user' | 'assistant' | 'system'
             content: string
@@ -457,6 +495,7 @@ export const useChatStore = defineStore('chat-store', {
           }>
 
           // 转换为前端格式
+          const convertStart = performance.now()
           const chatData: Chat.Chat[] = []
           let userMessage: Chat.Chat | null = null
 
@@ -487,19 +526,36 @@ export const useChatStore = defineStore('chat-store', {
             }
           }
 
-          // 更新 chat 数据
-          const chatIndex = this.chat.findIndex(item => item.uuid === conversationId)
+          const convertEnd = performance.now()
+          console.log(`⏱️ [ChatStore] 消息数据转换耗时: ${Math.round(convertEnd - convertStart)}ms`)
+
+          // 🔥 通过 backendConversationId 查找对应的前端 uuid
+          const history = this.history.find(item => item.backendConversationId === backendConversationId)
+          if (!history) {
+            console.error(`❌ [ChatStore] 找不到后端会话 ${backendConversationId} 对应的前端记录`)
+            return { success: false, error: '会话映射不存在' }
+          }
+
+          const frontendUuid = history.uuid
+
+          // 更新 chat 数据（使用前端 uuid）
+          const chatIndex = this.chat.findIndex(item => item.uuid === frontendUuid)
           if (chatIndex !== -1) {
             this.chat[chatIndex].data = chatData
           }
           else {
-            this.chat.push({ uuid: conversationId, data: chatData })
+            this.chat.push({ uuid: frontendUuid, data: chatData })
           }
 
           // 保存到 localStorage
+          const saveStart = performance.now()
           this.recordStateImmediate()
+          const saveEnd = performance.now()
+          console.log(`⏱️ [ChatStore] 消息 localStorage 保存耗时: ${Math.round(saveEnd - saveStart)}ms`)
 
-          console.warn(`✅ [ChatStore] 会话消息加载成功: ${messages.length} 条`)
+          const totalTime = performance.now() - startTime
+          console.log(`✅ [ChatStore] 会话消息加载成功: ${messages.length} 条`)
+          console.log(`⏱️ [ChatStore] loadConversationMessages 总耗时: ${Math.round(totalTime)}ms`)
 
           return { success: true, count: messages.length }
         }
@@ -508,7 +564,7 @@ export const useChatStore = defineStore('chat-store', {
       }
       catch (error: any) {
         if (error?.response?.status === 404 || error?.message?.includes('404')) {
-          console.warn(`ℹ️ [ChatStore] 会话 ${conversationId} 暂无消息`)
+          console.log(`ℹ️ [ChatStore] 会话 ${backendConversationId} 暂无消息`)
           return { success: true, count: 0 }
         }
 
@@ -555,7 +611,7 @@ export const useChatStore = defineStore('chat-store', {
 
         // 保存消息
         if (chatItem.data.length > 0) {
-          const messages = chatItem.data.map((msg) => ({
+          const messages = chatItem.data.map(msg => ({
             role: msg.inversion ? 'user' as const : 'assistant' as const,
             content: msg.text,
           }))
@@ -563,7 +619,7 @@ export const useChatStore = defineStore('chat-store', {
           await saveMessages(conversationId, messages)
         }
 
-        console.warn(`✅ [ChatStore] 会话 ${uuid} 已同步到数据库`)
+        console.log(`✅ [ChatStore] 会话 ${uuid} 已同步到数据库`)
 
         return { success: true, conversationId }
       }
@@ -589,7 +645,7 @@ export const useChatStore = defineStore('chat-store', {
       )
 
       if (exists) {
-        console.warn('[SSE] 会话已存在，跳过')
+        console.log('[SSE] 会话已存在，跳过')
         return
       }
 
@@ -688,7 +744,7 @@ export const useChatStore = defineStore('chat-store', {
       )
 
       if (!history) {
-        console.warn('[SSE] 会话不存在，跳过消息')
+        console.log('[SSE] 会话不存在，跳过消息')
         return
       }
 
@@ -721,8 +777,7 @@ export const useChatStore = defineStore('chat-store', {
       )
 
       if (!history) {
-        console.warn('[SSE] 会话不存在，跳过')
-        return
+        console.log('[SSE] 会话不存在，跳过')
       }
 
       // TODO: 实现消息更新逻辑

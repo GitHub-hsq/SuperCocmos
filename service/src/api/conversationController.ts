@@ -21,13 +21,19 @@ import {
  * 从 Auth0 token 或 session 中获取用户ID
  */
 async function getUserIdFromRequest(req: Request): Promise<string | null> {
-  // 从 Auth0 token 中获取
-  const auth0User = (req as any).auth0User
-  if (auth0User?.sub) {
-    return auth0User.sub
+  // 🔥 从 Auth0 中间件设置的 userId 获取（优先）
+  const userId = (req as any).userId
+  if (userId) {
+    return userId
   }
 
-  // 从 session 中获取
+  // 从 Auth0 token 中获取
+  const auth = (req as any).auth
+  if (auth?.sub) {
+    return auth.sub
+  }
+
+  // 从 session 中获取（兼容旧版本）
   const session = (req as any).session
   if (session?.userId) {
     return session.userId
@@ -319,9 +325,18 @@ export async function deleteConversationHandler(req: Request, res: Response) {
  * GET /api/conversations/:id/messages
  */
 export async function getConversationMessagesHandler(req: Request, res: Response) {
+  console.log('=' .repeat(80))
+  console.log('🔥🔥🔥 [DEBUG] ========== 进入 getConversationMessagesHandler ==========')
+  console.log('🔥🔥🔥 [DEBUG] conversationId:', req.params.id)
+  console.log('🔥🔥🔥 [DEBUG] query:', req.query)
+  console.log('=' .repeat(80))
   try {
-    const userId = await getUserIdFromRequest(req)
-    if (!userId) {
+    console.log('🔍 [DEBUG] 正在获取用户 Auth0 ID...')
+    const auth0UserId = await getUserIdFromRequest(req)
+    console.log('🔍 [DEBUG] 获取到的 auth0UserId:', auth0UserId)
+
+    if (!auth0UserId) {
+      console.log('❌ [DEBUG] 用户未授权，返回 401')
       return res.status(401).json({
         status: 'Fail',
         message: '未授权：用户未登录',
@@ -333,31 +348,31 @@ export async function getConversationMessagesHandler(req: Request, res: Response
     const limit = Number.parseInt(req.query.limit as string) || 100
     const offset = Number.parseInt(req.query.offset as string) || 0
 
-    // 验证会话所有权
-    const conversation = await getConversationById(id)
+    // 🔥 一次查询搞定：获取会话 + 验证 auth0_id（通过 JOIN users 表）
+    const { getConversationByIdWithAuth } = await import('../db/conversationService')
+    const conversation = await getConversationByIdWithAuth(id, auth0UserId)
+
     if (!conversation) {
+      console.log('❌ [DEBUG] 会话不存在或无权访问')
       return res.status(404).json({
         status: 'Fail',
-        message: '会话不存在',
+        message: '会话不存在或无权访问',
         data: null,
       })
     }
 
-    if (conversation.user_id !== userId) {
-      return res.status(403).json({
-        status: 'Fail',
-        message: '无权访问此会话',
-        data: null,
-      })
-    }
+    console.log('✅ [DEBUG] 权限验证通过，会话ID:', conversation.id)
 
-    // 🔥 传递 userId（Auth0 ID）用于 Redis 缓存 LRU 管理
-    const messages = await getConversationMessages(id, userId, { limit, offset })
+    // 🔥 传递 Auth0 ID 用于 Redis 缓存 LRU 管理
+    const messages = await getConversationMessages(id, auth0UserId, { limit, offset })
 
     res.json({
       status: 'Success',
       message: '获取消息列表成功',
-      data: messages,
+      data: {
+        conversation,
+        messages,
+      },
     })
   }
   catch (error: any) {

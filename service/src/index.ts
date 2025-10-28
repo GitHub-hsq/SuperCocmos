@@ -823,67 +823,6 @@ router.get('/conversations', unifiedAuth, requireAuth, async (req, res) => {
   }
 })
 
-// 获取对话的消息历史
-router.get('/conversations/:conversationId/messages', unifiedAuth, requireAuth, async (req, res) => {
-  try {
-    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
-    const { getConversationById } = await import('./db/conversationService')
-    const { getConversationMessages } = await import('./db/messageService')
-
-    const user = await findUserByAuth0Id(req.userId!)
-
-    if (!user) {
-      return res.status(404).send({
-        status: 'Fail',
-        message: '用户不存在',
-        data: null,
-      })
-    }
-
-    const { conversationId } = req.params
-    const limit = Number.parseInt(req.query.limit as string) || 100
-    const offset = Number.parseInt(req.query.offset as string) || 0
-
-    // 验证对话是否属于该用户
-    const conversation = await getConversationById(conversationId)
-    if (!conversation) {
-      return res.status(404).send({
-        status: 'Fail',
-        message: '对话不存在',
-        data: null,
-      })
-    }
-
-    if (conversation.user_id !== user.user_id) {
-      return res.status(403).send({
-        status: 'Fail',
-        message: '无权访问该对话',
-        data: null,
-      })
-    }
-
-    // 获取消息列表（传入 userId 以启用缓存管理）
-    const messages = await getConversationMessages(conversationId, user.user_id, { limit, offset })
-
-    res.send({
-      status: 'Success',
-      message: '获取消息历史成功',
-      data: {
-        conversation,
-        messages,
-      },
-    })
-  }
-  catch (error: any) {
-    console.error('❌ [Messages] 获取消息历史失败:', error)
-    res.status(500).send({
-      status: 'Fail',
-      message: error?.message || String(error),
-      data: null,
-    })
-  }
-})
-
 // 获取所有模型（基于用户角色过滤，管理员可以看到完整配置）
 router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
   try {

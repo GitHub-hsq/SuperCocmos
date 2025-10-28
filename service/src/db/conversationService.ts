@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CONVERSATION_KEYS } from '../cache/cacheKeys'
 import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
+import { redis as redisClient } from '../cache/redisClient'
 import { supabase } from './supabaseClient'
 
 // 🔥 对话会话类型定义
@@ -104,6 +105,72 @@ export async function getConversationById(
     }
 
     return data as Conversation
+  }
+  catch (error) {
+    console.error('❌ [Conversation] 获取对话异常:', error)
+    return null
+  }
+}
+
+/**
+ * 🔍 根据ID获取对话（带 Auth0 ID 权限验证）
+ * 通过 JOIN users 表验证 auth0_id，避免多余的查询
+ * 🚀 支持 Redis 缓存，大幅提升性能
+ */
+export async function getConversationByIdWithAuth(
+  conversationId: string,
+  auth0UserId: string,
+  client: SupabaseClient = supabase,
+): Promise<Conversation | null> {
+  try {
+    const cacheKey = `conversation:auth:${conversationId}:${auth0UserId}`
+    const startTime = Date.now()
+
+    // 🚀 1. 尝试从 Redis 缓存获取
+    console.log(`🔍 [ConversationCache] 尝试从缓存获取: ${conversationId}`)
+    const cachedData = await redisClient.get(cacheKey)
+    if (cachedData) {
+      const cacheTime = Date.now() - startTime
+      const conversation = JSON.parse(cachedData) as Conversation
+      console.log(`✅ [ConversationCache] 缓存命中! 耗时: ${cacheTime}ms`)
+      return conversation
+    }
+
+    // ❌ 2. 缓存未命中，查询数据库
+    console.log(`❌ [ConversationCache] 缓存未命中，查询数据库...`)
+    const dbStartTime = Date.now()
+
+    // 🔥 通过 JOIN users 表，一次查询完成权限验证
+    const { data, error } = await client
+      .from('conversations')
+      .select(`
+        *,
+        users!inner(auth0_id)
+      `)
+      .eq('id', conversationId)
+      .eq('users.auth0_id', auth0UserId)
+      .single()
+
+    const queryTime = Date.now() - dbStartTime
+
+    if (error) {
+      console.error(`❌ [Conversation] 获取对话失败（耗时: ${queryTime}ms）:`, error)
+      return null
+    }
+
+    console.log(`✅ [Conversation] 数据库查询成功，耗时: ${queryTime}ms`)
+
+    // 返回会话数据（去除 users 字段）
+    const { users, ...conversation } = data as any
+
+    // 🚀 3. 存入 Redis 缓存（10 分钟过期）
+    await redisClient.setex(cacheKey, 600, JSON.stringify(conversation))
+    console.log(`✅ [ConversationCache] 已缓存，过期时间: 10分钟`)
+
+    const totalTime = Date.now() - startTime
+    console.log(`✅ [Conversation] 总耗时: ${totalTime}ms`)
+
+    return conversation as Conversation
   }
   catch (error) {
     console.error('❌ [Conversation] 获取对话异常:', error)
@@ -229,6 +296,14 @@ export async function updateConversation(
       await deleteCached(cacheKey)
     }
 
+    // 🔥 清除会话权限验证缓存（所有用户）
+    const pattern = `conversation:auth:${conversationId}:*`
+    const keys = await redisClient.keys(pattern)
+    if (keys.length > 0) {
+      await redisClient.del(...keys)
+      console.log(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+    }
+
     console.log('✅ [Conversation] 更新对话成功:', conversationId)
     return true
   }
@@ -263,6 +338,14 @@ export async function deleteConversation(
     if (conversation) {
       const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
       await deleteCached(cacheKey)
+    }
+
+    // 🔥 清除会话权限验证缓存（所有用户）
+    const pattern = `conversation:auth:${conversationId}:*`
+    const keys = await redisClient.keys(pattern)
+    if (keys.length > 0) {
+      await redisClient.del(...keys)
+      console.log(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
     }
 
     console.log('✅ [Conversation] 删除对话成功:', conversationId)

@@ -159,13 +159,21 @@ export async function getConversationMessages(
     // 1. 尝试从缓存获取
     if (shouldCache) {
       const cacheKey = CONVERSATION_KEYS.messages(conversationId)
+      console.log(`🔍 [MessageCache] 尝试从缓存获取: ${conversationId}`)
+      const startCache = Date.now()
       const cached = await getCached<Message[]>(cacheKey)
+      const cacheTime = Date.now() - startCache
+
       if (cached) {
+        console.log(`✅ [MessageCache] 缓存命中! 返回 ${cached.length} 条消息，耗时: ${cacheTime}ms`)
         return cached
       }
+      console.log(`❌ [MessageCache] 缓存未命中，查询数据库...`)
     }
 
     // 2. 从数据库查询
+    console.log(`📊 [MessageCache] 从数据库查询消息...`)
+    const startDb = Date.now()
     const { data, error } = await client
       .from('messages')
       .select('*')
@@ -173,12 +181,15 @@ export async function getConversationMessages(
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1)
 
+    const dbTime = Date.now() - startDb
+
     if (error) {
       console.error('❌ [Message] 获取对话消息失败:', error)
       return []
     }
 
     const messages = (data || []) as Message[]
+    console.log(`✅ [MessageCache] 数据库查询完成，返回 ${messages.length} 条消息，耗时: ${dbTime}ms`)
 
     // 3. 保存到缓存并更新用户当前缓存的会话
     if (shouldCache && messages.length > 0 && userId) {

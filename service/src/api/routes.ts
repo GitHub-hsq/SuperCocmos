@@ -237,7 +237,10 @@ router.delete('/conversations/:id', ...auth0Auth, requireAuth, conversationContr
  * 获取会话的所有消息
  * GET /api/conversations/:id/messages
  */
-router.get('/conversations/:id/messages', ...auth0Auth, requireAuth, conversationController.getConversationMessagesHandler)
+router.get('/conversations/:id/messages', ...auth0Auth, requireAuth, (req, res) => {
+  console.log('🚀🚀🚀 [ROUTE] 路由被匹配到了！conversationId:', req.params.id)
+  return conversationController.getConversationMessagesHandler(req, res)
+})
 
 /**
  * 批量保存消息到会话

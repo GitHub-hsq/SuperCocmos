@@ -1294,7 +1294,7 @@ function handleSelectModel(model: ModelItem) {
         />
 
         <!-- Web端Header - 悬浮透明 -->
-        <header v-if="!isMobile" class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-transparent">
+        <header v-if="!isMobile" class="chat-header absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-0 bg-white dark:bg-[#161618]">
           <div class="flex items-center space-x-4">
             <NPopover
               v-model:show="showModelSelector"
@@ -1624,6 +1624,34 @@ function handleSelectModel(model: ModelItem) {
 </template>
 
 <style scoped>
+/* Header 底部渐变雾气效果 */
+.chat-header::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 40px; /* 调整渐变高度 */
+  pointer-events: none;
+
+  /* 解释：
+     - 0% 到 10%：几乎透明
+     - 10% 到 100%：逐步过渡到完全白色
+  */
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 10%,
+    rgba(255, 255, 255, 0.35) 30%,
+    rgba(255, 255, 255, 0.7) 60%,
+    rgba(255, 255, 255, 1) 100%
+  );
+}
+
+:deep(.dark) .chat-header::after {
+  background: linear-gradient(to bottom, transparent 0%, #161618 100%);
+}
+
 /* 页面切换淡入淡出效果 */
 .fade-enter-active,
 .fade-leave-active {

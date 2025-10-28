@@ -113,17 +113,17 @@ export async function getConversationById(
 }
 
 /**
- * 🔍 根据ID获取对话（带 Auth0 ID 权限验证）
- * 通过 JOIN users 表验证 auth0_id，避免多余的查询
+ * 🔍 根据ID获取对话（带用户ID权限验证）
+ * 直接使用 user_id 验证所有权，避免额外的 JOIN
  * 🚀 支持 Redis 缓存，大幅提升性能
  */
 export async function getConversationByIdWithAuth(
   conversationId: string,
-  auth0UserId: string,
+  userId: string,
   client: SupabaseClient = supabase,
 ): Promise<Conversation | null> {
   try {
-    const cacheKey = `conversation:auth:${conversationId}:${auth0UserId}`
+    const cacheKey = `conversation:auth:${conversationId}:${userId}`
     const startTime = Date.now()
 
     // 🚀 1. 尝试从 Redis 缓存获取
@@ -140,15 +140,12 @@ export async function getConversationByIdWithAuth(
     console.log(`❌ [ConversationCache] 缓存未命中，查询数据库...`)
     const dbStartTime = Date.now()
 
-    // 🔥 通过 JOIN users 表，一次查询完成权限验证
+    // 🔥 直接使用 user_id 验证，不需要 JOIN
     const { data, error } = await client
       .from('conversations')
-      .select(`
-        *,
-        users!inner(auth0_id)
-      `)
+      .select('*')
       .eq('id', conversationId)
-      .eq('users.auth0_id', auth0UserId)
+      .eq('user_id', userId)
       .single()
 
     const queryTime = Date.now() - dbStartTime
@@ -160,17 +157,14 @@ export async function getConversationByIdWithAuth(
 
     console.log(`✅ [Conversation] 数据库查询成功，耗时: ${queryTime}ms`)
 
-    // 返回会话数据（去除 users 字段）
-    const { users, ...conversation } = data as any
-
     // 🚀 3. 存入 Redis 缓存（10 分钟过期）
-    await redisClient.setex(cacheKey, 600, JSON.stringify(conversation))
+    await redisClient.setex(cacheKey, 600, JSON.stringify(data))
     console.log(`✅ [ConversationCache] 已缓存，过期时间: 10分钟`)
 
     const totalTime = Date.now() - startTime
     console.log(`✅ [Conversation] 总耗时: ${totalTime}ms`)
 
-    return conversation as Conversation
+    return data as Conversation
   }
   catch (error) {
     console.error('❌ [Conversation] 获取对话异常:', error)

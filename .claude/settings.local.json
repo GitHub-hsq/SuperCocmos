@@ -37,7 +37,10 @@
       "Bash(tree:*)",
       "Bash(claude mcp list:*)",
       "Bash(claude mcp:*)",
-      "Read(//c/Users/Administrator/**)"
+      "Read(//c/Users/Administrator/**)",
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

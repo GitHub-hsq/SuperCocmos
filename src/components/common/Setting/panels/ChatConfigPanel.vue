@@ -99,7 +99,7 @@ function applyPreset(preset: typeof presets[0]) {
 
 <template>
   <div class="chat-config-panel">
-    <NCard title="聊天配置" :bordered="false">
+    <NCard title="聊天配置" :bordered="false" class="transparent-card">
       <template #header-extra>
         <NSpace>
           <NButton secondary @click="handleReset">
@@ -225,5 +225,11 @@ function applyPreset(preset: typeof presets[0]) {
 .chat-config-panel {
   max-width: 800px;
   margin: 0 auto;
+}
+
+/* 🔥 让 NCard 背景透明 */
+.transparent-card {
+  --n-color: transparent !important;
+  background-color: transparent !important;
 }
 </style>

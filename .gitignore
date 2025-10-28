@@ -42,3 +42,6 @@ TEST_CHECKLIST.md
 QUICKSTART.md
 CHAT_ROUTING_*.md
 AUTH0_*.md
+
+# Documentation folder
+docs/

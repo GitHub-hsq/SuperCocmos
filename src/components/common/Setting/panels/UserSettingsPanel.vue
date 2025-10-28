@@ -117,7 +117,7 @@ function handleReset() {
 
 <template>
   <div class="user-settings-panel">
-    <NCard title="个人设置" :bordered="false">
+    <NCard title="个人设置" :bordered="false" class="transparent-card">
       <template #header-extra>
         <NSpace>
           <NButton secondary @click="handleReset">
@@ -180,5 +180,11 @@ function handleReset() {
 .user-settings-panel {
   max-width: 800px;
   margin: 0 auto;
+}
+
+/* 🔥 让 NCard 背景透明 */
+.transparent-card {
+  --n-color: transparent !important;
+  background-color: transparent !important;
 }
 </style>

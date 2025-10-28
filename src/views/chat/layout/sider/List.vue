@@ -17,19 +17,31 @@ async function handleSelect({ uuid }: Chat.History) {
   if (isActive(uuid))
     return
 
-  // If leaving current active chat and it's empty, delete it
+  // 🔥 如果离开当前会话且本地消息为空，检查数据库后再决定是否删除
   const previousUuid = chatStore.active
   if (previousUuid) {
     const prevMessages = chatStore.getChatByUuid(previousUuid)
     if (!prevMessages || prevMessages.length === 0) {
-      const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
-      if (prevIndex !== -1)
-        chatStore.deleteHistory(prevIndex)
+      // 🔥 异步检查数据库是否也为空（不阻塞切换）
+      chatStore.isConversationReallyEmpty(previousUuid).then((isEmpty) => {
+        if (isEmpty) {
+          const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
+          if (prevIndex !== -1) {
+            console.log('🗑️ [自动删除] 会话为空，已删除:', previousUuid)
+            chatStore.deleteHistory(prevIndex)
+          }
+        }
+        else {
+          console.log('ℹ️ [自动删除] 会话在数据库中有消息，保留:', previousUuid)
+        }
+      })
     }
   }
 
   if (chatStore.active)
     chatStore.updateHistory(chatStore.active, { isEdit: false })
+
+  // 🔥 等待消息加载完成
   await chatStore.setActive(uuid)
 
   if (isMobile.value)

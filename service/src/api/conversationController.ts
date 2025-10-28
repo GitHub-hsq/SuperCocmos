@@ -18,9 +18,9 @@ import {
 } from '../db/messageService'
 
 /**
- * 从 Auth0 token 或 session 中获取用户ID
+ * 从 Auth0 token 中获取 Auth0 ID
  */
-async function getUserIdFromRequest(req: Request): Promise<string | null> {
+async function getAuth0IdFromRequest(req: Request): Promise<string | null> {
   // 🔥 从 Auth0 中间件设置的 userId 获取（优先）
   const userId = (req as any).userId
   if (userId) {
@@ -43,12 +43,32 @@ async function getUserIdFromRequest(req: Request): Promise<string | null> {
 }
 
 /**
+ * 🔥 从 Auth0 ID 获取 Supabase 用户 UUID（用于数据库查询）
+ */
+async function getSupabaseUserIdFromRequest(req: Request): Promise<string | null> {
+  const auth0Id = await getAuth0IdFromRequest(req)
+  if (!auth0Id) {
+    return null
+  }
+
+  try {
+    const { findUserByAuth0Id } = await import('../db/supabaseUserService')
+    const user = await findUserByAuth0Id(auth0Id)
+    return user?.user_id || null
+  }
+  catch (error) {
+    console.error('❌ [getUserId] 查询失败:', error)
+    return null
+  }
+}
+
+/**
  * 获取用户的所有会话列表
  * GET /api/conversations
  */
 export async function getUserConversationsHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserIdFromRequest(req)
+    const userId = await getSupabaseUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
         status: 'Fail',
@@ -84,7 +104,7 @@ export async function getUserConversationsHandler(req: Request, res: Response) {
  */
 export async function getConversationByIdHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserIdFromRequest(req)
+    const userId = await getSupabaseUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
         status: 'Fail',
@@ -136,7 +156,7 @@ export async function getConversationByIdHandler(req: Request, res: Response) {
  */
 export async function createConversationHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserIdFromRequest(req)
+    const userId = await getSupabaseUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
         status: 'Fail',
@@ -196,7 +216,7 @@ export async function createConversationHandler(req: Request, res: Response) {
  */
 export async function updateConversationHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserIdFromRequest(req)
+    const userId = await getSupabaseUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
         status: 'Fail',
@@ -264,7 +284,7 @@ export async function updateConversationHandler(req: Request, res: Response) {
  */
 export async function deleteConversationHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserIdFromRequest(req)
+    const userId = await getSupabaseUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
         status: 'Fail',
@@ -284,6 +304,17 @@ export async function deleteConversationHandler(req: Request, res: Response) {
         data: null,
       })
     }
+
+    // 🔍 添加调试日志，排查403错误
+    console.log('🔍 [403调试] 删除会话权限检查:', {
+      conversationId: id,
+      conversationUserId: conversation.user_id,
+      currentUserId: userId,
+      说明: 'currentUserId 现在是 Supabase UUID（通过 Auth0 ID 查询得到）',
+      isMatch: conversation.user_id === userId,
+      userIdType: typeof userId,
+      conversationUserIdType: typeof conversation.user_id,
+    })
 
     if (conversation.user_id !== userId) {
       return res.status(403).json({
@@ -331,11 +362,11 @@ export async function getConversationMessagesHandler(req: Request, res: Response
   console.log('🔥🔥🔥 [DEBUG] query:', req.query)
   console.log('=' .repeat(80))
   try {
-    console.log('🔍 [DEBUG] 正在获取用户 Auth0 ID...')
-    const auth0UserId = await getUserIdFromRequest(req)
-    console.log('🔍 [DEBUG] 获取到的 auth0UserId:', auth0UserId)
+    console.log('🔍 [DEBUG] 正在获取用户 Supabase UUID...')
+    const userId = await getSupabaseUserIdFromRequest(req)
+    console.log('🔍 [DEBUG] 获取到的 userId (Supabase UUID):', userId)
 
-    if (!auth0UserId) {
+    if (!userId) {
       console.log('❌ [DEBUG] 用户未授权，返回 401')
       return res.status(401).json({
         status: 'Fail',
@@ -348,9 +379,9 @@ export async function getConversationMessagesHandler(req: Request, res: Response
     const limit = Number.parseInt(req.query.limit as string) || 100
     const offset = Number.parseInt(req.query.offset as string) || 0
 
-    // 🔥 一次查询搞定：获取会话 + 验证 auth0_id（通过 JOIN users 表）
+    // 🔥 一次查询搞定：获取会话 + 验证 user_id
     const { getConversationByIdWithAuth } = await import('../db/conversationService')
-    const conversation = await getConversationByIdWithAuth(id, auth0UserId)
+    const conversation = await getConversationByIdWithAuth(id, userId)
 
     if (!conversation) {
       console.log('❌ [DEBUG] 会话不存在或无权访问')
@@ -363,8 +394,8 @@ export async function getConversationMessagesHandler(req: Request, res: Response
 
     console.log('✅ [DEBUG] 权限验证通过，会话ID:', conversation.id)
 
-    // 🔥 传递 Auth0 ID 用于 Redis 缓存 LRU 管理
-    const messages = await getConversationMessages(id, auth0UserId, { limit, offset })
+    // 🔥 传递 user_id 用于 Redis 缓存 LRU 管理
+    const messages = await getConversationMessages(id, userId, { limit, offset })
 
     res.json({
       status: 'Success',
@@ -391,7 +422,7 @@ export async function getConversationMessagesHandler(req: Request, res: Response
  */
 export async function saveMessagesHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserIdFromRequest(req)
+    const userId = await getSupabaseUserIdFromRequest(req)
     if (!userId) {
       return res.status(401).json({
         status: 'Fail',

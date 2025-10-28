@@ -178,7 +178,7 @@ function getNodeStatus(nodeKey: string) {
 
 <template>
   <div class="workflow-config-panel">
-    <NCard title="工作流配置" :bordered="false">
+    <NCard title="工作流配置" :bordered="false" class="transparent-card">
       <template #header-extra>
         <NSpace>
           <NButton type="primary" :loading="saving" @click="handleSave">
@@ -303,5 +303,11 @@ function getNodeStatus(nodeKey: string) {
 .workflow-config-panel {
   max-width: 900px;
   margin: 0 auto;
+}
+
+/* 🔥 让 NCard 背景透明 */
+.transparent-card {
+  --n-color: transparent !important;
+  background-color: transparent !important;
 }
 </style>

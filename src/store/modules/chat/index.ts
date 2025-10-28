@@ -183,12 +183,11 @@ export const useChatStore = defineStore('chat-store', {
           })
         }
 
-        // 异步加载消息，不阻塞路由切换
-        this.loadConversationMessages(backendUuid).then((result) => {
-          if (result.success && import.meta.env.DEV) {
-            console.log(`✅ [对话] 消息加载成功: ${result.count} 条`)
-          }
-        })
+        // 🔥 等待消息加载完成，确保消息显示
+        const result = await this.loadConversationMessages(backendUuid)
+        if (result.success && import.meta.env.DEV) {
+          console.log(`✅ [对话] 消息加载成功: ${result.count} 条`)
+        }
       }
 
       return await this.reloadRoute(uuid)
@@ -513,6 +512,53 @@ export const useChatStore = defineStore('chat-store', {
 
         console.error('❌ [ChatStore] 加载会话列表失败:', error)
         return { success: false, error: error.message }
+      }
+    },
+
+    /**
+     * 🔥 检查会话在数据库中是否真的为空
+     * 用于自动删除前的验证
+     * @param uuid 前端会话 UUID
+     * @returns true 表示可以安全删除（本地为空 且 数据库也为空）
+     */
+    async isConversationReallyEmpty(uuid: string): Promise<boolean> {
+      try {
+        // 1. 检查前端缓存
+        const localMessages = this.getChatByUuid(uuid)
+        if (localMessages && localMessages.length > 0) {
+          return false // 前端有消息，不为空
+        }
+
+        // 2. 检查是否有后端映射
+        const history = this.history.find(item => item.uuid === uuid)
+        const backendUuid = history?.backendConversationId
+
+        if (!backendUuid) {
+          // 纯本地会话，没有同步到数据库，可以删除
+          return true
+        }
+
+        // 3. 查询数据库消息数量
+        const { fetchConversationMessages } = await import('@/api/services/conversationService')
+        const response = await fetchConversationMessages<any>(backendUuid)
+
+        if (response.status === 'Success' && response.data) {
+          const messages = response.data.messages || response.data || []
+          return messages.length === 0
+        }
+
+        // 查询失败，保守处理：不删除
+        return false
+      }
+      catch (error: any) {
+        // 404 表示会话不存在，可以删除
+        if (error?.response?.status === 404) {
+          return true
+        }
+
+        // 其他错误，保守处理：不删除
+        console.error('❌ [ChatStore] 检查会话是否为空失败:', error)
+        return false
       }
     },
 

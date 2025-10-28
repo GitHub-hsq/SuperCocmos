@@ -412,28 +412,11 @@ export const useAppInitStore = defineStore('app-init', {
 
     /**
      * 显示权限通知（只显示一次）
+     * 🔥 已禁用：用户不需要弹窗
      */
     showPermissionNotification(notificationApi: any, userName?: string) {
-      if (this.permissionNotificationShown) {
-        return
-      }
-
-      this.permissionNotificationShown = true
-
-      notificationApi.success({
-        title: '🔐 登录成功',
-        description: userName || '用户',
-        content: this.userPermissions.length > 0
-          ? `您的权限：${this.userPermissions.join(', ')}`
-          : '当前账号暂无特殊权限',
-        meta: new Date().toLocaleString(),
-        duration: 0, // 需要手动关闭
-        closable: true,
-      })
-
-      if (import.meta.env.DEV) {
-        console.log('✅ [AppInit] 权限通知已显示')
-      }
+      // 🔥 不显示弹窗
+      return
     },
 
     /**

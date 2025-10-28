@@ -1261,7 +1261,7 @@ function handleSelectModel(model: ModelItem) {
         />
 
         <!-- Web端Header - 悬浮透明 -->
-        <header v-if="!isMobile" class="chat-header absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-0 bg-white dark:bg-[#161618]">
+        <header v-if="!isMobile" class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-0 bg-transparent">
           <div class="flex items-center space-x-4">
             <NPopover
               v-model:show="showModelSelector"
@@ -1346,6 +1346,7 @@ function handleSelectModel(model: ModelItem) {
               </div>
             </NPopover>
           </div>
+          <div class="chat-header" />
           <div class="flex items-center space-x-2">
             <HoverButton v-if="!isMobile" @click="handleExport">
               <span class="text-xl text-[#4f555e] dark:text-white">
@@ -1585,15 +1586,13 @@ function handleSelectModel(model: ModelItem) {
 
 <style scoped>
 /* Header 底部渐变雾气效果 */
-.chat-header::after {
-  content: '';
-  position: absolute;
+.chat-header {
+  flex: 1;
   top: 100%;
   left: 0;
   right: 0;
   height: 40px; /* 调整渐变高度 */
   pointer-events: none;
-
   /* 解释：
      - 0% 到 10%：几乎透明
      - 10% 到 100%：逐步过渡到完全白色
@@ -1608,8 +1607,24 @@ function handleSelectModel(model: ModelItem) {
   );
 }
 
-:deep(.dark) .chat-header::after {
-  background: linear-gradient(to bottom, transparent 0%, #161618 100%);
+:deep(.dark) .chat-header {
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 40px; /* 调整渐变高度 */
+  pointer-events: none;
+  /* 解释：
+     - 0% 到 10%：几乎透明
+     - 10% 到 100%：逐步过渡到 #161618
+  */
+  background: linear-gradient(
+    to top,
+    rgba(22, 22, 24, 0) 0%,
+    rgba(22, 22, 24, 0.08) 10%,
+    rgba(22, 22, 24, 0.35) 30%,
+    rgba(22, 22, 24, 0.7) 60%,
+    rgba(22, 22, 24, 1) 100%
+  );
 }
 
 /* 页面切换淡入淡出效果 */

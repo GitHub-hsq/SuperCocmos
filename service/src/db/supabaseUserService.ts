@@ -4,6 +4,8 @@
  * 提供用户的 CRUD 操作（基于 Supabase）
  */
 
+import { USER_INFO_KEYS } from '../cache/cacheKeys'
+import { CACHE_TTL, getCached, setCached } from '../cache/cacheService'
 import { hashPassword, verifyPassword } from '../utils/password'
 import { supabase } from './supabaseClient'
 
@@ -114,10 +116,19 @@ export async function findUserByEmail(email: string): Promise<SupabaseUser | nul
 }
 
 /**
- * 根据 Auth0 ID 查找用户
+ * 根据 Auth0 ID 查找用户（带 Redis 缓存）
  */
 export async function findUserByAuth0Id(auth0Id: string): Promise<SupabaseUser | null> {
   try {
+    // 🔥 1. 尝试从 Redis 缓存获取
+    const cacheKey = USER_INFO_KEYS.byAuth0Id(auth0Id)
+    const cached = await getCached<SupabaseUser>(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // 2. 缓存未命中，查询数据库
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -128,6 +139,11 @@ export async function findUserByAuth0Id(auth0Id: string): Promise<SupabaseUser |
       if (error.code === 'PGRST116')
         return null
       throw error
+    }
+
+    // 3. 写入 Redis 缓存
+    if (data) {
+      await setCached(cacheKey, data, CACHE_TTL.USER_INFO)
     }
 
     return data
@@ -317,6 +333,24 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
     if (!auth0Roles || auth0Roles.length === 0)
       return
 
+    // 🔥 优化：先检查用户当前角色，如果完全一致就跳过同步
+    const { data: currentUserRolesData } = await supabase
+      .from('user_roles')
+      .select('role:roles(role_name)')
+      .eq('user_id', userId)
+
+    const currentRoleNames = currentUserRolesData?.map((ur: any) => ur.role?.role_name).filter(Boolean) || []
+
+    // 比较角色是否一致（数量和内容都相同）
+    const rolesMatch = (
+      auth0Roles.length === currentRoleNames.length
+      && auth0Roles.every(role => currentRoleNames.includes(role))
+    )
+
+    if (rolesMatch) {
+      return
+    }
+
     // 1. 根据 role_name 查找数据库中的角色
     const { data: dbRoles, error: rolesError } = await supabase
       .from('roles')
@@ -333,7 +367,7 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
       return
     }
 
-    // 2. 获取用户当前的角色
+    // 2. 获取用户当前的角色 ID
     const { data: currentUserRoles } = await supabase
       .from('user_roles')
       .select('role_id')
@@ -360,7 +394,7 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
         console.error('❌ [UserRoleSync] 添加角色失败:', insertError)
     }
 
-    // 4. 删除不再拥有的非系统角色
+    // 4. 删除不再拥有的角色
     const targetRoleIds = dbRoles.map(r => r.role_id)
     const roleIdsToRemove = currentRoleIds.filter(roleId => !targetRoleIds.includes(roleId))
 
@@ -393,7 +427,15 @@ export async function upsertUserFromAuth0(input: {
   roles?: string[] // Auth0 角色数组 (Free, Pro, Plus, Ultra, Beta, Admin)
 }): Promise<SupabaseUser> {
   try {
-    // 1. 先通过 auth0_id 字段查找用户
+    // 🔥 1. 先从 Redis 缓存获取用户信息
+    const cacheKey = USER_INFO_KEYS.byAuth0Id(input.auth0_id)
+    const cachedUser = await getCached<SupabaseUser>(cacheKey)
+
+    if (cachedUser) {
+      return cachedUser
+    }
+
+    // 2. 从数据库查找用户
     const { data: existingUser, error: findError } = await supabase
       .from('users')
       .select('*')
@@ -405,37 +447,72 @@ export async function upsertUserFromAuth0(input: {
     }
 
     if (existingUser) {
-      // 用户已存在，更新信息
-      console.warn(`📝 [Supabase] 更新 Auth0 用户: ${input.email}`)
+      // 🔥 优化1：检查是否需要更新用户信息（避免不必要的数据库写入）
+      const needsUpdate = (
+        existingUser.email !== input.email
+        || (input.username && existingUser.username !== input.username)
+        || (input.avatar_url && existingUser.avatar_url !== input.avatar_url)
+        || (input.subscription_status && existingUser.subscription_status !== input.subscription_status)
+        || existingUser.status !== 1
+      )
 
-      const updateData: any = {
-        email: input.email,
-        username: input.username || existingUser.username,
-        avatar_url: input.avatar_url || existingUser.avatar_url,
-        status: 1, // 确保用户状态为激活
-        last_login_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+      let userData = existingUser
+
+      if (needsUpdate) {
+        const updateData: any = {
+          email: input.email,
+          username: input.username || existingUser.username,
+          avatar_url: input.avatar_url || existingUser.avatar_url,
+          status: 1,
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+
+        if (input.subscription_status)
+          updateData.subscription_status = input.subscription_status
+
+        const { data, error } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('user_id', existingUser.user_id)
+          .select()
+          .single()
+
+        if (error)
+          throw error
+
+        userData = data
+      }
+      else {
+        // 🔥 只更新 last_login_at（轻量级操作）
+        const { error } = await supabase
+          .from('users')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('user_id', existingUser.user_id)
+
+        if (error)
+          console.error('⚠️ [UserSync] 更新登录时间失败:', error)
       }
 
-      // 更新订阅状态（如果提供）
-      if (input.subscription_status)
-        updateData.subscription_status = input.subscription_status
+      // 🔥 写入 Redis 缓存（优先执行，加快后续请求）
+      await setCached(cacheKey, userData, CACHE_TTL.USER_INFO)
 
-      const { data, error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('user_id', existingUser.user_id)
-        .select()
-        .single()
+      // 🔥 优化：异步执行角色同步和预加载，不阻塞登录响应
+      if (input.roles && input.roles.length > 0) {
+        // 立即返回，在后台执行（不等待完成）
+        syncUserRolesToDatabase(existingUser.user_id, input.roles).catch((error) => {
+          console.error('⚠️ [UserSync] 异步角色同步失败:', error)
+        })
+      }
 
-      if (error)
-        throw error
+      // 🔥 异步预加载用户登录数据到 Redis（不阻塞响应）
+      import('../cache/userLoginCache').then(({ preloadUserLoginData }) => {
+        preloadUserLoginData(userData.user_id, input.auth0_id).catch((error) => {
+          console.error('⚠️ [UserSync] 异步预加载失败:', error)
+        })
+      })
 
-      // 同步角色到 user_roles 表
-      if (input.roles && input.roles.length > 0)
-        await syncUserRolesToDatabase(existingUser.user_id, input.roles)
-
-      return data
+      return userData
     }
 
     // 2. 通过 email 查找（可能是已存在的邮箱用户）
@@ -443,8 +520,6 @@ export async function upsertUserFromAuth0(input: {
 
     if (emailUser) {
       // 用户已存在，关联到 Auth0
-      console.warn(`🔗 [Supabase] 关联现有用户到 Auth0: ${input.email}`)
-
       const updateData: any = {
         auth0_id: input.auth0_id, // 设置 auth0_id 字段
         username: input.username || emailUser.username,
@@ -470,15 +545,27 @@ export async function upsertUserFromAuth0(input: {
       if (error)
         throw error
 
-      // 同步角色到 user_roles 表
-      if (input.roles && input.roles.length > 0)
-        await syncUserRolesToDatabase(emailUser.user_id, input.roles)
+      // 🔥 写入 Redis 缓存
+      await setCached(cacheKey, data, CACHE_TTL.USER_INFO)
+
+      // 🔥 异步同步角色到 user_roles 表（不阻塞响应）
+      if (input.roles && input.roles.length > 0) {
+        syncUserRolesToDatabase(emailUser.user_id, input.roles).catch((error) => {
+          console.error('⚠️ [UserSync] 异步角色同步失败:', error)
+        })
+      }
+
+      // 🔥 异步预加载用户登录数据到 Redis（不阻塞响应）
+      import('../cache/userLoginCache').then(({ preloadUserLoginData }) => {
+        preloadUserLoginData(data.user_id, input.auth0_id).catch((error) => {
+          console.error('⚠️ [UserSync] 异步预加载失败:', error)
+        })
+      })
 
       return data
     }
 
     // 3. 用户不存在，创建新用户
-    console.warn(`➕ [Supabase] 创建新用户: ${input.email} | 角色: ${input.roles?.join(', ') || 'Free'} | 订阅: ${input.subscription_status || 'Free'}`)
 
     // 生成唯一的用户名
     let username = input.username || input.email.split('@')[0]
@@ -488,7 +575,6 @@ export async function upsertUserFromAuth0(input: {
     if (existingUsername) {
       const randomSuffix = Math.random().toString(36).substring(2, 8)
       username = `${username}_${randomSuffix}`
-      console.warn(`⚠️  [Supabase] 用户名已存在，使用新用户名: ${username}`)
     }
 
     const insertData: any = {
@@ -515,11 +601,23 @@ export async function upsertUserFromAuth0(input: {
     if (error)
       throw error
 
-    // 同步角色到 user_roles 表
-    if (input.roles && input.roles.length > 0)
-      await syncUserRolesToDatabase(data.user_id, input.roles)
+    // 🔥 写入 Redis 缓存
+    await setCached(cacheKey, data, CACHE_TTL.USER_INFO)
 
-    console.warn(`✅ [Supabase] 新用户创建完成: ${input.email}`)
+    // 🔥 异步同步角色到 user_roles 表（不阻塞响应）
+    if (input.roles && input.roles.length > 0) {
+      syncUserRolesToDatabase(data.user_id, input.roles).catch((error) => {
+        console.error('⚠️ [UserSync] 异步角色同步失败:', error)
+      })
+    }
+
+    // 🔥 异步预加载用户登录数据到 Redis（不阻塞响应）
+    import('../cache/userLoginCache').then(({ preloadUserLoginData }) => {
+      preloadUserLoginData(data.user_id, input.auth0_id).catch((error) => {
+        console.error('⚠️ [UserSync] 异步预加载失败:', error)
+      })
+    })
+
     return data
   }
   catch (error: any) {

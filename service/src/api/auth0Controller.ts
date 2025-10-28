@@ -5,6 +5,7 @@
 
 import type { Request, Response } from 'express'
 import { upsertUserFromAuth0 } from '../db/supabaseUserService'
+import { addPerfCheckpoint } from '../middleware/performanceLogger'
 
 // 从环境变量获取 Auth0 配置
 const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE || 'http://supercocmos.com'
@@ -51,6 +52,7 @@ export async function syncAuth0User(req: Request, res: Response) {
     }
 
     // 调用 Supabase 用户服务
+    const start = performance.now()
     const user = await upsertUserFromAuth0({
       auth0_id,
       email,
@@ -60,6 +62,8 @@ export async function syncAuth0User(req: Request, res: Response) {
       subscription_status: subscriptionStatus,
       roles, // 传递角色数组用于同步到 user_roles 表
     })
+    const duration = performance.now() - start
+    addPerfCheckpoint(req, `Upsert User: ${duration.toFixed(0)}ms`)
 
     return res.json({
       success: true,

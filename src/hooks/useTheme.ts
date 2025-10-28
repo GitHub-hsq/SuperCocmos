@@ -44,7 +44,6 @@ export function useTheme() {
     () => isDark.value,
     (dark) => {
       if (import.meta.env.DEV) {
-        console.log('[useTheme] 主题切换至:', dark ? '暗黑模式' : '浅色模式')
         console.log('[useTheme] 当前主题设置:', appStore.theme)
       }
       if (dark)

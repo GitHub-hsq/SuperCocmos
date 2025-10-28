@@ -24,7 +24,7 @@ export function extractTokenFromQuery(req: Request, res: Response, next: NextFun
 
   if (token) {
     req.headers.authorization = `Bearer ${token}`
-    console.log('[SSE Auth] ✅ 从 Cookie 中提取到 token')
+    // console.log('[SSE Auth] ✅ 从 Cookie 中提取到 token')
   }
   else {
     // 🔥 降级：从 URL 参数读取（兼容旧版本）
@@ -32,7 +32,7 @@ export function extractTokenFromQuery(req: Request, res: Response, next: NextFun
 
     if (token) {
       req.headers.authorization = `Bearer ${token}`
-      console.log('[SSE Auth] ⚠️ 从 URL 参数中提取到 token（不安全，建议使用 Cookie）')
+      // console.log('[SSE Auth] ⚠️ 从 URL 参数中提取到 token（不安全，建议使用 Cookie）')
     }
     else {
       console.warn('[SSE Auth] ⚠️ Cookie 和 URL 参数中都没有 token')
@@ -67,7 +67,7 @@ export function extractSSEUserInfo(req: Request, res: Response, next: NextFuncti
       auth0_id: req.auth.sub,
       ...req.auth,
     } as any
-    console.log('[SSE Auth] ✅ 用户认证成功:', req.auth.sub)
+    // console.log('[SSE Auth] ✅ 用户认证成功:', req.auth.sub)
   }
   else {
     console.warn('[SSE Auth] ⚠️ JWT 验证成功但 req.auth 为空')
@@ -80,7 +80,7 @@ export function extractSSEUserInfo(req: Request, res: Response, next: NextFuncti
  * SSE 认证中间件数组
  */
 export const sseAuth = [
-  extractTokenFromQuery,  // 1. 从 URL 参数提取 token
-  sseJwtAuth,             // 2. JWT 验证
-  extractSSEUserInfo,     // 3. 提取用户信息
+  extractTokenFromQuery, // 1. 从 URL 参数提取 token
+  sseJwtAuth, // 2. JWT 验证
+  extractSSEUserInfo, // 3. 提取用户信息
 ]

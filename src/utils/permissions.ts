@@ -21,6 +21,34 @@ interface TokenOptions {
 }
 
 /**
+ * 直接从 token 解码权限（性能优化版本）
+ * @param token - JWT Access Token
+ * @returns 权限字符串数组
+ */
+export function getUserPermissionsFromToken(token: string): string[] {
+  try {
+    if (!token) {
+      console.warn('⚠️ Token 为空')
+      return []
+    }
+
+    const payload = jwtDecode<JWTPayload>(token)
+    const permissions = payload.permissions || []
+
+    if (Array.isArray(permissions)) {
+      return permissions
+    }
+
+    console.warn('⚠️ Permissions 字段不是数组类型')
+    return []
+  }
+  catch (decodeError) {
+    console.error('❌ Token 解码失败:', decodeError)
+    return []
+  }
+}
+
+/**
  * 获取用户权限列表
  *
  * @param getAccessTokenSilently - Auth0 的 getAccessTokenSilently 方法（从 useAuth0() 获取）
@@ -60,28 +88,9 @@ export async function getUserPermissions(
       console.warn('⚠️ Token 为空')
       return []
     }
-    // 使用 jwt-decode 安全解码 JWT token
-    try {
-      const payload = jwtDecode<JWTPayload>(token)
 
-      // 优先从标准 permissions 字段获取
-      const permissions = payload.permissions || []
-
-      // 如果使用自定义命名空间，取消下面的注释并修改命名空间 URL
-      // const permissions = payload['https://your-namespace/permissions'] || payload.permissions || [];
-
-      if (Array.isArray(permissions)) {
-        // console.log('解析token为:', payload)
-        return permissions
-      }
-
-      console.warn('⚠️ Permissions 字段不是数组类型')
-      return []
-    }
-    catch (decodeError) {
-      console.error('❌ Token 解码失败:', decodeError)
-      return []
-    }
+    // 复用 token 解码逻辑
+    return getUserPermissionsFromToken(token)
   }
   catch (error: any) {
     // 特殊处理：Consent Required 错误（静默处理）

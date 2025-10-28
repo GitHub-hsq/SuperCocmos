@@ -45,8 +45,6 @@ class SSEConnectionManager {
       const baseURL = import.meta.env.VITE_APP_API_BASE_URL || ''
       const url = `${baseURL}api/events/sync`
 
-      console.log('[SSE] 📡 开始建立连接...')
-
       // 🔥 创建 EventSource（使用 Cookie 认证）
       // withCredentials: true 会自动发送 Cookie
       this.eventSource = new EventSource(url, {
@@ -55,8 +53,6 @@ class SSEConnectionManager {
 
       // 设置事件监听器
       await this.setupEventListeners()
-
-      console.log('[SSE] ✅ 连接请求已发送')
     }
     catch (error) {
       console.error('[SSE] ❌ 连接失败:', error)
@@ -182,47 +178,31 @@ class SSEConnectionManager {
       chatStore.syncFromBackend()
     })
 
-    // ==================== 配置更新事件 ====================
-    this.eventSource.addEventListener('config_updated', async (event) => {
-      const data = JSON.parse(event.data)
-      console.log('[SSE] ⚙️ 配置更新:', data)
-
-      try {
-        // 动态导入 configStore
-        const { useConfigStore } = await import('@/store/modules/config')
-        const configStore = useConfigStore()
-
-        // 根据配置类型刷新对应的配置
-        if (data.type === 'user_settings' || data.type === 'all') {
-          console.log('[SSE] 🔄 刷新用户设置...')
-          await configStore.loadUserSettings()
-        }
-
-        if (data.type === 'chat_config' || data.type === 'all') {
-          console.log('[SSE] 🔄 刷新聊天配置...')
-          await configStore.loadChatConfig()
-        }
-
-        if (data.type === 'workflow_config' || data.type === 'all') {
-          console.log('[SSE] 🔄 刷新工作流配置...')
-          await configStore.loadWorkflowConfig()
-        }
-
-        if (data.type === 'additional_config' || data.type === 'all') {
-          console.log('[SSE] 🔄 刷新额外配置...')
-          await configStore.loadAdditionalConfig()
-        }
-
-        console.log('[SSE] ✅ 配置已同步')
-      }
-      catch (error) {
-        console.error('[SSE] ❌ 刷新配置失败:', error)
-      }
-    })
+    // ==================== 配置更新事件（已禁用）====================
+    // ℹ️ 配置同步功能已移除
+    // 原因：项目设计为单设备登录，配置只需在登录时从数据库读取
+    // 未来计划：SSE 将用于实现单设备登录（踢掉其他设备）
+    //
+    // 实现思路：
+    // 1. 用户登录时，生成 session_id，存储到 Redis
+    // 2. 新设备登录时，删除旧 session，通过 SSE 发送 'force_logout' 事件
+    // 3. 旧设备收到 'force_logout' 后，强制退出登录并跳转到登录页
+    //
+    // 原代码（已注释）：
+    // this.eventSource.addEventListener('config_updated', async (event) => {
+    //   const data = JSON.parse(event.data)
+    //   console.log('[SSE] ⚙️ 配置更新:', data)
+    //   const { useConfigStore } = await import('@/store/modules/config')
+    //   const configStore = useConfigStore()
+    //   if (data.type === 'user_settings' || data.type === 'all') {
+    //     await configStore.loadUserSettings()
+    //   }
+    //   // ... 其他配置类型
+    // })
 
     // ==================== 错误处理 ====================
     this.eventSource.onerror = (error) => {
-      console.error('[SSE] ❌ 连接错误:', error)
+      console.error('[SSE] ❌ 连接错误222:', error)
 
       // 检查连接状态
       if (this.eventSource?.readyState === EventSource.CLOSED) {
@@ -256,7 +236,7 @@ class SSEConnectionManager {
     }
 
     this.reconnectAttempts++
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
+    const delay = this.reconnectDelay * 2 ** (this.reconnectAttempts - 1)
 
     console.log(
       `[SSE] 🔄 ${delay}ms 后尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`,

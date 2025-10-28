@@ -24,6 +24,9 @@ export async function preloadModelsToRedis(): Promise<void> {
     let modelCount = 0
     let providerCount = 0
 
+    // 🔥 缓存整个供应商列表（与 Controller 的查询匹配）
+    await redis.setex('providers:list', CACHE_TTL, JSON.stringify(providers))
+
     // 缓存每个供应商
     for (const provider of providers) {
       const providerKey = `${PROVIDER_CACHE_PREFIX}${provider.id}`

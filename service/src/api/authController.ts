@@ -34,8 +34,6 @@ export async function setTokenCookie(req: Request, res: Response) {
       path: '/', // 全局路径
     })
 
-    console.log('[Auth] ✅ Token 已写入 Cookie')
-
     return res.json({
       status: 'Success',
       message: 'Token 已设置到 Cookie',

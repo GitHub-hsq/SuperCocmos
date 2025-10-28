@@ -22,11 +22,20 @@ export interface Response<T = any> {
 function http<T = any>(
   { url, data, method, headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
 ) {
+  const httpStart = performance.now()
+
   const successHandler = (res: AxiosResponse<Response<T>>) => {
     const authStore = useAuthStore()
 
-    if (res.data.status === 'Success' || typeof res.data === 'string')
+    if (res.data.status === 'Success' || typeof res.data === 'string') {
+      const httpEnd = performance.now()
+      const totalTime = Math.round(httpEnd - httpStart)
+      // 只在慢速时输出警告
+      if (totalTime > 100) {
+        console.warn(`⚠️ [HTTP] 请求耗时过长: ${totalTime}ms (URL: ${url})`)
+      }
       return res.data
+    }
 
     if (res.data.status === 'Unauthorized') {
       authStore.removeToken()

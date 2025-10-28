@@ -13,6 +13,7 @@ import {
   updateModel,
   updateProvider,
 } from '../db/providerService'
+import { addPerfCheckpoint } from '../middleware/performanceLogger'
 
 // ============================================
 // Provider Controllers
@@ -26,14 +27,23 @@ export async function getProviders(req: Request, res: Response) {
     const cacheKey = PROVIDER_KEYS.list()
 
     // 尝试从缓存获取
+    const start1 = performance.now()
     let providers = await getCached(cacheKey)
+    const duration1 = performance.now() - start1
+    addPerfCheckpoint(req, `Cache Check: ${duration1.toFixed(0)}ms`)
 
     if (!providers) {
       // 缓存未命中，从数据库查询
+      const start2 = performance.now()
       providers = await getAllProvidersWithModels()
+      const duration2 = performance.now() - start2
+      addPerfCheckpoint(req, `DB Query: ${duration2.toFixed(0)}ms`)
 
       // 保存到缓存
+      const start3 = performance.now()
       await setCached(cacheKey, providers, CACHE_TTL.PROVIDER_LIST)
+      const duration3 = performance.now() - start3
+      addPerfCheckpoint(req, `Cache Set: ${duration3.toFixed(0)}ms`)
     }
 
     res.json({

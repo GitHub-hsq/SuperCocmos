@@ -9,7 +9,7 @@ import { getSSEStats, registerUserSSEConnection, unregisterUserSSEConnection } f
 /**
  * SSE 连接 endpoint
  * GET /api/events/sync
- * 建立 SSE 长连接，用于推送实时事件
+ * 建立 SSE 长连接，用于推送实时事件,目前不处理同步问题，因为是单设备登录，留着sse只是为了后续可能会用到
  */
 export async function handleSSEConnection(req: Request, res: Response) {
   // 获取用户 ID（从认证中间件设置）
@@ -22,8 +22,6 @@ export async function handleSSEConnection(req: Request, res: Response) {
       data: null,
     })
   }
-
-  console.log(`[SSE] 📡 用户 ${userId} 请求建立连接`)
 
   // 设置 SSE 响应头
   res.setHeader('Content-Type', 'text/event-stream')
@@ -49,7 +47,7 @@ export async function handleSSEConnection(req: Request, res: Response) {
 
   res.write(connectedEvent)
 
-  console.log(`[SSE] ✅ 用户 ${userId} 连接成功`)
+  // console.log(`[SSE] ✅ 用户 ${userId} 连接成功`)
 
   // 注册连接
   registerUserSSEConnection(userId, res)
@@ -67,15 +65,13 @@ export async function handleSSEConnection(req: Request, res: Response) {
 
   // 客户端断开连接时清理
   req.on('close', () => {
-    console.log(`[SSE] 🔌 用户 ${userId} 断开连接`)
     clearInterval(heartbeatInterval)
     unregisterUserSSEConnection(userId, res)
     res.end()
   })
 
   // 处理错误
-  req.on('error', (error) => {
-    console.error(`[SSE] ❌ 连接错误:`, error)
+  req.on('error', () => {
     clearInterval(heartbeatInterval)
     unregisterUserSSEConnection(userId, res)
     res.end()

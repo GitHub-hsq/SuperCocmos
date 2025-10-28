@@ -1199,16 +1199,6 @@ function loadCurrentModel() {
           }
           // 🔥 同时设置模型选择器 UI 的激活供应商
           activeVendor.value = currentModelFromStore.providerId
-
-          if (import.meta.env.DEV) {
-            console.log('🔗 [模型] 已绑定供应商:', currentModelFromStore.providerId)
-          }
-        }
-
-        if (import.meta.env.DEV) {
-          console.log('✅ [模型] 加载已保存的模型:', currentSelectedModel.value?.displayName)
-          console.log('🔍 [模型] currentSelectedModel.value:', currentSelectedModel.value)
-          console.log('🔍 [模型] modelStore.currentModel:', modelStore.currentModel)
         }
       }
       else {
@@ -1247,9 +1237,6 @@ function handleSelectModel(model: ModelItem) {
   // 🔥 自动绑定供应商信息，减少后续查询
   if (model.providerId && model.providerId !== modelStore.currentProviderId) {
     modelStore.setCurrentProvider(model.providerId as any)
-    if (import.meta.env.DEV) {
-      console.log('🔗 [模型] 已绑定供应商:', model.providerId)
-    }
   }
 
   // 保存到ModelStore

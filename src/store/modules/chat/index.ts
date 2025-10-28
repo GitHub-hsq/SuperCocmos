@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { t } from '@/locales'
 import { router } from '@/router'
 import { debounce } from '@/utils/debounce'
-import { defaultState, getLocalState, setLocalState } from './helper'
+import { clearCachedConversations, defaultState, getCachedConversations, getLocalState, setCachedConversations, setLocalState } from './helper'
 
 // 创建防抖的recordState函数
 const debouncedRecordState = debounce((state: Chat.ChatState) => {
@@ -53,6 +53,9 @@ export const useChatStore = defineStore('chat-store', {
       this.active = history.uuid
       this.chatMode = history.mode
       this.reloadRoute(history.uuid)
+
+      // 🔥 清除会话列表缓存（因为新增了会话）
+      clearCachedConversations()
     },
 
     updateHistory(uuid: string, edit: Partial<Chat.History>) {
@@ -60,6 +63,9 @@ export const useChatStore = defineStore('chat-store', {
       if (index !== -1) {
         this.history[index] = { ...this.history[index], ...edit }
         debouncedRecordState(this.$state)
+
+        // 🔥 清除会话列表缓存（因为会话信息已更新）
+        clearCachedConversations()
       }
     },
 
@@ -126,6 +132,9 @@ export const useChatStore = defineStore('chat-store', {
 
       // 🔥 立即保存状态，确保映射关系被清除
       this.recordStateImmediate()
+
+      // 🔥 清除会话列表缓存（因为删除了会话）
+      clearCachedConversations()
 
       if (this.history.length === 0) {
         this.active = null
@@ -379,15 +388,61 @@ export const useChatStore = defineStore('chat-store', {
     async loadConversationsFromBackend() {
       const startTime = performance.now()
       try {
-        // 动态导入避免循环依赖
-        const { fetchUserConversations } = await import('@/api/services/conversationService')
+        // 🔥 1. 先检查缓存
+        const cachedConversations = getCachedConversations()
+        if (cachedConversations && cachedConversations.length > 0) {
+          // 使用缓存数据
+          const conversations = cachedConversations
 
-        console.log('🔄 [ChatStore] 开始从数据库加载会话列表...')
+          // 清空当前会话
+          this.history = []
+          this.chat = []
+
+          // 转换为前端格式
+          for (const conv of conversations) {
+            const frontendUuid = conv.frontend_uuid || conv.id
+
+            this.history.push({
+              uuid: frontendUuid,
+              backendConversationId: conv.id,
+              title: conv.title,
+              isEdit: false,
+              mode: 'normal',
+            })
+
+            this.chat.push({
+              uuid: frontendUuid,
+              data: [],
+            })
+          }
+
+          // 设置第一个会话为激活状态
+          if (this.history.length > 0) {
+            this.active = this.history[0].uuid
+          }
+
+          // 保存到 localStorage
+          this.recordStateImmediate()
+
+          const totalTime = performance.now() - startTime
+          // 只在慢速时输出警告
+          if (totalTime > 100) {
+            console.warn(`⚠️ [ChatStore] 缓存加载耗时过长: ${Math.round(totalTime)}ms`)
+          }
+
+          return { success: true, count: conversations.length }
+        }
+
+        // 🔥 2. 缓存未命中或过期，请求后端
+        const { fetchUserConversations } = await import('@/api/services/conversationService')
 
         const apiStart = performance.now()
         const response = await fetchUserConversations<any>()
         const apiEnd = performance.now()
-        console.log(`⏱️ [ChatStore] API 请求耗时: ${Math.round(apiEnd - apiStart)}ms`)
+        const apiTime = Math.round(apiEnd - apiStart)
+        if (apiTime > 100) {
+          console.warn(`⚠️ [ChatStore] API 请求耗时过长: ${apiTime}ms`)
+        }
 
         if (response.status === 'Success' && response.data) {
           const conversations = response.data as Array<{
@@ -402,7 +457,6 @@ export const useChatStore = defineStore('chat-store', {
           }>
 
           if (conversations.length === 0) {
-            console.log('ℹ️ [ChatStore] 数据库无会话，保持本地状态')
             return { success: true, count: 0 }
           }
 
@@ -411,7 +465,6 @@ export const useChatStore = defineStore('chat-store', {
           this.chat = []
 
           // 转换为前端格式
-          const convertStart = performance.now()
           for (const conv of conversations) {
             // 🔥 优先使用数据库中保存的 frontend_uuid，如果没有则使用后端 UUID
             const frontendUuid = conv.frontend_uuid || conv.id
@@ -434,21 +487,17 @@ export const useChatStore = defineStore('chat-store', {
           if (this.history.length > 0) {
             this.active = this.history[0].uuid
           }
-          const convertEnd = performance.now()
-          console.log(`⏱️ [ChatStore] 数据转换耗时: ${Math.round(convertEnd - convertStart)}ms`)
 
           // 保存到 localStorage
-          const saveStart = performance.now()
           this.recordStateImmediate()
-          const saveEnd = performance.now()
-          console.log(`⏱️ [ChatStore] localStorage 保存耗时: ${Math.round(saveEnd - saveStart)}ms`)
+
+          // 🔥 缓存会话列表（原始数据）
+          setCachedConversations(conversations)
 
           const totalTime = performance.now() - startTime
-          console.log('✅ [ChatStore] 会话列表加载成功:', {
-            总数: conversations.length,
-            激活会话: this.active,
-          })
-          console.log(`⏱️ [ChatStore] loadConversationsFromBackend 总耗时: ${Math.round(totalTime)}ms`)
+          if (totalTime > 100) {
+            console.warn(`⚠️ [ChatStore] 会话列表加载耗时过长: ${Math.round(totalTime)}ms`)
+          }
 
           return { success: true, count: conversations.length }
         }
@@ -477,12 +526,13 @@ export const useChatStore = defineStore('chat-store', {
       try {
         const { fetchConversationMessages } = await import('@/api/services/conversationService')
 
-        console.log(`🔄 [ChatStore] 加载会话 ${backendConversationId} 的消息...`)
-
         const apiStart = performance.now()
         const response = await fetchConversationMessages<any>(backendConversationId)
         const apiEnd = performance.now()
-        console.log(`⏱️ [ChatStore] 消息API 请求耗时: ${Math.round(apiEnd - apiStart)}ms`)
+        const apiTime = Math.round(apiEnd - apiStart)
+        if (apiTime > 100) {
+          console.warn(`⚠️ [ChatStore] 消息API 请求耗时过长: ${apiTime}ms`)
+        }
 
         if (response.status === 'Success' && response.data) {
           // 🔥 后端返回的是 { conversation, messages }，需要访问 data.messages
@@ -526,9 +576,6 @@ export const useChatStore = defineStore('chat-store', {
             }
           }
 
-          const convertEnd = performance.now()
-          console.log(`⏱️ [ChatStore] 消息数据转换耗时: ${Math.round(convertEnd - convertStart)}ms`)
-
           // 🔥 通过 backendConversationId 查找对应的前端 uuid
           const history = this.history.find(item => item.backendConversationId === backendConversationId)
           if (!history) {
@@ -547,15 +594,13 @@ export const useChatStore = defineStore('chat-store', {
             this.chat.push({ uuid: frontendUuid, data: chatData })
           }
 
-          // 保存到 localStorage
-          const saveStart = performance.now()
-          this.recordStateImmediate()
-          const saveEnd = performance.now()
-          console.log(`⏱️ [ChatStore] 消息 localStorage 保存耗时: ${Math.round(saveEnd - saveStart)}ms`)
+          // 🔥 注意：消息不再保存到 localStorage，只保留在内存中
+          // 这样可以避免大量消息写入 localStorage 造成的性能问题
 
           const totalTime = performance.now() - startTime
-          console.log(`✅ [ChatStore] 会话消息加载成功: ${messages.length} 条`)
-          console.log(`⏱️ [ChatStore] loadConversationMessages 总耗时: ${Math.round(totalTime)}ms`)
+          if (totalTime > 100) {
+            console.warn(`⚠️ [ChatStore] 消息加载耗时过长: ${Math.round(totalTime)}ms (消息数: ${messages.length})`)
+          }
 
           return { success: true, count: messages.length }
         }
@@ -635,8 +680,6 @@ export const useChatStore = defineStore('chat-store', {
      * SSE: 添加新会话（来自其他设备）
      */
     addConversationFromSSE(conversation: any) {
-      console.log('[SSE] 添加新会话:', conversation)
-
       const frontendUuid = conversation.frontend_uuid || conversation.id
 
       // 检查是否已存在

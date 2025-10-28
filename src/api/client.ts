@@ -27,35 +27,43 @@ export function setupApiClient(auth0: Auth0VueClient) {
   // 请求拦截器 - 统一处理授权 Token
   apiClient.interceptors.request.use(
     async (config) => {
+      const interceptorStart = performance.now()
       try {
         // 🔐 从 Auth0 获取 token
         if (auth0 && auth0.isAuthenticated.value) {
           try {
+            const tokenStart = performance.now()
             const token = await auth0.getAccessTokenSilently({
               authorizationParams: {
                 audience: import.meta.env.VITE_AUTH0_AUDIENCE,
               },
             })
+            const tokenEnd = performance.now()
+            const tokenTime = Math.round(tokenEnd - tokenStart)
+            // 只在慢速时输出警告
+            if (tokenTime > 100) {
+              console.warn(`⚠️ [API Client] getAccessTokenSilently 耗时过长: ${tokenTime}ms (URL: ${config.url})`)
+            }
 
             if (token) {
               config.headers.Authorization = `Bearer ${token}`
 
               // 开发环境下输出调试信息
               if (import.meta.env.DEV && config.url?.includes('/config'))
-                console.warn(`🔐 [API Client] 附加 token 到请求: ${config.url}, token 长度: ${token.length}`)
+                console.log(`🔐 [API Client] 附加 token 到请求: ${config.url}`)
             }
             else if (import.meta.env.DEV) {
-              console.warn(`⚠️ [API Client] 无法获取 token: ${config.url}`)
+              console.log(`⚠️ [API Client] 无法获取 token: ${config.url}`)
             }
           }
           catch (tokenError: any) {
             // 静默处理 token 获取失败（可能是 Consent required）
             if (import.meta.env.DEV && !tokenError.message?.includes('Consent required'))
-              console.warn('⚠️ [API Client] 获取 Auth0 token 失败:', tokenError.message, 'URL:', config.url)
+              console.log('⚠️ [API Client] 获取 Auth0 token 失败:', tokenError.message, 'URL:', config.url)
           }
         }
         else if (import.meta.env.DEV && config.url?.includes('/config')) {
-          console.warn('⚠️ [API Client] Auth0 未认证或未初始化:', config.url)
+          console.log('⚠️ [API Client] Auth0 未认证或未初始化:', config.url)
         }
       }
       catch {
@@ -66,8 +74,18 @@ export function setupApiClient(auth0: Auth0VueClient) {
           config.headers.Authorization = `Bearer ${token}`
         }
         else if (import.meta.env.DEV) {
-          console.warn('⚠️ [API Client] 无可用 token (备用方案也失败):', config.url)
+          console.log('⚠️ [API Client] 无可用 token (备用方案也失败):', config.url)
         }
+      }
+
+      // 🔥 添加请求时间戳，用于后端计算网络延迟
+      config.headers['X-Request-Start-Time'] = Date.now().toString()
+
+      const interceptorEnd = performance.now()
+      const interceptorTime = Math.round(interceptorEnd - interceptorStart)
+      // 只在慢速时输出警告
+      if (interceptorTime > 100) {
+        console.warn(`⚠️ [API Client] 请求拦截器耗时过长: ${interceptorTime}ms (URL: ${config.url})`)
       }
 
       return config

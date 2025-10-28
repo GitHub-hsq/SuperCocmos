@@ -6,6 +6,8 @@
 import express from 'express'
 import { auth0Auth, requireAuth0Admin } from '../middleware/auth0'
 import { requireAdmin, requireAuth } from '../middleware/authUnified'
+import { performanceLogger } from '../middleware/performanceLogger'
+import { sseAuth } from '../middleware/sseAuth'
 import * as auth0Controller from './auth0Controller'
 import * as authController from './authController'
 import * as configController from './configController'
@@ -14,9 +16,11 @@ import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
 import * as sseController from './sseController'
-import { sseAuth } from '../middleware/sseAuth'
 
 const router = express.Router()
+
+// 🔥 应用性能监控中间件到所有路由
+router.use(performanceLogger)
 
 // ==============================================
 // Auth0 相关路由

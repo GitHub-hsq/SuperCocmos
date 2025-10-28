@@ -153,7 +153,6 @@ export async function getConversationMessages(
 ): Promise<Message[]> {
   try {
     const { limit = 100, offset = 0 } = options
-
     // 🔥 只缓存完整的消息列表（不分页）
     const shouldCache = offset === 0 && limit === 100
 
@@ -161,13 +160,9 @@ export async function getConversationMessages(
     if (shouldCache) {
       const cacheKey = CONVERSATION_KEYS.messages(conversationId)
       const cached = await getCached<Message[]>(cacheKey)
-
       if (cached) {
-        console.log(`✅ [MessageCache] 缓存命中: ${conversationId.substring(0, 8)}... (${cached.length}条)`)
         return cached
       }
-
-      console.log(`ℹ️ [MessageCache] 缓存未命中: ${conversationId.substring(0, 8)}...，从数据库读取`)
     }
 
     // 2. 从数据库查询
@@ -189,7 +184,6 @@ export async function getConversationMessages(
     if (shouldCache && messages.length > 0 && userId) {
       const cacheKey = CONVERSATION_KEYS.messages(conversationId)
       await setCached(cacheKey, messages, CACHE_TTL.USER_SESSION) // 24小时
-      console.log(`💾 [MessageCache] 已缓存消息: ${conversationId.substring(0, 8)}... (${messages.length}条)`)
 
       // 管理用户的缓存会话（替换旧的）
       await manageCachedConversations(userId, conversationId)

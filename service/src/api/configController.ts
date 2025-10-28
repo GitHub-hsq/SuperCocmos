@@ -17,6 +17,7 @@ import {
 } from '../db/configService'
 import { findUserByAuth0Id } from '../db/supabaseUserService'
 import { broadcastToUser } from '../services/sseEventBroadcaster'
+import { addPerfCheckpoint } from '../middleware/performanceLogger'
 
 /**
  * 获取当前用户的数据库 user_id
@@ -29,7 +30,10 @@ async function getUserIdFromRequest(req: Request): Promise<string | null> {
   }
 
   try {
+    const start = performance.now()
     const user = await findUserByAuth0Id(userId)
+    const duration = performance.now() - start
+    addPerfCheckpoint(req, `Get UserId: ${duration.toFixed(0)}ms`)
     return user?.user_id || null
   }
   catch (error: any) {
@@ -53,7 +57,10 @@ export async function getConfig(req: Request, res: Response) {
       })
     }
 
+    const start = performance.now()
     const config = await getUserConfig(userId)
+    const duration = performance.now() - start
+    addPerfCheckpoint(req, `Get Config: ${duration.toFixed(0)}ms`)
 
     res.json({
       status: 'Success',
@@ -130,19 +137,23 @@ export async function patchUserSettings(req: Request, res: Response) {
 
     const result = await updateUserSettings(userId, updates)
 
-    // 🔥 广播配置更新事件到用户的所有设备
-    const auth0Id = req.userId // Auth0 用户 ID
-    if (auth0Id) {
-      broadcastToUser(auth0Id, {
-        event: 'config_updated',
-        data: {
-          type: 'user_settings',
-          updates: result,
-          timestamp: Date.now(),
-        },
-      })
-      console.log(`[SSE Broadcast] 📤 用户设置更新已广播: ${auth0Id}`)
-    }
+    // ℹ️ SSE 配置同步已移除
+    // 原因：项目设计为单设备登录，只需在登录时从数据库读取最新配置
+    // 未来计划：使用 SSE 实现单设备登录（踢掉其他设备）
+    //
+    // 实现思路：
+    // 1. 用户登录时，生成 session_id，存储到 Redis
+    // 2. 新设备登录时，删除旧 session，通过 SSE 通知旧设备下线
+    // 3. 旧设备收到下线通知后，强制退出登录
+    //
+    // 原代码（已注释）：
+    // const auth0Id = req.userId
+    // if (auth0Id) {
+    //   broadcastToUser(auth0Id, {
+    //     event: 'config_updated',
+    //     data: { type: 'user_settings', updates: result, timestamp: Date.now() }
+    //   })
+    // }
 
     res.json({
       status: 'Success',

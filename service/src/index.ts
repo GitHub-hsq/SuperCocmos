@@ -1,22 +1,39 @@
 /* eslint-disable no-console */
+/* eslint-disable import/first */
+// 🔥 必须在所有导入之前加载环境变量 - 禁用 ESLint import 排序规则
+import 'dotenv/config'
+
+// 🔥 调试：确认 dotenv 已加载
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+/* eslint-enable import/first */
+
+const envPath = join(process.cwd(), '.env')
+console.log('🔍 [Dotenv Debug] 当前工作目录:', process.cwd())
+console.log('🔍 [Dotenv Debug] .env 文件路径:', envPath)
+console.log('🔍 [Dotenv Debug] .env 文件是否存在:', existsSync(envPath))
+console.log('🔍 [Dotenv Debug] AUTH0_DOMAIN:', process.env.AUTH0_DOMAIN)
+console.log('🔍 [Dotenv Debug] SUPABASE_URL:', process.env.SUPABASE_URL?.substring(0, 30))
+
 import type { ChatMessage } from './chatgpt' // 聊天消息类型
 
 import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
+
 // 引入自定义类型和模块
 // 请求参数类型
 // 引入 Node.js 内置模块：文件系统（fs）和路径（path）
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
-
 import { join } from 'node:path'
+
+import cookieParser from 'cookie-parser'
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
-import cookieParser from 'cookie-parser'
-
 import multer from 'multer'
+
 import { nanoid } from 'nanoid'
 import auth0Routes from './api/routes' // Auth0 + Supabase 路由
-
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
+
 import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
 import { requireAuth, unifiedAuth } from './middleware/authUnified' // 统一认证中间件（仅支持 Auth0）
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
@@ -25,8 +42,6 @@ import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
 import { initUserTable, testConnection } from './utils/db' // 数据库连接
 import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字符串
 import { createUser, deleteUser, findUserByEmail, findUserById, findUserByUsername, getAllUsers, updateUser, validateUserPassword } from './utils/userService' // 用户服务
-// 加载环境变量 - 必须在所有其他导入之前
-import 'dotenv/config'
 
 const app = express()
 const router = express.Router()
@@ -49,8 +64,8 @@ app.all('*', (req, res, next) => {
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3002',
-    'http://localhost:1002',  // 🔥 前端实际端口
-    'http://127.0.0.1:1002',  // 🔥 前端实际端口（127.0.0.1）
+    'http://localhost:1002', // 🔥 前端实际端口
+    'http://127.0.0.1:1002', // 🔥 前端实际端口（127.0.0.1）
   ]
   const origin = req.headers.origin
 
@@ -847,8 +862,8 @@ router.get('/conversations/:conversationId/messages', unifiedAuth, requireAuth, 
       })
     }
 
-    // 获取消息列表
-    const messages = await getConversationMessages(conversationId, { limit, offset })
+    // 获取消息列表（传入 userId 以启用缓存管理）
+    const messages = await getConversationMessages(conversationId, user.user_id, { limit, offset })
 
     res.send({
       status: 'Success',
@@ -876,6 +891,8 @@ router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
     const { getUserAccessibleProvidersWithModels } = await import('./db/modelRoleAccessService')
     const { userHasRole } = await import('./db/userRoleService')
     const { findUserByAuth0Id } = await import('./db/supabaseUserService')
+    const { getCached, setCached } = await import('./cache/cacheService')
+    const { CACHE_TTL, PROVIDER_KEYS } = await import('./cache/cacheKeys')
 
     // 获取当前用户
     const user = await findUserByAuth0Id(req.userId!)
@@ -893,32 +910,69 @@ router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
     if (isAdmin) {
       // 管理员：返回所有模型的完整信息（包括 API Key 和 Base URL）
       console.log('✅ [Models] 管理员请求，返回完整配置（所有模型）')
-      const providersWithModels = await getAllProvidersWithModels()
 
+      // 🔥 尝试从 Redis 缓存获取
+      const cacheKey = PROVIDER_KEYS.list()
+      let providersWithModels = await getCached(cacheKey)
+
+      if (providersWithModels) {
+        console.log('✅ [ModelsCache] 缓存命中（管理员）')
+      }
+      else {
+        // 缓存未命中，查询数据库
+        console.log('ℹ️ [ModelsCache] 缓存未命中（管理员），从数据库加载')
+        providersWithModels = await getAllProvidersWithModels()
+
+        // 保存到缓存（30分钟）
+        await setCached(cacheKey, providersWithModels, CACHE_TTL.PROVIDER_LIST)
+        console.log('💾 [ModelsCache] 已缓存管理员模型列表')
+      }
+
+      // 🔥 管理员返回完整信息（用于配置页面）
       res.send({
         status: 'Success',
-        message: '获取模型列表成功',
+        message: '获取模型列表成功（管理员）',
         data: providersWithModels,
       })
     }
     else {
       // 普通用户：只返回有权限访问的模型，隐藏敏感信息
       console.log(`✅ [Models] 普通用户请求，基于角色过滤模型: ${user.user_id}`)
-      const accessibleProviders = await getUserAccessibleProvidersWithModels(user.user_id)
 
-      // 隐藏敏感信息
-      const sanitizedData = accessibleProviders.map(provider => ({
-        id: provider.id,
-        name: provider.name,
-        // 不返回 base_url 和 api_key
-        models: provider.models || [],
-        created_at: provider.created_at,
-        updated_at: provider.updated_at,
-      }))
+      // 🔥 尝试从 Redis 缓存获取用户可访问的模型
+      const userCacheKey = `${PROVIDER_KEYS.list()}:user:${user.user_id}`
+      let sanitizedData = await getCached(userCacheKey)
+
+      if (sanitizedData) {
+        console.log(`✅ [ModelsCache] 缓存命中（用户: ${user.user_id.substring(0, 8)}...）`)
+      }
+      else {
+        // 缓存未命中，查询数据库
+        console.log(`ℹ️ [ModelsCache] 缓存未命中（用户: ${user.user_id.substring(0, 8)}...），从数据库加载`)
+        const accessibleProviders = await getUserAccessibleProvidersWithModels(user.user_id)
+
+        // 🔥 精简数据：只返回前端需要的字段
+        sanitizedData = accessibleProviders.map(provider => ({
+          id: provider.id,
+          name: provider.name,
+          // 🔥 精简 models：只返回必要字段
+          models: (provider.models || []).map(model => ({
+            id: model.id,
+            model_id: model.model_id,
+            display_name: model.display_name,
+            enabled: model.enabled,
+            provider_id: model.provider_id,
+          })),
+        }))
+
+        // 保存到缓存（30分钟）
+        await setCached(userCacheKey, sanitizedData, CACHE_TTL.PROVIDER_LIST)
+        console.log(`💾 [ModelsCache] 已缓存用户模型列表: ${user.user_id.substring(0, 8)}...`)
+      }
 
       res.send({
         status: 'Success',
-        message: '获取模型列表成功',
+        message: '获取模型列表成功（普通用户）',
         data: sanitizedData,
       })
     }
@@ -1406,10 +1460,18 @@ async function initDatabase() {
       await initUserTable()
     }
 
-    // 🔥 预加载模型和供应商到 Redis 缓存
+    // 🔥 预加载模型、供应商和角色到 Redis 缓存
     try {
       const { preloadModelsToRedis } = await import('./cache/modelCache')
-      await preloadModelsToRedis()
+      const { preloadRolesToRedis } = await import('./cache/roleCache')
+
+      // 并行预加载，提升启动速度
+      await Promise.all([
+        preloadModelsToRedis(),
+        preloadRolesToRedis(),
+      ])
+
+      console.warn('✅ [Redis缓存] 全局数据预加载完成（供应商、模型、角色）')
     }
     catch (error) {
       console.error('⚠️ [启动] 预加载缓存失败，将使用数据库查询:', error)

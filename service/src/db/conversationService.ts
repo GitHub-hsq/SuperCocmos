@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { CONVERSATION_KEYS } from '../cache/cacheKeys'
+import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
 import { supabase } from './supabaseClient'
 
 // 🔥 对话会话类型定义
@@ -68,6 +70,10 @@ export async function createConversation(
       console.error('❌ [Conversation] 创建对话失败:', error)
       return null
     }
+
+    // 🔥 清除用户会话列表缓存
+    const cacheKey = CONVERSATION_KEYS.userConversations(params.user_id)
+    await deleteCached(cacheKey)
 
     console.log('✅ [Conversation] 创建对话成功:', data.id)
     return data as Conversation
@@ -140,7 +146,7 @@ export async function getConversationByFrontendUuid(
 }
 
 /**
- * 📋 获取用户的所有对话（分页）
+ * 📋 获取用户的所有对话（分页）+ Redis 缓存
  */
 export async function getUserConversations(
   userId: string,
@@ -150,6 +156,20 @@ export async function getUserConversations(
   try {
     const { limit = 50, offset = 0 } = options
 
+    // 🔥 只缓存完整的列表（不分页）
+    const shouldCache = offset === 0 && limit === 50
+
+    // 1. 尝试从缓存获取
+    if (shouldCache) {
+      const cacheKey = CONVERSATION_KEYS.userConversations(userId)
+      const cached = await getCached<Conversation[]>(cacheKey)
+
+      if (cached) {
+        return cached
+      }
+    }
+
+    // 2. 从数据库查询
     const { data, error } = await client
       .from('conversations')
       .select('*')
@@ -162,7 +182,15 @@ export async function getUserConversations(
       return []
     }
 
-    return (data || []) as Conversation[]
+    const conversations = (data || []) as Conversation[]
+
+    // 3. 保存到缓存
+    if (shouldCache && conversations.length > 0) {
+      const cacheKey = CONVERSATION_KEYS.userConversations(userId)
+      await setCached(cacheKey, conversations, CACHE_TTL.USER_CONVERSATIONS)
+    }
+
+    return conversations
   }
   catch (error) {
     console.error('❌ [Conversation] 获取用户对话列表异常:', error)
@@ -179,6 +207,9 @@ export async function updateConversation(
   client: SupabaseClient = supabase,
 ): Promise<boolean> {
   try {
+    // 先查询会话以获取 user_id（用于清除缓存）
+    const conversation = await getConversationById(conversationId, client)
+
     const { error } = await client
       .from('conversations')
       .update({
@@ -190,6 +221,12 @@ export async function updateConversation(
     if (error) {
       console.error('❌ [Conversation] 更新对话失败:', error)
       return false
+    }
+
+    // 🔥 清除用户会话列表缓存
+    if (conversation) {
+      const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
+      await deleteCached(cacheKey)
     }
 
     console.log('✅ [Conversation] 更新对话成功:', conversationId)
@@ -209,6 +246,9 @@ export async function deleteConversation(
   client: SupabaseClient = supabase,
 ): Promise<boolean> {
   try {
+    // 先查询会话以获取 user_id（用于清除缓存）
+    const conversation = await getConversationById(conversationId, client)
+
     const { error } = await client
       .from('conversations')
       .delete()
@@ -217,6 +257,12 @@ export async function deleteConversation(
     if (error) {
       console.error('❌ [Conversation] 删除对话失败:', error)
       return false
+    }
+
+    // 🔥 清除用户会话列表缓存
+    if (conversation) {
+      const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
+      await deleteCached(cacheKey)
     }
 
     console.log('✅ [Conversation] 删除对话成功:', conversationId)

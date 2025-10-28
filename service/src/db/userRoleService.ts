@@ -1,9 +1,11 @@
 /* eslint-disable no-console */
 /**
  * 用户-角色关联 Service
- * 提供用户角色关联的 CRUD 操作
+ * 提供用户角色关联的 CRUD 操作（集成 Redis 缓存）
  */
 
+import { USER_ROLE_KEYS } from '../cache/cacheKeys'
+import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
 import { supabase } from './supabaseClient'
 
 export interface UserRole {
@@ -79,10 +81,25 @@ export async function removeRoleFromUser(userId: string, roleId: number): Promis
 }
 
 /**
- * 获取用户的所有角色
+ * 获取用户的所有角色（带 Redis 缓存）
  */
 export async function getUserRoles(userId: string): Promise<UserRole[]> {
+  const startTime = Date.now()
+
   try {
+    // 🔥 1. 尝试从 Redis 缓存获取
+    const cacheKey = USER_ROLE_KEYS.userRoles(userId)
+    const cached = await getCached<UserRole[]>(cacheKey)
+
+    if (cached) {
+      console.warn(`✅ [UserRoleCache] 缓存命中: ${userId.substring(0, 8)}..., 耗时: ${Date.now() - startTime}ms`)
+      return cached
+    }
+
+    console.warn(`ℹ️ [UserRoleCache] 缓存未命中，查询数据库`)
+
+    // 🔥 2. 从数据库查询
+    const dbStart = Date.now()
     const { data, error } = await supabase
       .from('user_roles')
       .select('*')
@@ -91,7 +108,17 @@ export async function getUserRoles(userId: string): Promise<UserRole[]> {
     if (error)
       throw error
 
-    return data || []
+    const roles = data || []
+    console.warn(`⏱️ [UserRoleCache] 数据库查询耗时: ${Date.now() - dbStart}ms`)
+
+    // 🔥 3. 写入 Redis 缓存
+    if (roles.length > 0) {
+      await setCached(cacheKey, roles, CACHE_TTL.USER_ROLES)
+      console.warn(`💾 [UserRoleCache] 已缓存用户角色: ${roles.length} 个角色`)
+    }
+
+    console.warn(`⏱️ [UserRoleCache] 总耗时: ${Date.now() - startTime}ms`)
+    return roles
   }
   catch (error: any) {
     console.error('❌ [UserRoleService] 获取用户角色失败:', error.message)
@@ -220,11 +247,28 @@ export async function updateUserRoles(userId: string, roleIds: number[]): Promis
         throw insertError
     }
 
+    // 🔥 3. 清除用户角色缓存
+    await clearUserRolesCache(userId)
+
     console.log(`✅ [UserRoleService] 用户 ${userId} 角色更新成功`)
     return true
   }
   catch (error: any) {
     console.error('❌ [UserRoleService] 更新用户角色失败:', error.message)
     throw new Error(`更新用户角色失败: ${error.message}`)
+  }
+}
+
+/**
+ * 清除用户角色缓存
+ */
+export async function clearUserRolesCache(userId: string): Promise<void> {
+  try {
+    const cacheKey = USER_ROLE_KEYS.userRoles(userId)
+    await deleteCached(cacheKey)
+    console.warn(`🗑️ [UserRoleCache] 已清除用户角色缓存: ${userId.substring(0, 8)}...`)
+  }
+  catch (error: any) {
+    console.error('❌ [UserRoleCache] 清除缓存失败:', error.message)
   }
 }

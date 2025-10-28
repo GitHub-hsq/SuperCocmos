@@ -619,12 +619,10 @@ async function chatReplyProcess(options: RequestOptions) {
         },
       }
 
-      // eslint-disable-next-line no-console
-      console.log('✅ [ChatGPT] API 调用完成')
-      // eslint-disable-next-line no-console
-      console.log('⏱️ [ChatGPT] 耗时:', Date.now() - startTime, 'ms')
+      const Spend_time = Date.now() - startTime
       // eslint-disable-next-line no-console
       console.log('📊 [ChatGPT] 响应信息:', {
+        time: `${Spend_time} + 'ms'`,
         id: response.id,
         model: selectedModel,
         textLength: accumulatedText.length,

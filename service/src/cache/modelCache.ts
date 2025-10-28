@@ -9,7 +9,7 @@ import { redis } from './redisClient'
 
 const CACHE_PREFIX = 'model_cache:'
 const PROVIDER_CACHE_PREFIX = 'provider_cache:'
-const CACHE_TTL = 3600 // 1小时
+const CACHE_TTL = 86400 // 24小时（避免频繁过期导致缓存未命中）
 
 /**
  * 预加载所有模型和供应商到 Redis
@@ -23,6 +23,7 @@ export async function preloadModelsToRedis(): Promise<void> {
 
     let modelCount = 0
     let providerCount = 0
+    const cacheKeySamples: string[] = [] // 记录缓存键样本，用于调试
 
     // 🔥 缓存整个供应商列表（与 Controller 的查询匹配）
     await redis.setex('providers:list', CACHE_TTL, JSON.stringify(providers))
@@ -65,12 +66,21 @@ export async function preloadModelsToRedis(): Promise<void> {
         }
 
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(modelData))
+
+        // 记录前3个缓存键样本用于调试
+        if (cacheKeySamples.length < 3) {
+          cacheKeySamples.push(cacheKey)
+        }
+
         modelCount++
       }
     }
 
     const endTime = Date.now()
     console.warn(`✅ [Redis缓存] 预加载完成: ${providerCount} 个供应商, ${modelCount} 个模型, 耗时 ${endTime - startTime}ms`)
+    if (cacheKeySamples.length > 0) {
+      console.warn(`📋 [Redis缓存] 缓存键样本:`, cacheKeySamples.slice(0, 3))
+    }
   }
   catch (error) {
     console.error('❌ [缓存] 预加载失败:', error)
@@ -87,11 +97,11 @@ export async function getModelFromCache(modelId: string, providerId: string): Pr
     const cached = await redis.get(cacheKey)
 
     if (cached) {
-      console.warn(`✅ [缓存] 命中: ${modelId}`)
+      console.warn(`✅ [缓存] 命中: ${cacheKey}`)
       return JSON.parse(cached)
     }
 
-    console.warn(`⚠️ [缓存] 未命中: ${modelId}`)
+    console.warn(`⚠️ [缓存] 未命中: ${cacheKey}`)
     return null
   }
   catch (error) {

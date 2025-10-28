@@ -5,9 +5,8 @@ import type { Ref } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
-import { NAutoComplete, NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage, useNotification } from 'naive-ui'
+import { NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage, useNotification } from 'naive-ui'
 import { nanoid } from 'nanoid'
-import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
@@ -21,7 +20,7 @@ import UserSettingsPanel from '@/components/common/Setting/panels/UserSettingsPa
 import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConfigPanel.vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { useAppInitStore, useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore, usePromptStore } from '@/store'
+import { useAppInitStore, useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore } from '@/store'
 // 🔥 导入消息缓存工具
 import { appendMessageToLocalCache } from '@/utils/messageCache'
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
@@ -76,12 +75,6 @@ const dataSources = computed(() => chatStore.getChatByUuid(uuid.value))
 const prompt = ref<string>('')
 const loading = ref<boolean>(false)
 const inputRef = ref<Ref | null>(null)
-
-// 添加PromptStore
-const promptStore = usePromptStore()
-
-// 使用storeToRefs，保证store修改后，联想部分能够重新渲染
-const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
 
 // 未知原因刷新页面，loading 状态不会重置，手动重置
 dataSources.value.forEach((item, index) => {
@@ -692,32 +685,6 @@ function handleStop() {
     controller.abort()
     loading.value = false
   }
-}
-
-// 可优化部分
-// 搜索选项计算，这里使用value作为索引项，所以当出现重复value时渲染异常(多项同时出现选中效果)
-// 理想状态下其实应该是key作为索引项,但官方的renderOption会出现问题，所以就需要value反renderLabel实现
-const searchOptions = computed(() => {
-  if (prompt.value.startsWith('/')) {
-    return promptTemplate.value.filter((item: { key: string }) => item.key.toLowerCase().includes(prompt.value.substring(1).toLowerCase())).map((obj: { value: any }) => {
-      return {
-        label: obj.value,
-        value: obj.value,
-      }
-    })
-  }
-  else {
-    return []
-  }
-})
-
-// value反渲染key
-function renderOption(option: { label: string }) {
-  for (const i of promptTemplate.value) {
-    if (i.value === option.label)
-      return [i.key]
-  }
-  return []
 }
 
 const placeholder = computed(() => {
@@ -1459,22 +1426,15 @@ function handleSelectModel(model: ModelItem) {
                         <SvgIcon icon="ri:chat-history-line" />
                       </span>
                     </HoverButton>
-                    <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
-                      <template #default="{ handleInput, handleBlur, handleFocus }">
-                        <NInput
-                          ref="inputRef"
-                          v-model:value="prompt"
-                          type="textarea"
-                          :placeholder="placeholder"
-                          :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
-                          style="font-size: 16px; line-height: 1.5;"
-                          @input="handleInput"
-                          @focus="handleFocus"
-                          @blur="handleBlur"
-                          @keypress="handleEnter"
-                        />
-                      </template>
-                    </NAutoComplete>
+                    <NInput
+                      ref="inputRef"
+                      v-model:value="prompt"
+                      type="textarea"
+                      :placeholder="placeholder"
+                      :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
+                      style="font-size: 16px; line-height: 1.5;"
+                      @keypress="handleEnter"
+                    />
                     <NButton type="primary" :disabled="buttonDisabled" size="large" @click="handleSubmit">
                       <template #icon>
                         <span class="dark:text-black">

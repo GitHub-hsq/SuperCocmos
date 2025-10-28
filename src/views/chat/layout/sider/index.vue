@@ -1,9 +1,9 @@
 <script setup lang='ts'>
 import type { CSSProperties } from 'vue'
-import { NButton, NLayoutSider, useDialog } from 'naive-ui'
+import { NButton, NLayoutSider, NPopover } from 'naive-ui'
 import { nanoid } from 'nanoid'
-import { computed, ref, watch } from 'vue'
-import { PromptStore, SvgIcon } from '@/components/common'
+import { computed, watch } from 'vue'
+import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { useAppStore, useAuthStore, useChatStore } from '@/store'
@@ -14,10 +14,7 @@ const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 
-const dialog = useDialog()
-
 const { isMobile } = useBasicLayout()
-const show = ref(false)
 
 const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 
@@ -85,20 +82,6 @@ function handleAdd() {
 
 function handleUpdateCollapsed() {
   appStore.setSiderCollapsed(!collapsed.value)
-}
-
-function handleClearAll() {
-  dialog.warning({
-    title: t('chat.deleteMessage'),
-    content: t('chat.clearHistoryConfirm'),
-    positiveText: t('common.yes'),
-    negativeText: t('common.no'),
-    onPositiveClick: () => {
-      chatStore.clearHistory()
-      if (isMobile.value)
-        appStore.setSiderCollapsed(true)
-    },
-  })
 }
 
 function handleModeChange(mode: 'noteToQuestion' | 'noteToStory') {
@@ -181,10 +164,10 @@ watch(
 <template>
   <NLayoutSider
     :collapsed="collapsed"
-    :collapsed-width="0"
+    :collapsed-width="55"
     :width="260"
-    :show-trigger="isMobile ? false : 'arrow-circle'"
-    collapse-mode="transform"
+    :show-trigger="false"
+    collapse-mode="width"
     position="absolute"
     bordered
     :style="getMobileClass"
@@ -200,11 +183,41 @@ watch(
           :class="showSettingsPage ? '-translate-x-full' : 'translate-x-0'"
         >
           <main class="flex flex-col flex-1 min-h-0">
-            <!-- 聊天模式切换组件 -->
-            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-              <div class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
-                {{ $t('chat.mode') }}
-              </div>
+            <!-- Logo 和展开/收起按钮 -->
+            <div class="sider-header" :class="{ collapsed }">
+              <!-- 展开状态 -->
+              <template v-if="!collapsed">
+                <div class="sider-logo-wrapper">
+                  <SvgIcon
+                    icon="ri:sparkling-2-fill"
+                    class="sider-logo-icon"
+                  />
+                  <span class="sider-logo-text">SuperCocmos</span>
+                </div>
+                <button
+                  class="sider-toggle-btn"
+                  @click="handleUpdateCollapsed"
+                >
+                  <SvgIcon icon="ri:arrow-left-s-line" />
+                </button>
+              </template>
+
+              <!-- 收起状态：logo占满，悬停时显示展开按钮 -->
+              <template v-else>
+                <div class="sider-collapsed-logo-wrapper" @click="handleUpdateCollapsed">
+                  <SvgIcon
+                    icon="ri:sparkling-2-fill"
+                    class="sider-collapsed-logo-icon"
+                  />
+                  <div class="sider-collapsed-expand-btn">
+                    <SvgIcon icon="ri:arrow-right-s-line" />
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- 聊天模式切换组件（展开状态） -->
+            <div v-show="!collapsed" class="p-4">
               <div class="flex flex-col space-y-2">
                 <NButton
                   :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
@@ -228,23 +241,81 @@ watch(
                 </NButton>
               </div>
             </div>
-            <div class="p-4">
+
+            <!-- 聊天模式切换（收起状态） -->
+            <div v-show="collapsed" class="flex justify-center py-4">
+              <NPopover
+                trigger="hover"
+                placement="right"
+                :show-arrow="true"
+                :width="200"
+              >
+                <template #trigger>
+                  <button class="sider-icon-btn">
+                    <SvgIcon
+                      :icon="chatStore.chatMode === 'noteToQuestion' ? 'ri:file-text-line' : chatStore.chatMode === 'noteToStory' ? 'ri:book-open-line' : 'ri:chat-3-line'"
+                    />
+                  </button>
+                </template>
+                <div class="flex flex-col space-y-2 p-2">
+                  <NButton
+                    :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
+                    block
+                    size="small"
+                    @click="handleModeChange('noteToQuestion')"
+                  >
+                    <template #icon>
+                      <SvgIcon icon="ri:file-text-line" />
+                    </template>
+                    {{ $t('chat.modeNoteToQuestion') }}
+                  </NButton>
+                  <NButton
+                    :type="chatStore.chatMode === 'noteToStory' ? 'primary' : 'default'"
+                    block
+                    size="small"
+                    @click="handleModeChange('noteToStory')"
+                  >
+                    <template #icon>
+                      <SvgIcon icon="ri:book-open-line" />
+                    </template>
+                    {{ $t('chat.modeNoteToStory') }}
+                  </NButton>
+                </div>
+              </NPopover>
+            </div>
+            <!-- 新建聊天按钮 -->
+            <div v-show="!collapsed" class="p-4">
               <NButton dashed block @click="handleAdd">
                 {{ $t('chat.newChatButton') }}
               </NButton>
             </div>
-            <div class="flex-1 min-h-0 pb-4 overflow-hidden">
+            <div v-show="collapsed" class="flex justify-center py-4">
+              <button class="sider-icon-btn" @click="handleAdd">
+                <SvgIcon icon="ri:add-line" />
+              </button>
+            </div>
+
+            <!-- 会话列表 -->
+            <div v-show="!collapsed" class="flex-1 min-h-0 pb-4 overflow-hidden">
               <List />
             </div>
-            <div class="flex items-center p-4 space-x-4">
-              <div class="flex-1">
-                <NButton block @click="show = true">
-                  {{ $t('store.siderButton') }}
-                </NButton>
-              </div>
-              <NButton @click="handleClearAll">
-                <SvgIcon icon="ri:close-circle-line" />
-              </NButton>
+            <!-- 收起状态：会话图标 + 悬停弹窗 -->
+            <div v-show="collapsed" class="flex-1 flex justify-center">
+              <NPopover
+                trigger="hover"
+                placement="right"
+                :show-arrow="true"
+                :width="240"
+              >
+                <template #trigger>
+                  <button class="sider-icon-btn">
+                    <SvgIcon icon="ri:chat-history-line" />
+                  </button>
+                </template>
+                <div class="max-h-96 overflow-y-auto">
+                  <List />
+                </div>
+              </NPopover>
             </div>
           </main>
         </div>
@@ -273,31 +344,226 @@ watch(
       </div>
 
       <!-- Footer - 用户信息和设置按钮 -->
-      <footer class="flex items-center justify-between min-w-0 p-4 overflow-hidden border-t dark:border-neutral-800">
-        <!-- Auth0 用户信息组件 -->
-        <Profile />
+      <footer class="sider-footer" :class="{ collapsed }">
+        <!-- 展开状态 -->
+        <template v-if="!collapsed">
+          <Profile />
+          <NButton quaternary circle @click="showSettingsPage ? handleBackToMenu() : handleShowSettings()">
+            <template #icon>
+              <span class="text-xl text-[#4f555e] dark:text-white">
+                <SvgIcon :icon="showSettingsPage ? 'ri:arrow-left-line' : 'ri:settings-4-line'" />
+              </span>
+            </template>
+          </NButton>
+        </template>
 
-        <!-- 设置按钮 -->
-        <NButton quaternary circle @click="showSettingsPage ? handleBackToMenu() : handleShowSettings()">
-          <template #icon>
-            <span class="text-xl text-[#4f555e] dark:text-white">
+        <!-- 收起状态 -->
+        <template v-else>
+          <div class="flex flex-col items-center gap-2">
+            <NPopover
+              trigger="hover"
+              placement="right"
+              :show-arrow="true"
+            >
+              <template #trigger>
+                <button class="sider-icon-btn">
+                  <SvgIcon icon="ri:user-line" />
+                </button>
+              </template>
+              <Profile />
+            </NPopover>
+
+            <button
+              class="sider-icon-btn"
+              @click="showSettingsPage ? handleBackToMenu() : handleShowSettings()"
+            >
               <SvgIcon :icon="showSettingsPage ? 'ri:arrow-left-line' : 'ri:settings-4-line'" />
-            </span>
-          </template>
-        </NButton>
+            </button>
+          </div>
+        </template>
       </footer>
     </div>
   </NLayoutSider>
   <template v-if="isMobile">
     <div v-show="!collapsed" class="fixed inset-0 z-40 w-full h-full bg-black/40" @click="handleUpdateCollapsed" />
   </template>
-  <PromptStore v-model:visible="show" />
 </template>
 
 <style scoped>
 /* 侧边栏面板滑动过渡效果 - 使用流畅的缓动函数 */
 .sider-panel-transition {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Logo 头部区域 */
+.sider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  min-height: 64px;
+}
+
+.sider-header.collapsed {
+  justify-content: center;
+  padding: 0;
+}
+
+/* 展开状态的 logo */
+.sider-logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sider-logo-icon {
+  font-size: 24px;
+  color: #333;
+  flex-shrink: 0;
+}
+
+:deep(.dark) .sider-logo-icon {
+  color: #fff;
+}
+
+.sider-logo-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+}
+
+:deep(.dark) .sider-logo-text {
+  color: #fff;
+}
+
+/* 收起状态的 logo 容器 */
+.sider-collapsed-logo-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 55px;
+  height: 64px;
+  cursor: pointer;
+}
+
+.sider-collapsed-logo-icon {
+  font-size: 28px;
+  color: #333;
+  transition: opacity 0.2s;
+}
+
+:deep(.dark) .sider-collapsed-logo-icon {
+  color: #fff;
+}
+
+.sider-collapsed-expand-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+:deep(.dark) .sider-collapsed-expand-btn {
+  color: #999;
+}
+
+/* 悬停效果：隐藏 logo，显示展开按钮 */
+.sider-collapsed-logo-wrapper:hover .sider-collapsed-logo-icon {
+  opacity: 0;
+}
+
+.sider-collapsed-logo-wrapper:hover .sider-collapsed-expand-btn {
+  opacity: 1;
+}
+
+.sider-collapsed-logo-wrapper:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+:deep(.dark) .sider-collapsed-logo-wrapper:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 展开/收起按钮 */
+.sider-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.sider-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+:deep(.dark) .sider-toggle-btn {
+  color: #999;
+}
+
+:deep(.dark) .sider-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* 收起状态的图标按钮 */
+.sider-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 20px;
+}
+
+.sider-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+:deep(.dark) .sider-icon-btn {
+  color: #999;
+}
+
+:deep(.dark) .sider-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* Footer 区域 */
+.sider-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.sider-footer.collapsed {
+  justify-content: center;
+  padding: 16px 8px;
 }
 
 /* 设置导航项样式 */

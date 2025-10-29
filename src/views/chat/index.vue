@@ -1468,7 +1468,7 @@ function handleSelectModel(model: ModelItem) {
                         </div>
                       </template>
                       <template v-else>
-                        <div style="padding: 0 15% 10%;">
+                        <div style="padding: 0 15% 5%;">
                           <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
                           <div v-if="!isMobile" class="h-24" />
                           <Message

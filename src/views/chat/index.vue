@@ -1642,7 +1642,7 @@ function handleSelectModel(model: ModelItem) {
   align-items: center;
   min-height: 60px;
   border-radius: 30px / 50%;
-  background: #f5f5f5;
+  background: #f7f7f7;
   border: 1px solid rgba(0, 0, 0, 0.08);
   padding: 0.5rem; /* 上下内边距 */
 }

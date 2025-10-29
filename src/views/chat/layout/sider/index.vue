@@ -2,7 +2,7 @@
 import type { CSSProperties } from 'vue'
 import { NButton, NLayoutSider, NPopover } from 'naive-ui'
 import { nanoid } from 'nanoid'
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useTheme } from '@/hooks/useTheme'
@@ -68,6 +68,9 @@ const collapsed = computed(() => appStore.siderCollapsed)
 
 // 判断是否为深色模式
 const isDark = computed(() => !!theme.value)
+
+// 历史记录展开状态
+const historyExpanded = ref(true)
 
 // 当前语言
 const currentLanguage = computed(() => appStore.language)
@@ -151,7 +154,7 @@ const getMobileClass = computed<CSSProperties>(() => {
 // 🔥 Sider 内容样式（支持暗黑模式）
 const siderContentStyle = computed<CSSProperties>(() => {
   return {
-    backgroundColor: 'var(--n-color)',
+    backgroundColor: isDark.value ? 'var(--n-color)' : 'var(--nav-bg-light)',
   }
 })
 
@@ -184,7 +187,6 @@ watch(
     :show-trigger="false"
     collapse-mode="width"
     position="absolute"
-    bordered
     :style="getMobileClass"
     :content-style="siderContentStyle"
     @update-collapsed="handleUpdateCollapsed"
@@ -199,7 +201,7 @@ watch(
         >
           <main class="flex flex-col flex-1 min-h-0">
             <!-- Logo 和展开/收起按钮 -->
-            <div class="sider-header" :class="{ collapsed }">
+            <div class="sider-header nav-bg" :class="{ collapsed }">
               <!-- 展开状态 -->
               <template v-if="!collapsed">
                 <div class="sider-logo-wrapper">
@@ -231,33 +233,60 @@ watch(
               </template>
             </div>
 
-            <!-- 聊天模式切换组件（展开状态） -->
-            <div v-show="!collapsed" class="p-4">
-              <div class="flex flex-col space-y-2">
-                <NButton
-                  :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
-                  block
+            <!-- 导航列表（展开状态） -->
+            <div v-show="!collapsed" class="nav-bg flex-1 min-h-0 overflow-hidden">
+              <div class="px-4 py-2">
+                <!-- 新建聊天 -->
+                <div class="nav-item" @click="handleAdd">
+                  <span class="nav-item-icon">
+                    <SvgIcon icon="ri:add-line" />
+                  </span>
+                  <span class="nav-item-text">{{ $t('chat.newChatButton') }}</span>
+                </div>
+
+                <!-- 笔记转题目 -->
+                <div
+                  class="nav-item"
+                  :class="{ 'nav-item-active': chatStore.chatMode === 'noteToQuestion' }"
                   @click="handleModeChange('noteToQuestion')"
                 >
-                  <template #icon>
+                  <span class="nav-item-icon">
                     <SvgIcon icon="ri:file-text-line" />
-                  </template>
-                  {{ $t('chat.modeNoteToQuestion') }}
-                </NButton>
-                <NButton
-                  :type="chatStore.chatMode === 'noteToStory' ? 'primary' : 'default'"
-                  block
+                  </span>
+                  <span class="nav-item-text">{{ $t('chat.modeNoteToQuestion') }}</span>
+                </div>
+
+                <!-- 笔记转故事 -->
+                <div
+                  class="nav-item"
+                  :class="{ 'nav-item-active': chatStore.chatMode === 'noteToStory' }"
                   @click="handleModeChange('noteToStory')"
                 >
-                  <template #icon>
+                  <span class="nav-item-icon">
                     <SvgIcon icon="ri:book-open-line" />
-                  </template>
-                  {{ $t('chat.modeNoteToStory') }}
-                </NButton>
+                  </span>
+                  <span class="nav-item-text">{{ $t('chat.modeNoteToStory') }}</span>
+                </div>
+
+                <!-- 历史记录 -->
+                <div class="nav-item nav-item-expandable" @click="historyExpanded = !historyExpanded">
+                  <span class="nav-item-icon">
+                    <SvgIcon icon="ri:history-line" />
+                  </span>
+                  <span class="nav-item-text">历史记录</span>
+                  <span class="nav-item-arrow" :class="{ 'nav-item-arrow-expanded': historyExpanded }">
+                    <SvgIcon icon="ri:arrow-down-s-line" />
+                  </span>
+                </div>
+              </div>
+
+              <!-- 会话列表 -->
+              <div v-show="historyExpanded" class="flex-1 min-h-0 overflow-hidden">
+                <List />
               </div>
             </div>
 
-            <!-- 聊天模式切换（收起状态） -->
+            <!-- 收起状态 -->
             <div v-show="collapsed" class="flex justify-center py-4">
               <NPopover
                 trigger="hover"
@@ -298,22 +327,6 @@ watch(
                 </div>
               </NPopover>
             </div>
-            <!-- 新建聊天按钮 -->
-            <div v-show="!collapsed" class="p-4">
-              <NButton dashed block @click="handleAdd">
-                {{ $t('chat.newChatButton') }}
-              </NButton>
-            </div>
-            <div v-show="collapsed" class="flex justify-center py-4">
-              <button class="sider-icon-btn" @click="handleAdd">
-                <SvgIcon icon="ri:add-line" />
-              </button>
-            </div>
-
-            <!-- 会话列表 -->
-            <div v-show="!collapsed" class="flex-1 min-h-0 pb-4 overflow-hidden">
-              <List />
-            </div>
             <!-- 收起状态：会话图标 + 悬停弹窗 -->
             <div v-show="collapsed" class="flex-1 flex justify-center">
               <NPopover
@@ -337,7 +350,7 @@ watch(
 
         <!-- 设置导航面板 -->
         <div
-          class="absolute inset-0 flex flex-col sider-panel-transition bg-white dark:bg-[#18181c]"
+          class="absolute inset-0 flex flex-col sider-panel-transition settings-panel dark:bg-[#18181c]"
           :class="showSettingsPage ? 'translate-x-0' : 'translate-x-full'"
         >
           <!-- 设置标题 -->
@@ -366,7 +379,7 @@ watch(
       </div>
 
       <!-- Footer - 用户信息和设置按钮 -->
-      <footer class="sider-footer" :class="{ collapsed }">
+      <footer class="sider-footer nav-bg" :class="{ collapsed }">
         <!-- 展开状态 -->
         <template v-if="!collapsed">
           <Profile />
@@ -412,9 +425,95 @@ watch(
 </template>
 
 <style scoped>
+/* 🎨 导航区域背景色类 */
+.nav-bg {
+  background-color: var(--nav-bg-light);
+}
+
+:deep(.dark) .nav-bg {
+  background-color: transparent;
+}
+
+/* 🍎 导航列表项样式 */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: transparent;
+  color: #333;
+}
+
+.nav-item:hover {
+  background-color: var(--nav-hover-light);
+}
+
+:deep(.dark) .nav-item {
+  color: #aeaeb2;
+}
+
+:deep(.dark) .nav-item:hover {
+  background-color: var(--nav-hover-dark);
+}
+
+/* 激活状态 */
+.nav-item-active {
+  background-color: var(--nav-active-light) !important;
+  color: #333 !important;
+  font-weight: 500;
+}
+
+:deep(.dark) .nav-item-active {
+  background-color: var(--nav-active-dark) !important;
+  color: #fff !important;
+}
+
+/* 导航项图标 */
+.nav-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* 导航项文字 */
+.nav-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+/* 可展开项箭头 */
+.nav-item-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  transform: rotate(-90deg); /* 默认向右 */
+}
+
+.nav-item-arrow-expanded {
+  transform: rotate(0deg); /* 展开时向下 */
+}
+
 /* 侧边栏面板滑动过渡效果 - 使用流畅的缓动函数 */
 .sider-panel-transition {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--nav-bg-light);
+}
+
+:deep(.dark) .sider-panel-transition {
+  background-color: transparent;
 }
 
 /* Logo 头部区域 */
@@ -573,6 +672,11 @@ watch(
   color: #fff;
 }
 
+/* 设置面板 */
+.settings-panel {
+  background-color: var(--nav-bg-light);
+}
+
 /* Footer 区域 */
 .sider-footer {
   display: flex;
@@ -582,6 +686,8 @@ watch(
   padding: 16px;
   overflow: hidden;
 }
+
+/* footer背景色已通过nav-bg类处理 */
 
 .sider-footer.collapsed {
   justify-content: center;
@@ -636,5 +742,91 @@ watch(
 :deep(.dark) .setting-nav-item.active {
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;
+}
+
+/* 🍎 优化按钮的iOS风格 */
+:deep(.n-button) {
+  border-radius: 10px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 隐藏按钮的边框元素 */
+:deep(.n-button__state-border),
+:deep(.n-button__border) {
+  display: none !important;
+}
+
+:deep(.n-button:not(.n-button--dashed-type)) {
+  border: none !important;
+}
+
+/* 按钮内容左对齐 */
+:deep(.n-button__content) {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+/* 浅色模式按钮 */
+:deep(.n-button--default-type) {
+  background-color: transparent;
+  color: #333;
+}
+
+:deep(.n-button--default-type:hover) {
+  background-color: var(--nav-hover-light);
+}
+
+:deep(.n-button--primary-type) {
+  background-color: var(--nav-active-light);
+  color: #333;
+}
+
+:deep(.n-button--primary-type:hover) {
+  background-color: #e8e8e8;
+}
+
+/* 深色模式下的按钮样式 */
+:deep(.dark .n-button--default-type) {
+  background-color: transparent;
+  color: #ffffff;
+}
+
+:deep(.dark .n-button--default-type:hover) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:deep(.dark .n-button--primary-type) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+:deep(.dark .n-button--primary-type:hover) {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* 虚线按钮样式 */
+:deep(.n-button--dashed-type) {
+  border: 1px dashed #d9d9d9 !important;
+  background-color: transparent;
+}
+
+:deep(.n-button--dashed-type:hover) {
+  border-color: #d9d9d9 !important;
+  background-color: var(--nav-hover-light);
+}
+
+:deep(.n-button--dashed-type:active) {
+  background-color: var(--nav-active-light);
+}
+
+:deep(.dark .n-button--dashed-type) {
+  border-color: #48484a !important;
+  color: #aeaeb2;
+  background-color: transparent;
+}
+
+:deep(.dark .n-button--dashed-type:hover) {
+  border-color: #5e5e60 !important;
+  background-color: rgba(255, 255, 255, 0.05);
 }
 </style>

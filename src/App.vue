@@ -173,3 +173,37 @@ onMounted(async () => {
     </NaiveProvider>
   </NConfigProvider>
 </template>
+
+<style>
+/* 🎨 左侧导航栏全局CSS变量 */
+:root {
+  /* 导航区域背景色 */
+  --nav-bg-light: #f9f9f9;
+  --nav-bg-dark: transparent;
+
+  /* 导航项hover颜色 */
+  --nav-hover-light: #e9e9e9;
+  --nav-hover-dark: rgba(255, 255, 255, 0.05);
+
+  /* 导航项激活颜色 */
+  --nav-active-light: #e3e3e3;
+  --nav-active-dark: rgba(255, 255, 255, 0.1);
+
+  /* 会话列表hover颜色 */
+  --session-hover-light: #e9e9e9;
+  --session-hover-dark: rgba(255, 255, 255, 0.05);
+
+  /* 会话列表激活颜色 */
+  --session-active-light: #e9e9e9;
+  --session-active-dark: rgba(255, 255, 255, 0.1);
+}
+
+/* 暗黑模式变量 */
+.dark {
+  --nav-bg-light: var(--nav-bg-dark);
+  --nav-hover-light: var(--nav-hover-dark);
+  --nav-active-light: var(--nav-active-dark);
+  --session-hover-light: var(--session-hover-dark);
+  --session-active-light: var(--session-active-dark);
+}
+</style>

@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid'
 import { computed, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { useTheme } from '@/hooks/useTheme'
 import { t } from '@/locales'
 import { useAppStore, useAuthStore, useChatStore } from '@/store'
 import Profile from '@/views/chat/components/User/Profile.vue'
@@ -13,6 +14,7 @@ import List from './List.vue'
 const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
+const { theme } = useTheme()
 
 const { isMobile } = useBasicLayout()
 
@@ -64,6 +66,15 @@ const settingItems = computed(() => {
 
 const collapsed = computed(() => appStore.siderCollapsed)
 
+// 判断是否为深色模式
+const isDark = computed(() => !!theme.value)
+
+// 当前语言
+const currentLanguage = computed(() => appStore.language)
+
+// 设置标题（根据语言）
+const settingsTitle = computed(() => currentLanguage.value === 'zh-CN' ? '设置' : 'Settings')
+
 function handleAdd() {
   const previousUuid = chatStore.active
   if (previousUuid) {
@@ -109,6 +120,10 @@ function handleModeChange(mode: 'noteToQuestion' | 'noteToStory') {
 
 // 切换到设置页面
 function handleShowSettings() {
+  // 如果侧边栏是收起的，先展开
+  if (collapsed.value) {
+    appStore.setSiderCollapsed(false)
+  }
   appStore.setShowSettingsPage(true)
   appStore.setActiveSettingTab('General')
 }
@@ -325,6 +340,13 @@ watch(
           class="absolute inset-0 flex flex-col sider-panel-transition bg-white dark:bg-[#18181c]"
           :class="showSettingsPage ? 'translate-x-0' : 'translate-x-full'"
         >
+          <!-- 设置标题 -->
+          <div class="settings-header">
+            <h2 class="settings-title" :style="{ color: isDark ? '#fff' : '#161618' }">
+              {{ settingsTitle }}
+            </h2>
+          </div>
+
           <!-- 设置导航列表 -->
           <main class="flex-1 overflow-y-auto p-2">
             <div class="space-y-1">
@@ -471,7 +493,7 @@ watch(
 }
 
 :deep(.dark) .sider-collapsed-expand-btn {
-  color: #999;
+  color: #fff;
 }
 
 /* 悬停效果：隐藏 logo，显示展开按钮 */
@@ -513,7 +535,7 @@ watch(
 }
 
 :deep(.dark) .sider-toggle-btn {
-  color: #999;
+  color: #fff;
 }
 
 :deep(.dark) .sider-toggle-btn:hover {
@@ -543,7 +565,7 @@ watch(
 }
 
 :deep(.dark) .sider-icon-btn {
-  color: #999;
+  color: #fff;
 }
 
 :deep(.dark) .sider-icon-btn:hover {
@@ -566,6 +588,18 @@ watch(
   padding: 16px 8px;
 }
 
+/* 设置标题 */
+.settings-header {
+  padding: 20px 16px 16px;
+  text-align: center;
+}
+
+.settings-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
 /* 设置导航项样式 */
 .setting-nav-item {
   display: flex;
@@ -582,6 +616,7 @@ watch(
   background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* 深色模式下的未激活状态 - 暗一点 */
 :deep(.dark) .setting-nav-item {
   color: #999;
 }
@@ -590,12 +625,14 @@ watch(
   background-color: rgba(255, 255, 255, 0.05);
 }
 
+/* 激活状态 */
 .setting-nav-item.active {
   background-color: rgba(0, 0, 0, 0.08);
   color: #333;
   font-weight: 500;
 }
 
+/* 深色模式下的激活状态 - 亮白色 */
 :deep(.dark) .setting-nav-item.active {
   background-color: rgba(255, 255, 255, 0.1);
   color: #fff;

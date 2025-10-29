@@ -7,7 +7,7 @@ import { CheckmarkOutline } from '@vicons/ionicons5'
 import { toPng } from 'html-to-image'
 import { NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage, useNotification } from 'naive-ui'
 import { nanoid } from 'nanoid'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
 import { HoverButton, SvgIcon } from '@/components/common'
@@ -124,6 +124,26 @@ watch(
     isMultiLine.value = newValue.includes('\n')
   },
 )
+
+// 🔥 监听设置页面切换，从设置页面返回聊天界面时自动滚动到底部
+watch(showSettingsPage, (newValue, oldValue) => {
+  // 从设置页面（true）返回聊天界面（false）时触发
+  if (oldValue === true && newValue === false) {
+    // 等待页面切换动画完成后再滚动
+    setTimeout(() => {
+      // 使用 requestAnimationFrame 确保 DOM 完全渲染
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (scrollRef.value) {
+            // 正确的滚动到底部方式：scrollTop = scrollHeight - clientHeight
+            const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
+            scrollRef.value.scrollTop = maxScrollTop
+          }
+        })
+      })
+    }, 350)
+  }
+})
 
 function handleSubmit() {
   onConversation()
@@ -1672,6 +1692,9 @@ function handleSelectModel(model: ModelItem) {
   line-height: 1.5;
   resize: none;
   min-height: auto;
+  /* 增加光标粗细 */
+  caret-color: currentColor;
+  text-shadow: 0 0 0.5px currentColor;
 }
 
 /* 多行输入框 */
@@ -1679,6 +1702,9 @@ function handleSelectModel(model: ModelItem) {
   font-size: 16px;
   line-height: 1.5;
   resize: none;
+  /* 增加光标粗细 */
+  caret-color: currentColor;
+  text-shadow: 0 0 0.5px currentColor;
 }
 
 /* 统一的聊天区域图标按钮样式 */

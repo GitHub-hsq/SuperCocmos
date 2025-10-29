@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NSelect, NSpace, useLoadingBar, useMessage } from 'naive-ui'
+import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NSpace, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, onMounted, reactive, watch } from 'vue'
+import { SvgIcon } from '@/components/common'
 import { useAppStore, useConfigStore } from '@/store'
 
 const appStore = useAppStore()
@@ -58,16 +59,57 @@ onMounted(async () => {
 
 // 主题选项
 const themeOptions = [
-  { label: '跟随系统', value: 'auto' },
-  { label: '浅色', value: 'light' },
-  { label: '深色', value: 'dark' },
+  { label: '跟随系统', labelEn: 'System', value: 'auto', icon: 'ri:contrast-2-line' },
+  { label: '浅色模式', labelEn: 'Light', value: 'light', icon: 'ri:sun-line' },
+  { label: '深色模式', labelEn: 'Dark', value: 'dark', icon: 'ri:moon-line' },
 ]
 
 // 语言选项
 const languageOptions = [
-  { label: '简体中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
+  { label: '简体中文', labelEn: 'Chinese', value: 'zh-CN', icon: 'ri:translate' },
+  { label: 'English', labelEn: 'English', value: 'en-US', icon: 'ri:earth-line' },
 ]
+
+// 根据当前语言获取显示文本
+function getDisplayLabel(option: { label: string, labelEn: string }) {
+  return formData.language === 'zh-CN' ? option.label : option.labelEn
+}
+
+// 点击主题卡片 - 立即切换
+function handleThemeChange(value: 'auto' | 'light' | 'dark') {
+  formData.theme = value
+  // 立即切换主题（不等待保存）
+  appStore.setTheme(value)
+  // 异步保存到后端
+  saveSingleSetting('theme', value)
+}
+
+// 点击语言卡片 - 立即切换
+function handleLanguageChange(value: 'zh-CN' | 'en-US') {
+  formData.language = value
+  // 立即切换语言（不等待保存）
+  appStore.setLanguage(value)
+  // 异步保存到后端
+  saveSingleSetting('language', value)
+}
+
+// 异步保存单个设置
+async function saveSingleSetting(key: 'theme' | 'language', value: string) {
+  try {
+    await (configStore as any).updateUserSettings({
+      avatar: formData.avatar,
+      name: formData.name,
+      theme: formData.theme as 'auto' | 'light' | 'dark',
+      language: formData.language as 'zh-CN' | 'en-US',
+    })
+    if (import.meta.env.DEV) {
+      console.log(`✅ [UserSettings] ${key} 已同步到后端:`, value)
+    }
+  }
+  catch (error: any) {
+    console.error(`❌ [UserSettings] ${key} 同步失败:`, error)
+  }
+}
 
 // 保存状态
 const saving = computed(() => configStore.loading)
@@ -157,19 +199,33 @@ function handleReset() {
         </NDivider>
 
         <NFormItem label="主题模式" path="theme">
-          <NSelect
-            v-model:value="formData.theme"
-            :options="themeOptions"
-            placeholder="选择主题模式"
-          />
+          <div class="theme-cards-container">
+            <div
+              v-for="option in themeOptions"
+              :key="option.value"
+              class="theme-card"
+              :class="{ active: formData.theme === option.value }"
+              @click="handleThemeChange(option.value as 'auto' | 'light' | 'dark')"
+            >
+              <SvgIcon :icon="option.icon" class="theme-card-icon" />
+              <div class="theme-card-label">{{ getDisplayLabel(option) }}</div>
+            </div>
+          </div>
         </NFormItem>
 
         <NFormItem label="界面语言" path="language">
-          <NSelect
-            v-model:value="formData.language"
-            :options="languageOptions"
-            placeholder="选择界面语言"
-          />
+          <div class="language-cards-container">
+            <div
+              v-for="option in languageOptions"
+              :key="option.value"
+              class="language-card"
+              :class="{ active: formData.language === option.value }"
+              @click="handleLanguageChange(option.value as 'zh-CN' | 'en-US')"
+            >
+              <SvgIcon :icon="option.icon" class="language-card-icon" />
+              <div class="language-card-label">{{ getDisplayLabel(option) }}</div>
+            </div>
+          </div>
         </NFormItem>
       </NForm>
     </NCard>
@@ -186,5 +242,85 @@ function handleReset() {
 .transparent-card {
   --n-color: transparent !important;
   background-color: transparent !important;
+}
+
+/* 主题卡片容器 */
+.theme-cards-container,
+.language-cards-container {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+/* 主题卡片 */
+.theme-card,
+.language-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+
+.dark .theme-card,
+.dark .language-card {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-card:hover,
+.language-card:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.dark .theme-card:hover,
+.dark .language-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 激活状态 */
+.theme-card.active,
+.language-card.active {
+  border-color: #080808;
+  background: rgba(8, 8, 8, 0.05);
+}
+
+.dark .theme-card.active,
+.dark .language-card.active {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 图标 */
+.theme-card-icon,
+.language-card-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.dark .theme-card-icon,
+.dark .language-card-icon {
+  color: #fff;
+}
+
+/* 标签 */
+.theme-card-label,
+.language-card-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.dark .theme-card-label,
+.dark .language-card-label {
+  color: #fff;
 }
 </style>

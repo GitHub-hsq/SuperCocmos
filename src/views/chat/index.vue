@@ -1379,7 +1379,7 @@ function handleSelectModel(model: ModelItem) {
                         </div>
                       </template>
                       <template v-else>
-                        <div>
+                        <div style="padding: 0 15% 15%;">
                           <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
                           <div v-if="!isMobile" class="h-24" />
                           <Message
@@ -1585,45 +1585,21 @@ function handleSelectModel(model: ModelItem) {
 </template>
 
 <style scoped>
-/* Header 底部渐变雾气效果 */
+/* Header 底部渐变雾气效果 - 亮色模式 */
 .chat-header {
   flex: 1;
   top: 100%;
   left: 0;
   right: 0;
-  height: 40px; /* 调整渐变高度 */
+  height: 40px;
   pointer-events: none;
-  /* 解释：
-     - 0% 到 10%：几乎透明
-     - 10% 到 100%：逐步过渡到完全白色
-  */
   background: linear-gradient(
     to top,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.08) 10%,
-    rgba(255, 255, 255, 0.35) 30%,
-    rgba(255, 255, 255, 0.7) 60%,
-    rgba(255, 255, 255, 1) 100%
-  );
-}
-
-:deep(.dark) .chat-header {
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 40px; /* 调整渐变高度 */
-  pointer-events: none;
-  /* 解释：
-     - 0% 到 10%：几乎透明
-     - 10% 到 100%：逐步过渡到 #161618
-  */
-  background: linear-gradient(
-    to top,
-    rgba(22, 22, 24, 0) 0%,
-    rgba(22, 22, 24, 0.08) 10%,
-    rgba(22, 22, 24, 0.35) 30%,
-    rgba(22, 22, 24, 0.7) 60%,
-    rgba(22, 22, 24, 1) 100%
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.3) 15%,
+    rgba(255, 255, 255, 0.6) 35%,
+    rgba(255, 255, 255, 0.9) 55%,
+    rgba(255, 255, 255, 1) 65%
   );
 }
 
@@ -1801,5 +1777,19 @@ function handleSelectModel(model: ModelItem) {
   padding: 40px 20px;
   text-align: center;
   color: #999;
+}
+</style>
+
+<style>
+/* Header 底部渐变雾气效果 - 暗色模式 (全局样式，不受 scoped 限制) */
+.dark .chat-header {
+  background: linear-gradient(
+    to top,
+    rgba(22, 22, 24, 0.05) 0%,
+    rgba(22, 22, 24, 0.3) 15%,
+    rgba(22, 22, 24, 0.6) 35%,
+    rgba(22, 22, 24, 0.9) 55%,
+    rgba(22, 22, 24, 1) 65%
+  ) !important;
 }
 </style>

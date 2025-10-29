@@ -18,6 +18,10 @@
 - 组件命名使用 PascalCase，文件命名使用 kebab-case
 - 使用 `defineProps` 和 `defineEmits` 定义组件接口
 - 优先使用 `ref` 和 `reactive` 管理响应式数据
+- **优先使用闭包捕获实例，避免使用全局变量**
+  - 在 App.vue 中调用 `useAuth0()` 获取实例，然后通过函数参数传递
+  - setup 函数通过闭包捕获传入的实例，避免使用模块级全局变量
+  - 例如：`setupApiClient(auth0Client)` 内部通过闭包访问 `auth0` 参数
 
 ### 2. 项目结构
 - 前端代码在 `src/` 目录

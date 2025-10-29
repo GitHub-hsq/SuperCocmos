@@ -8,6 +8,11 @@ import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import axios from 'axios'
 import { useAuthStore } from '@/store'
 
+// 扩展 AxiosRequestConfig 类型以支持重试标记
+interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean
+}
+
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_GLOB_API_URL || '/api',
@@ -22,6 +27,8 @@ const apiClient: AxiosInstance = axios.create({
  * ⚠️ 必须在 App.vue 的 setup 中调用，传入 Auth0 实例
  *
  * @param auth0 - Auth0 客户端实例（从 useAuth0() 获取）
+ *
+ * 💡 通过闭包捕获 auth0 实例，避免使用全局变量
  */
 export function setupApiClient(auth0: Auth0VueClient) {
   // 请求拦截器 - 统一处理授权 Token
@@ -94,70 +101,105 @@ export function setupApiClient(auth0: Auth0VueClient) {
       return Promise.reject(error)
     },
   )
-}
 
-// 响应拦截器 - 统一错误处理
-apiClient.interceptors.response.use(
-  (response) => {
-    // 处理业务层面的 Unauthorized 状态
-    if (response.data?.status === 'Unauthorized') {
-      const authStore = useAuthStore()
-      authStore.removeToken()
-      console.error('❌ 未授权，即将重新加载页面')
-      window.location.reload()
-    }
-    return response
-  },
-  (error) => {
-    // 🔥 静默处理特定路径的 404 错误（用户未登录时的配置请求）
-    const requestUrl = error.config?.url || ''
-    const isConfigRequest = requestUrl.includes('/api/config') || requestUrl.includes('/api/user/settings')
-    const is404 = error.response?.status === 404
-
-    // 如果是配置相关的 404 错误，静默跳过（用户可能未登录）
-    if (is404 && isConfigRequest) {
-      return Promise.reject(error)
-    }
-
-    // 统一错误处理
-    if (error.response) {
-      const status = error.response.status
-      const message = error.response.data?.message || error.message
-
-      switch (status) {
-        case 401:
-          console.error('❌ 未授权，请先登录')
-          // 可选：自动跳转到登录页
-          // const authStore = useAuthStore()
-          // authStore.removeToken()
-          // window.location.href = '/login'
-          break
-        case 403:
-          console.error('❌ 没有权限访问该资源')
-          break
-        case 404:
-          console.error('❌ 请求的资源不存在')
-          break
-        case 500:
-          console.error('❌ 服务器错误')
-          break
-        case 429:
-          console.error('❌ 请求过于频繁，请稍后再试')
-          break
-        default:
-          console.error(`❌ 请求失败 [${status}]:`, message)
+  // 响应拦截器 - 统一错误处理（通过闭包捕获 auth0 实例）
+  apiClient.interceptors.response.use(
+    (response) => {
+      // 处理业务层面的 Unauthorized 状态
+      if (response.data?.status === 'Unauthorized') {
+        const authStore = useAuthStore()
+        authStore.removeToken()
+        console.error('❌ 未授权，即将重新加载页面')
+        window.location.reload()
       }
-    }
-    else if (error.request) {
-      console.error('❌ 网络错误: 请求已发送但未收到响应')
-    }
-    else {
-      console.error('❌ 请求配置错误:', error.message)
-    }
+      return response
+    },
+    async (error) => {
+      const originalRequest = error.config as ExtendedAxiosRequestConfig
 
-    return Promise.reject(error)
-  },
-)
+      // 🔥 处理 401 错误：尝试刷新 token 并重试请求
+      if (error.response?.status === 401 && !originalRequest._retry && auth0) {
+        originalRequest._retry = true
+
+        try {
+          console.log('🔄 [API Client] 检测到 401，尝试刷新 token...')
+
+          // 强制刷新 token（绕过缓存）
+          const newToken = await auth0.getAccessTokenSilently({
+            authorizationParams: {
+              audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+            },
+            cacheMode: 'off', // 强制从 Auth0 获取新 token（使用 refresh token）
+          })
+
+          if (newToken) {
+            console.log('✅ [API Client] Token 刷新成功，重试请求')
+            // 更新请求头
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            // 重试原始请求
+            return apiClient(originalRequest)
+          }
+        }
+        catch (refreshError: any) {
+          console.error('❌ [API Client] Token 刷新失败:', refreshError.message)
+          // Token 刷新失败，可能是 refresh token 也过期了，需要重新登录
+          console.log('🔄 [API Client] Refresh token 过期，重定向到登录页...')
+          await auth0.loginWithRedirect({
+            authorizationParams: {
+              redirect_uri: window.location.origin,
+              audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+            },
+          })
+          return Promise.reject(refreshError)
+        }
+      }
+
+      // 🔥 静默处理特定路径的 404 错误（用户未登录时的配置请求）
+      const requestUrl = error.config?.url || ''
+      const isConfigRequest = requestUrl.includes('/api/config') || requestUrl.includes('/api/user/settings')
+      const is404 = error.response?.status === 404
+
+      // 如果是配置相关的 404 错误，静默跳过（用户可能未登录）
+      if (is404 && isConfigRequest) {
+        return Promise.reject(error)
+      }
+
+      // 统一错误处理
+      if (error.response) {
+        const status = error.response.status
+        const message = error.response.data?.message || error.message
+
+        switch (status) {
+          case 401:
+            console.error('❌ 未授权，请先登录')
+            break
+          case 403:
+            console.error('❌ 没有权限访问该资源')
+            break
+          case 404:
+            console.error('❌ 请求的资源不存在')
+            break
+          case 500:
+            console.error('❌ 服务器错误')
+            break
+          case 429:
+            console.error('❌ 请求过于频繁，请稍后再试')
+            break
+          default:
+            console.error(`❌ 请求失败 [${status}]:`, message)
+        }
+      }
+      else if (error.request) {
+        console.error('❌ 网络错误: 请求已发送但未收到响应')
+      }
+      else {
+        console.error('❌ 请求配置错误:', error.message)
+      }
+
+      return Promise.reject(error)
+    },
+  )
+}
 
 // 封装请求方法
 export const request = {

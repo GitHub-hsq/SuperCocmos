@@ -125,6 +125,12 @@ const SINGLE_LINE_HEIGHT_THRESHOLD = 60
 watch(
   () => prompt.value,
   async () => {
+    // 🔥 特殊处理：内容为空时，强制切换回单行模式
+    if (!prompt.value || prompt.value.trim() === '') {
+      isMultiLine.value = false
+      return
+    }
+
     // 等待 DOM 更新
     await nextTick()
 
@@ -141,6 +147,16 @@ watch(
     isMultiLine.value = currentHeight > SINGLE_LINE_HEIGHT_THRESHOLD
   },
 )
+
+// 🔥 监听输入框模式切换，自动恢复焦点
+watch(isMultiLine, async (newValue, oldValue) => {
+  // 从单行切换到多行，或从多行切换回单行时
+  if (newValue !== oldValue) {
+    await nextTick() // 等待 DOM 更新完成
+    // 重新聚焦输入框
+    inputRef.value?.focus()
+  }
+})
 
 // 🔥 监听设置页面切换，从设置页面返回聊天界面时自动滚动到底部
 watch(showSettingsPage, (newValue, oldValue) => {
@@ -1507,8 +1523,15 @@ function handleSelectModel(model: ModelItem) {
                         <SvgIcon icon="ri:attachment-2" />
                       </button>
 
-                      <!-- 右侧发送按钮 -->
+                      <!-- 右侧语音/发送按钮 -->
                       <button
+                        v-if="!prompt || prompt.trim() === ''"
+                        class="chat-icon-btn voice-btn pointer-events-auto"
+                      >
+                        <SvgIcon icon="ri:mic-line" />
+                      </button>
+                      <button
+                        v-else
                         class="composer-submit-btn pointer-events-auto"
                         :disabled="buttonDisabled"
                         @click="handleSubmit"

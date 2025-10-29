@@ -1468,7 +1468,7 @@ function handleSelectModel(model: ModelItem) {
                         </div>
                       </template>
                       <template v-else>
-                        <div style="padding: 0 15% 15%;">
+                        <div style="padding: 0 15% 10%;">
                           <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
                           <div v-if="!isMobile" class="h-24" />
                           <Message
@@ -1774,6 +1774,11 @@ function handleSelectModel(model: ModelItem) {
   text-shadow: 0 0 0.5px currentColor;
 }
 
+/* 暗黑模式输入框字体颜色 */
+.dark .chat-input-single :deep(.n-input__textarea-el) {
+  color: var(--dark-text-primary);
+}
+
 /* 多行输入框 */
 .chat-input-multiline :deep(.n-input__textarea-el) {
   font-size: 16px;
@@ -1784,20 +1789,13 @@ function handleSelectModel(model: ModelItem) {
   text-shadow: 0 0 0.5px currentColor;
 
   /* 🔥 上下边缘渐变遮罩效果 - 让文字自然消失而不是硬截断 */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 8px,
-    black calc(100% - 8px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 8px,
-    black calc(100% - 8px),
-    transparent 100%
-  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 8px, black calc(100% - 8px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 8px, black calc(100% - 8px), transparent 100%);
+}
+
+/* 暗黑模式多行输入框字体颜色 */
+.dark .chat-input-multiline :deep(.n-input__textarea-el) {
+  color: var(--dark-text-primary);
 }
 
 /* 统一的聊天区域图标按钮样式 */
@@ -1814,6 +1812,11 @@ function handleSelectModel(model: ModelItem) {
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 20px;
+}
+
+/* 暗黑模式按钮图标颜色 */
+.dark .chat-icon-btn {
+  color: var(--dark-text-primary);
 }
 
 /* 附件按钮特殊样式 - 透明背景，hover 显示圆形背景 */
@@ -1833,6 +1836,11 @@ function handleSelectModel(model: ModelItem) {
 .chat-icon-btn.voice-btn {
   background: #161618;
   color: #ffffff;
+}
+
+.dark .chat-icon-btn.voice-btn {
+  background: var(--dark-text-primary);
+  color: #161618;
 }
 
 .chat-icon-btn.voice-btn:hover {
@@ -1856,6 +1864,11 @@ function handleSelectModel(model: ModelItem) {
   color: #ffffff;
   cursor: pointer;
   transition: transform 0.2s ease;
+}
+
+.dark .composer-submit-btn {
+  background: var(--dark-text-primary);
+  color: #161618;
 }
 
 .composer-submit-btn:hover:not(:disabled) {

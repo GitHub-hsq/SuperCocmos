@@ -88,17 +88,17 @@ function handleModelSelect(modelId: string, provider: string) {
           </span>
         </HoverButton>
         <HoverButton tooltip="旧版模型选择器(Drawer)" @click="openOldModelSelector">
-          <span class="text-xl text-[#4f555e] dark:text-white">
+          <span class="text-xl text-[#4f555e] dark:text-[var(--dark-text-primary)]">
             <SvgIcon icon="ri:menu-line" />
           </span>
         </HoverButton>
         <HoverButton @click="handleExport">
-          <span class="text-xl text-[#4f555e] dark:text-white">
+          <span class="text-xl text-[#4f555e] dark:text-[var(--dark-text-primary)]">
             <SvgIcon icon="ri:download-2-line" />
           </span>
         </HoverButton>
         <HoverButton @click="handleClear">
-          <span class="text-xl text-[#4f555e] dark:text-white">
+          <span class="text-xl text-[#4f555e] dark:text-[var(--dark-text-primary)]">
             <SvgIcon icon="ri:delete-bin-line" />
           </span>
         </HoverButton>

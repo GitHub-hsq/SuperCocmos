@@ -148,7 +148,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="text-black dark:text-[#c9d1d9]" :class="wrapClass">
+  <div class="text-black dark:text-[var(--dark-text-primary)]" :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion">
         <!-- 🔥 思考过程特殊显示 -->

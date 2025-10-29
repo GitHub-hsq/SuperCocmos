@@ -1759,6 +1759,22 @@ function handleSelectModel(model: ModelItem) {
   /* 增加光标粗细 */
   caret-color: currentColor;
   text-shadow: 0 0 0.5px currentColor;
+
+  /* 🔥 上下边缘渐变遮罩效果 - 让文字自然消失而不是硬截断 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 8px,
+    black calc(100% - 8px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 8px,
+    black calc(100% - 8px),
+    transparent 100%
+  );
 }
 
 /* 统一的聊天区域图标按钮样式 */

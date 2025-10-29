@@ -178,6 +178,33 @@ watch(showSettingsPage, (newValue, oldValue) => {
   }
 })
 
+// 🔥 监听会话切换，切换会话时自动滚动到底部
+watch(() => chatStore.active, async (newActive, oldActive) => {
+  // 当切换到不同的会话时触发（排除初始化情况）
+  if (newActive && oldActive && newActive !== oldActive) {
+    // 🔥 使用 nextTick 等待 Vue 更新 DOM（消息数据已渲染到模板）
+    await nextTick()
+
+    // 🔥 使用双重 requestAnimationFrame 确保浏览器完成绘制
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (scrollRef.value) {
+          // 正确的滚动到底部方式：scrollTop = scrollHeight - clientHeight
+          const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
+          scrollRef.value.scrollTop = maxScrollTop
+
+          if (import.meta.env.DEV) {
+            console.log('✅ [滚动] 切换会话后滚动到底部', {
+              会话: newActive,
+              scrollTop: maxScrollTop,
+            })
+          }
+        }
+      })
+    })
+  }
+})
+
 function handleSubmit() {
   onConversation()
 }

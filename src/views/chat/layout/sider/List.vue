@@ -1,6 +1,6 @@
 <script setup lang='ts'>
-import { NDropdown, NInput, NPopconfirm, NScrollbar } from 'naive-ui'
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { NInput, NPopover, NScrollbar } from 'naive-ui'
+import { computed, ref } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAppStore, useChatStore } from '@/store'
@@ -17,35 +17,44 @@ async function handleSelect({ uuid }: Chat.History) {
   if (isActive(uuid))
     return
 
-  // 🔥 如果离开当前会话且本地消息为空，检查数据库后再决定是否删除
-  const previousUuid = chatStore.active
-  if (previousUuid) {
-    const prevMessages = chatStore.getChatByUuid(previousUuid)
-    if (!prevMessages || prevMessages.length === 0) {
-      // 🔥 异步检查数据库是否也为空（不阻塞切换）
-      chatStore.isConversationReallyEmpty(previousUuid).then((isEmpty) => {
-        if (isEmpty) {
-          const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
-          if (prevIndex !== -1) {
-            console.log('🗑️ [自动删除] 会话为空，已删除:', previousUuid)
-            chatStore.deleteHistory(prevIndex)
+  // 🔥 设置 Loading 状态
+  loadingUuid.value = uuid
+
+  try {
+    // 🔥 如果离开当前会话且本地消息为空，检查数据库后再决定是否删除
+    const previousUuid = chatStore.active
+    if (previousUuid) {
+      const prevMessages = chatStore.getChatByUuid(previousUuid)
+      if (!prevMessages || prevMessages.length === 0) {
+        // 🔥 异步检查数据库是否也为空（不阻塞切换）
+        chatStore.isConversationReallyEmpty(previousUuid).then((isEmpty) => {
+          if (isEmpty) {
+            const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
+            if (prevIndex !== -1) {
+              console.log('🗑️ [自动删除] 会话为空，已删除:', previousUuid)
+              chatStore.deleteHistory(prevIndex)
+            }
           }
-        }
-        else {
-          console.log('ℹ️ [自动删除] 会话在数据库中有消息，保留:', previousUuid)
-        }
-      })
+          else {
+            console.log('ℹ️ [自动删除] 会话在数据库中有消息，保留:', previousUuid)
+          }
+        })
+      }
     }
+
+    if (chatStore.active)
+      chatStore.updateHistory(chatStore.active, { isEdit: false })
+
+    // 🔥 等待消息加载完成（包括接口请求）
+    await chatStore.setActive(uuid)
+
+    if (isMobile.value)
+      appStore.setSiderCollapsed(true)
   }
-
-  if (chatStore.active)
-    chatStore.updateHistory(chatStore.active, { isEdit: false })
-
-  // 🔥 等待消息加载完成
-  await chatStore.setActive(uuid)
-
-  if (isMobile.value)
-    appStore.setSiderCollapsed(true)
+  finally {
+    // 🔥 无论成功失败，都清除 Loading 状态
+    loadingUuid.value = null
+  }
 }
 
 function handleEdit({ uuid }: Chat.History, isEdit: boolean, event?: MouseEvent) {
@@ -75,65 +84,21 @@ function isActive(uuid: string) {
 // 悬停状态
 const hoveredUuid = ref<string | null>(null)
 
-// 点击显示菜单的会话
-const showMenuUuid = ref<string | null>(null)
+// Popover打开状态（关键：即使鼠标移出会话，只要Popover打开就保持三个点显示）
+const popoverOpenUuid = ref<string | null>(null)
 
-// 下拉菜单选项
-function getDropdownOptions(item: Chat.History, index: number) {
-  return [
-    {
-      label: '重命名',
-      key: 'rename',
-      icon: () => h(SvgIcon, { icon: 'ri:edit-line' }),
-    },
-    {
-      label: '删除会话',
-      key: 'delete',
-      icon: () => h(SvgIcon, { icon: 'ri:delete-bin-line' }),
-    },
-  ]
-}
+// 🔥 Loading状态：记录正在加载的会话UUID
+const loadingUuid = ref<string | null>(null)
 
-// 处理下拉菜单选择
-function handleDropdownSelect(key: string, item: Chat.History, index: number) {
-  if (key === 'rename') {
-    handleEdit(item, true)
+// 处理Popover显示状态变化
+function handlePopoverUpdateShow(show: boolean, uuid: string) {
+  if (show) {
+    popoverOpenUuid.value = uuid
   }
-  else if (key === 'delete') {
-    handleDelete(index)
-  }
-  showMenuUuid.value = null
-}
-
-// 切换菜单显示
-function toggleMenu(uuid: string, event: MouseEvent) {
-  event.stopPropagation()
-  showMenuUuid.value = showMenuUuid.value === uuid ? null : uuid
-}
-
-// 关闭菜单
-function handleDropdownUpdateShow(show: boolean, uuid: string) {
-  if (!show) {
-    showMenuUuid.value = null
+  else {
+    popoverOpenUuid.value = null
   }
 }
-
-// 全局点击事件 - 点击外部关闭菜单
-function handleClickOutside(event: MouseEvent) {
-  const target = event.target as HTMLElement
-  if (!target.closest('.session-actions')) {
-    showMenuUuid.value = null
-  }
-}
-
-// 生命周期
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 </script>
 
 <template>
@@ -179,20 +144,38 @@ onUnmounted(() => {
                 </button>
               </div>
 
-              <!-- 非编辑状态：悬停显示三个竖点 -->
-              <div v-else-if="hoveredUuid === item.uuid" class="session-actions">
-                <NDropdown
-                  trigger="manual"
-                  placement="top"
-                  :show="showMenuUuid === item.uuid"
-                  :options="getDropdownOptions(item, index)"
-                  @select="(key) => handleDropdownSelect(key, item, index)"
-                  @update:show="(show) => handleDropdownUpdateShow(show, item.uuid)"
+              <!-- 🔥 Loading状态：显示加载动画 -->
+              <div v-else-if="loadingUuid === item.uuid" class="session-actions">
+                <div class="session-loading">
+                  <SvgIcon icon="ri:loader-4-line" class="animate-spin" />
+                </div>
+              </div>
+
+              <!-- 非编辑状态：悬停显示三个竖点（关键：Popover打开时也显示） -->
+              <div v-else-if="hoveredUuid === item.uuid || popoverOpenUuid === item.uuid" class="session-actions">
+                <NPopover
+                  trigger="hover"
+                  placement="right-start"
+                  :show-arrow="false"
+                  @update:show="(show) => handlePopoverUpdateShow(show, item.uuid)"
                 >
-                  <button class="session-action-btn" @click="toggleMenu(item.uuid, $event)">
-                    <SvgIcon icon="ri:more-2-fill" />
-                  </button>
-                </NDropdown>
+                  <template #trigger>
+                    <button class="session-action-btn" @click.stop>
+                      <SvgIcon icon="ri:more-2-fill" />
+                    </button>
+                  </template>
+                  <!-- 菜单内容 -->
+                  <div class="session-menu">
+                    <div class="session-menu-item" @click="handleEdit(item, true, $event)">
+                      <SvgIcon icon="ri:edit-line" class="session-menu-icon" />
+                      <span>重命名</span>
+                    </div>
+                    <div class="session-menu-item-delete" @click="handleDelete(index, $event)">
+                      <SvgIcon icon="ri:delete-bin-line" class="session-menu-icon" />
+                      <span>删除会话</span>
+                    </div>
+                  </div>
+                </NPopover>
               </div>
             </div>
           </a>
@@ -259,25 +242,31 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 36px; /* 为按钮预留空间 */
+  padding-right: 40px; /* 为按钮预留更多空间 */
 }
 
-/* 操作按钮容器包裹层 - 绝对定位 */
+/* 操作按钮容器包裹层 - 绝对定位，扩大响应区域 */
 .session-actions-wrapper {
   position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 0;
+  top: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  padding-left: 20px; /* 扩大左侧响应区域，确保覆盖足够空间 */
   z-index: 1;
+  pointer-events: none; /* 默认不拦截点击事件 */
 }
 
 /* 操作按钮容器 */
 .session-actions {
+  z-index: 9999;
   display: flex;
   align-items: center;
   gap: 4px;
+  pointer-events: auto; /* 只有按钮本身响应点击 */
 }
 
 /* 操作按钮 */
@@ -304,35 +293,113 @@ onUnmounted(() => {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* 🍎 下拉菜单样式优化 */
-:deep(.n-dropdown-menu) {
-  border-radius: 10px !important;
-  padding: 6px !important;
+/* 🔥 Loading 动画样式 */
+.session-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  color: #666;
+}
+
+:deep(.dark) .session-loading {
+  color: #999;
+}
+
+/* 旋转动画 */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 🍎 弹出菜单样式 */
+.session-menu {
+  z-index: 9999;
+  background-color: #e1e1e1;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  min-width: 120px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
 }
 
-:deep(.dark .n-dropdown-menu) {
+.session-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  color: #333;
+  font-size: 14px;
+}
+/* 删除按钮 - iOS风格 */
+.session-menu-item-delete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #FF3B30; /* iOS红色 */
+  font-size: 14px;
+}
+
+.session-menu-item-delete:hover {
+  color: #ffffff;
+  background-color: #FF3B30; /* iOS红色背景 */
+}
+
+:deep(.dark) .session-menu-item-delete {
+  color: #FF453A; /* 暗黑模式iOS红色 */
+}
+
+:deep(.dark) .session-menu-item-delete:hover {
+  color: #ffffff;
+  background-color: #FF453A;
+}
+
+.session-menu-item:hover {
+  background-color: var(--session-hover-light);
+}
+
+:deep(.dark) .session-menu-item {
+  color: #ffffff;
+}
+
+:deep(.dark) .session-menu-item:hover {
+  background-color: var(--session-hover-dark);
+}
+
+.session-menu-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* 🍎 Popover样式优化 */
+:deep(.n-popover) {
+  border-radius: 10px !important;
+  padding: 0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+:deep(.dark .n-popover) {
   background-color: #2c2c2e !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
-}
-
-:deep(.n-dropdown-option) {
-  border-radius: 8px !important;
-  margin: 2px 0 !important;
-  padding: 8px 12px !important;
-  transition: all 0.2s !important;
-}
-
-:deep(.dark .n-dropdown-option) {
-  color: #ffffff !important;
-}
-
-:deep(.n-dropdown-option:hover) {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-}
-
-:deep(.dark .n-dropdown-option:hover) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* 输入框样式 */

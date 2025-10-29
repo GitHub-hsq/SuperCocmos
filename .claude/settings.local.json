@@ -40,7 +40,8 @@
       "Read(//c/Users/Administrator/**)",
       "Bash(git push)",
       "Bash(git push:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "WebFetch(domain:www.naiveui.com)"
     ],
     "deny": [],
     "ask": []

@@ -28,6 +28,11 @@ export function useTheme() {
           primaryColorPressed: '#e0e0e0',
           primaryColorSuppl: '#ffffff',
         },
+        Input: {
+          color: 'transparent',
+          colorFocus: 'transparent',
+          colorDisabled: 'transparent',
+        },
       }
     }
     return {
@@ -36,6 +41,11 @@ export function useTheme() {
         primaryColorHover: '#333333',
         primaryColorPressed: '#000000',
         primaryColorSuppl: '#080808',
+      },
+      Input: {
+        color: 'transparent',
+        colorFocus: 'transparent',
+        colorDisabled: 'transparent',
       },
     }
   })

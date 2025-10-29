@@ -75,6 +75,7 @@ const dataSources = computed(() => chatStore.getChatByUuid(uuid.value))
 const prompt = ref<string>('')
 const loading = ref<boolean>(false)
 const inputRef = ref<Ref | null>(null)
+const isMultiLine = ref<boolean>(false)
 
 // 未知原因刷新页面，loading 状态不会重置，手动重置
 dataSources.value.forEach((item, index) => {
@@ -114,6 +115,14 @@ watch(
     }
   },
   { immediate: true }, // 🔥 立即执行，确保初始加载时也设置 conversationId
+)
+
+// 监听输入框内容，判断是否多行
+watch(
+  () => prompt.value,
+  (newValue) => {
+    isMultiLine.value = newValue.includes('\n')
+  },
 )
 
 function handleSubmit() {
@@ -1348,11 +1357,9 @@ function handleSelectModel(model: ModelItem) {
           </div>
           <div class="chat-header" />
           <div class="flex items-center space-x-2">
-            <HoverButton v-if="!isMobile" @click="handleExport">
-              <span class="text-xl text-[#4f555e] dark:text-white">
-                <SvgIcon icon="ri:download-2-line" />
-              </span>
-            </HoverButton>
+            <button v-if="!isMobile" class="chat-icon-btn" @click="handleExport">
+              <SvgIcon icon="ri:download-2-line" />
+            </button>
           </div>
         </header>
 
@@ -1411,38 +1418,82 @@ function handleSelectModel(model: ModelItem) {
               <!-- Footer 固定在底部 -->
               <footer :class="footerClass">
                 <div class="w-full max-w-screen-xl m-auto">
-                  <div class="flex items-center justify-between space-x-2">
-                    <HoverButton v-if="!isMobile" @click="handleClear">
-                      <span class="text-xl text-[#4f555e] dark:text-white">
-                        <SvgIcon icon="ri:delete-bin-line" />
-                      </span>
-                    </HoverButton>
-                    <HoverButton v-if="!isMobile" @click="handleExport">
-                      <span class="text-xl text-[#4f555e] dark:text-white">
-                        <SvgIcon icon="ri:download-2-line" />
-                      </span>
-                    </HoverButton>
-                    <HoverButton @click="toggleUsingContext">
-                      <span class="text-xl" :class="{ 'text-neutral-800 dark:text-white': usingContext, 'text-[#a8071a]': !usingContext }">
-                        <SvgIcon icon="ri:chat-history-line" />
-                      </span>
-                    </HoverButton>
-                    <NInput
-                      ref="inputRef"
-                      v-model:value="prompt"
-                      type="textarea"
-                      :placeholder="placeholder"
-                      :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
-                      style="font-size: 16px; line-height: 1.5;"
-                      @keypress="handleEnter"
-                    />
-                    <NButton type="primary" :disabled="buttonDisabled" size="large" @click="handleSubmit">
-                      <template #icon>
-                        <span class="dark:text-black">
-                          <SvgIcon icon="ri:send-plane-fill" />
-                        </span>
-                      </template>
-                    </NButton>
+                  <!-- 多行布局：上下结构 -->
+                  <div v-if="isMultiLine" class="relative chat-input-wrapper">
+                    <!-- 输入框 - 最上层 -->
+                    <div class="relative z-10">
+                      <NInput
+                        ref="inputRef"
+                        v-model:value="prompt"
+                        type="textarea"
+                        :placeholder="placeholder"
+                        :autofocus="false"
+                        :autosize="{ minRows: 2, maxRows: isMobile ? 6 : 12 }"
+                        class="chat-input-multiline"
+                        @keypress="handleEnter"
+                      />
+                    </div>
+
+                    <!-- 下层工具栏 - 附件和发送/语音 -->
+                    <div class="absolute bottom-2 left-3 right-3 flex items-center justify-between pointer-events-none" style="z-index: 5;">
+                      <!-- 左侧附件按钮 -->
+                      <button class="chat-icon-btn attachment-btn pointer-events-auto">
+                        <SvgIcon icon="ri:attachment-2" />
+                      </button>
+
+                      <!-- 右侧发送按钮 -->
+                      <button
+                        class="composer-submit-btn pointer-events-auto"
+                        :disabled="buttonDisabled"
+                        @click="handleSubmit"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="icon">
+                          <path d="M8.99992 16V6.41407L5.70696 9.70704C5.31643 10.0976 4.68342 10.0976 4.29289 9.70704C3.90237 9.31652 3.90237 8.6835 4.29289 8.29298L9.29289 3.29298L9.36907 3.22462C9.76184 2.90427 10.3408 2.92686 10.707 3.29298L15.707 8.29298L15.7753 8.36915C16.0957 8.76192 16.0731 9.34092 15.707 9.70704C15.3408 10.0732 14.7618 10.0958 14.3691 9.7754L14.2929 9.70704L10.9999 6.41407V16C10.9999 16.5523 10.5522 17 9.99992 17C9.44764 17 8.99992 16.5523 8.99992 16Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 单行布局：左中右结构 -->
+                  <div v-else class="chat-input-wrapper">
+                    <div class="flex items-center px-1 w-full h-full">
+                      <!-- 左侧附件按钮 -->
+                      <button class="chat-icon-btn attachment-btn flex-shrink-0">
+                        <SvgIcon icon="ri:attachment-2" />
+                      </button>
+
+                      <!-- 中间输入框 -->
+                      <div class="flex-1">
+                        <NInput
+                          id="12312312"
+                          ref="inputRef"
+                          v-model:value="prompt"
+                          type="textarea"
+                          :placeholder="placeholder"
+                          :autosize="{ minRows: 1, maxRows: isMobile ? 6 : 12 }"
+                          class="chat-input-single"
+                          @keypress="handleEnter"
+                        />
+                      </div>
+
+                      <!-- 右侧语音/发送按钮 -->
+                      <button
+                        v-if="!prompt || prompt.trim() === ''"
+                        class="chat-icon-btn voice-btn flex-shrink-0"
+                      >
+                        <SvgIcon icon="ri:mic-line" />
+                      </button>
+                      <button
+                        v-else
+                        class="composer-submit-btn flex-shrink-0"
+                        :disabled="buttonDisabled"
+                        @click="handleSubmit"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="icon">
+                          <path d="M8.99992 16V6.41407L5.70696 9.70704C5.31643 10.0976 4.68342 10.0976 4.29289 9.70704C3.90237 9.31652 3.90237 8.6835 4.29289 8.29298L9.29289 3.29298L9.36907 3.22462C9.76184 2.90427 10.3408 2.92686 10.707 3.29298L15.707 8.29298L15.7753 8.36915C16.0957 8.76192 16.0731 9.34092 15.707 9.70704C15.3408 10.0732 14.7618 10.0958 14.3691 9.7754L14.2929 9.70704L10.9999 6.41407V16C10.9999 16.5523 10.5522 17 9.99992 17C9.44764 17 8.99992 16.5523 8.99992 16Z" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </footer>
@@ -1585,6 +1636,122 @@ function handleSelectModel(model: ModelItem) {
 </template>
 
 <style scoped>
+/* 最外层包装器样式 - 统一背景 */
+.chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  border-radius: 30px / 50%;
+  background: #f5f5f5;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 0.5rem; /* 上下内边距 */
+}
+
+/* 移除边框 */
+.chat-input-multiline :deep(.n-input__border),
+.chat-input-multiline :deep(.n-input__state-border),
+.chat-input-single :deep(.n-input__border),
+.chat-input-single :deep(.n-input__state-border) {
+  display: none;
+}
+
+/* 移除阴影效果 */
+.chat-input-multiline :deep(.n-input),
+.chat-input-single :deep(.n-input) {
+  box-shadow: none !important;
+}
+
+/* 单行模式输入框 */
+.chat-input-single :deep(.n-input) {
+  height: 100%;
+  min-height: auto;
+}
+
+.chat-input-single :deep(.n-input__textarea-el) {
+  font-size: 16px;
+  line-height: 1.5;
+  resize: none;
+  min-height: auto;
+}
+
+/* 多行输入框 */
+.chat-input-multiline :deep(.n-input__textarea-el) {
+  font-size: 16px;
+  line-height: 1.5;
+  resize: none;
+}
+
+/* 统一的聊天区域图标按钮样式 */
+.chat-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%; /* 圆形 */
+  border: none;
+  background: transparent;
+  color: #4f555e;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 20px;
+}
+
+/* 附件按钮特殊样式 - 透明背景，hover 显示圆形背景 */
+.chat-icon-btn.attachment-btn {
+  background: transparent;
+}
+
+.chat-icon-btn.attachment-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.chat-icon-btn.attachment-btn:active {
+  transform: scale(0.95);
+}
+
+/* 语音按钮样式 - 和发送按钮一致 */
+.chat-icon-btn.voice-btn {
+  background: #161618;
+  color: #ffffff;
+}
+
+.chat-icon-btn.voice-btn:hover {
+  transform: scale(1.1);
+}
+
+.chat-icon-btn.voice-btn:active {
+  transform: scale(0.95);
+}
+
+/* 发送按钮样式 */
+.composer-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 3.40282e38px;
+  border: none;
+  background: #161618;
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.composer-submit-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.composer-submit-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.composer-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Header 底部渐变雾气效果 - 亮色模式 */
 .chat-header {
   flex: 1;
@@ -1791,5 +1958,36 @@ function handleSelectModel(model: ModelItem) {
     rgba(22, 22, 24, 0.9) 55%,
     rgba(22, 22, 24, 1) 65%
   ) !important;
+}
+
+/* 暗色主题下的按钮样式 */
+.dark .chat-icon-btn {
+  color: #ffffff;
+}
+
+/* 暗色主题下的附件按钮 */
+.dark .chat-icon-btn.attachment-btn {
+  background: transparent;
+}
+
+.dark .chat-icon-btn.attachment-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 暗色主题下的语音按钮 */
+.dark .chat-icon-btn.voice-btn {
+  background: #ffffff;
+  color: #161618;
+}
+
+.dark .composer-submit-btn {
+  background: #ffffff;
+  color: #161618;
+}
+
+/* 暗色主题下的输入框包装器 */
+.dark .chat-input-wrapper {
+  background: #2a2a2c;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 </style>

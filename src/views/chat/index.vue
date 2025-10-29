@@ -1359,7 +1359,7 @@ function handleSelectModel(model: ModelItem) {
               trigger="click"
               placement="bottom-start"
               :show-arrow="false"
-              :width="700"
+              :width="500"
               @update:show="(show) => show && loadCurrentModel()"
             >
               <template #trigger>
@@ -1372,8 +1372,8 @@ function handleSelectModel(model: ModelItem) {
               </template>
 
               <!-- 弹出内容 -->
-              <div v-if="availableVendors.length > 0" class="model-selector-popup">
-                <NLayout has-sider style="height: 400px">
+              <div v-if="availableVendors.length > 0" id="111" class="model-selector-popup">
+                <NLayout id="222" has-sider style="height: 400px">
                   <!-- 左侧供应商列表 -->
                   <NLayoutSider :width="180" bordered class="vendor-sidebar">
                     <NScrollbar style="height: 100%">
@@ -1499,7 +1499,7 @@ function handleSelectModel(model: ModelItem) {
 
               <!-- Footer 固定在底部 -->
               <footer :class="footerClass">
-                <div class="w-full max-w-screen-xl m-auto">
+                <div class="w-full max-w-screen-xl m-auto" style="padding: 0 10%">
                   <!-- 多行布局：上下结构 -->
                   <div v-if="isMultiLine" class="relative chat-input-wrapper chat-input-wrapper-multiline">
                     <!-- 输入框 - 最上层 -->
@@ -1736,12 +1736,14 @@ function handleSelectModel(model: ModelItem) {
   border: 1px solid rgba(0, 0, 0, 0.08);
   padding: 0.5rem; /* 上下内边距 */
   transition: border-radius 0.2s ease; /* 平滑过渡 */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1); /* 🍎 iOS 风格阴影 */
 }
 
 /* 🔥 多行模式：改为普通圆角（当高度超过单行时） */
 .chat-input-wrapper-multiline {
   border-radius: 12px !important;
   align-items: flex-start !important; /* 多行时顶部对齐 */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important; /* 🍎 iOS 风格阴影 */
 }
 
 /* 移除边框 */
@@ -1924,45 +1926,36 @@ function handleSelectModel(model: ModelItem) {
   opacity: 0;
 }
 
-/* 模型选择器弹出框样式 */
+/* 🍎 iOS 风格 - 模型选择器弹出框样式 */
 .model-selector-popup {
   background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
-:deep(.dark) .model-selector-popup {
-  background: #161618;
-}
-
-/* 供应商列表样式 */
+/* 🍎 供应商列表样式 */
 .vendor-sidebar {
   background: #fafafa;
 }
 
-:deep(.dark) .vendor-sidebar {
-  background: #161618;
-}
-
 .vendor-list {
-  padding: 4px;
+  padding: 8px 0px;
 }
 
 .vendor-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 12px;
   margin-bottom: 4px;
-  border-radius: 6px;
+  border-radius: 8px; /* iOS 圆角 */
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .vendor-item:hover {
   background: rgba(0, 0, 0, 0.05);
-}
-
-:deep(.dark) .vendor-item:hover {
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .vendor-item.active {
@@ -1970,18 +1963,9 @@ function handleSelectModel(model: ModelItem) {
   border-left: 3px solid #333333;
 }
 
-:deep(.dark) .vendor-item.active {
-  background: rgba(255, 255, 255, 0.1);
-  border-left: 3px solid #ffffff;
-}
-
 .vendor-name {
   font-weight: 500;
   color: #333;
-}
-
-:deep(.dark) .vendor-name {
-  color: #e5e5e5;
 }
 
 .vendor-count {
@@ -1992,44 +1976,30 @@ function handleSelectModel(model: ModelItem) {
   color: white;
 }
 
-:deep(.dark) .vendor-count {
-  background: #ffffff;
-  color: #000000;
-}
-
-/* 搜索框样式 */
+/* 🍎 搜索框样式 */
 .search-header {
-  padding: 12px;
+  padding: 8px;
 }
 
-/* 模型列表样式 */
+/* 🍎 模型列表样式 */
 .model-content {
   background: white;
 }
 
-:deep(.dark) .model-content {
-  background: #161618;
-}
-
 .model-item {
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  border-radius: 10px; /* iOS 大圆角 */
+  margin: 8px 12px;
+  padding: 12px;
 }
 
 .model-item:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
-:deep(.dark) .model-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
 .model-item.selected {
   background: rgba(0, 0, 0, 0.1);
-}
-
-:deep(.dark) .model-item.selected {
-  background: rgba(255, 255, 255, 0.1);
 }
 
 .model-item-content {
@@ -2052,20 +2022,12 @@ function handleSelectModel(model: ModelItem) {
   font-size: 14px;
 }
 
-:deep(.dark) .model-name {
-  color: #e5e5e5;
-}
-
 .model-id {
   font-size: 12px;
   color: #999;
 }
 
-:deep(.dark) .model-id {
-  color: #666;
-}
-
-/* 空状态样式 */
+/* 🍎 空状态样式 */
 .empty-state {
   padding: 40px 20px;
   text-align: center;
@@ -2121,5 +2083,441 @@ function handleSelectModel(model: ModelItem) {
 .dark .chat-input-wrapper {
   background: #2a2a2c;
   border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); /* 🍎 iOS 风格阴影 - 暗黑模式 */
+}
+
+/* 暗色主题下的多行输入框 */
+.dark .chat-input-wrapper-multiline {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important; /* 🍎 iOS 风格阴影 - 暗黑模式 */
+}
+
+/* 🍎 iOS 风格 - 模型选择器 Popover 外层容器优化 */
+
+/* 浅色模式 - 移除padding、设置透明背景、大圆角 */
+.n-popover.n-popover-shared {
+  --n-padding: 0px !important;
+  --n-space: 0px !important;
+  --n-border-radius: 12px !important;
+  --n-color: transparent !important;
+  --n-box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* 暗黑模式 - 移除padding、设置透明背景、大圆角 */
+.dark .n-popover.n-popover-shared {
+  --n-padding: 0px !important;
+  --n-space: 0px !important;
+  --n-border-radius: 12px !important;
+  --n-color: transparent !important;
+  --n-box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* 🍎 iOS 风格 - 浅色模式 - 模型选择器 */
+
+.model-selector-popup {
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* 供应商侧边栏 */
+.vendor-sidebar {
+  background: #fafafa !important;
+  border-right: 1px solid #e5e5e7 !important;
+}
+
+.vendor-item {
+  background: transparent !important;
+  color: #1c1c1e !important;
+  border-radius: 10px;
+  margin: 4px 8px;
+  padding: 10px 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.vendor-item:hover {
+  background: #f0f0f0 !important;
+}
+
+.vendor-item.active {
+  background: #e5e5e7 !important;
+  font-weight: 500;
+}
+
+.vendor-name {
+  color: #1c1c1e !important;
+}
+
+.vendor-item.active .vendor-name {
+  color: #000000 !important;
+}
+
+.vendor-count {
+  background: #e5e5e7;
+  color: #666666;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.vendor-item.active .vendor-count {
+  background: rgba(0, 0, 0, 0.1);
+  color: #000000;
+}
+
+/* 搜索头部 */
+.search-header {
+  background-color: #fafafa !important;
+  border-bottom: 1px solid #e5e5e7 !important;
+}
+
+.search-header .n-input {
+  background-color: #f0f0f0 !important;
+  border-color: transparent !important;
+  color: #1c1c1e !important;
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+
+.search-header .n-input:hover {
+  background-color: #e5e5e7 !important;
+}
+
+.search-header .n-input:focus-within {
+  background-color: #e5e5e7 !important;
+  border-color: transparent !important;
+}
+
+/* 隐藏搜索框的 focus 边框效果 */
+.search-header .n-input__border,
+.search-header .n-input__state-border {
+  display: none !important;
+}
+
+.search-header .n-input__placeholder {
+  color: #999999 !important;
+}
+
+.search-header .n-input__input-el {
+  color: #1c1c1e !important;
+}
+
+/* 模型列表区域 */
+.model-content {
+  background: #ffffff !important;
+}
+
+/* NLayoutContent 背景透明 */
+.model-selector-popup .n-layout-content {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* 去掉 NList 的边框和分割线 */
+.n-list {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 隐藏 NListItem 的分割线 */
+.n-list-item__divider {
+  display: none !important;
+}
+
+/* NListItem 本身的样式 - 加强选择器优先级 */
+.model-selector-popup .n-list .n-list-item {
+  border: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 5px 12px !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.model-selector-popup .n-list .n-list-item:hover {
+  background-color: #f5f5f5 !important;
+  background: #f5f5f5 !important;
+}
+
+/* 选中时不要背景色，只显示 √ */
+.model-selector-popup .n-list .n-list-item.selected {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* 选中项的 hover 效果 - 确保选中的项也能 hover */
+.model-selector-popup .n-list .n-list-item.selected:hover {
+  background-color: #f5f5f5 !important;
+  background: #f5f5f5 !important;
+}
+
+/* NListItem 内部的 main 区域 */
+.model-selector-popup .n-list .n-list-item .n-list-item__main {
+  padding: 0 !important;
+}
+
+/* model-item 内容区域 */
+.model-item {
+  background: transparent !important;
+  border-radius: 10px !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.model-name {
+  color: #1c1c1e !important;
+  font-weight: 500;
+}
+
+.model-item.selected .model-name {
+  color: #000000 !important;
+}
+
+.model-id {
+  color: #666666 !important;
+  font-size: 12px;
+}
+
+.model-item.selected .model-id {
+  color: #333333 !important;
+}
+
+.model-item .n-icon {
+  color: #000000 !important;
+}
+
+/* 空状态 */
+.empty-state,
+.empty-vendor {
+  color: #999999 !important;
+}
+
+/* 布局边框 */
+.n-layout-sider {
+  border-color: #e5e5e7 !important;
+}
+
+.n-layout-header {
+  border-color: #e5e5e7 !important;
+}
+
+/* 滚动条 */
+.n-scrollbar-rail {
+  background-color: transparent !important;
+}
+
+.n-scrollbar-rail__scrollbar {
+  background-color: #d1d1d6 !important;
+  border-radius: 4px;
+}
+
+/* 🍎 iOS 风格 - 暗黑模式 - 模型选择器 */
+
+.dark .model-selector-popup {
+  background: #1c1c1e;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* 🍎 iOS 风格 - 供应商侧边栏 (暗黑模式) */
+.dark .vendor-sidebar {
+  background: #1c1c1e !important;
+  border-right: 1px solid #38383a !important;
+}
+
+.dark .vendor-item {
+  background: transparent !important;
+  color: var(--dark-text-primary) !important;
+  border-radius: 10px;
+  margin: 4px 8px;
+  padding: 10px 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.dark .vendor-item:hover {
+  background: #2c2c2e !important;
+}
+
+.dark .vendor-item.active {
+  background: #464646 !important;
+  font-weight: 500;
+}
+
+.dark .vendor-name {
+  color: var(--dark-text-primary) !important;
+}
+
+.dark .vendor-item.active .vendor-name {
+  color: #ffffff !important;
+}
+
+.dark .vendor-count {
+  background: #3a3a3c;
+  color: var(--dark-text-primary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.dark .vendor-item.active .vendor-count {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* 搜索头部 */
+.dark .search-header {
+  background-color: transparent !important;
+  border-bottom: 1px solid #38383a !important;
+}
+
+.dark .search-header .n-input {
+  background-color: #3a3a3c !important;
+  border-color: transparent !important;
+  color: var(--dark-text-primary) !important;
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+
+.dark .search-header .n-input:hover {
+  background-color: #48484a !important;
+}
+
+.dark .search-header .n-input:focus-within {
+  background-color: #48484a !important;
+  border-color: transparent !important;
+}
+
+/* 隐藏搜索框的 focus 边框效果 */
+.dark .search-header .n-input__border,
+.dark .search-header .n-input__state-border {
+  display: none !important;
+}
+
+.dark .search-header .n-input__placeholder {
+  color: #aeaeb2 !important;
+}
+
+.dark .search-header .n-input__input-el {
+  color: var(--dark-text-primary) !important;
+}
+
+/* 🍎 iOS 风格 - 模型列表区域 (暗黑模式) */
+.dark .model-content {
+  background: #1c1c1e !important;
+}
+
+/* NLayoutContent 背景透明 */
+.dark .model-selector-popup .n-layout-content {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* 去掉 NList 的边框和分割线 */
+.dark .n-list {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 隐藏 NListItem 的分割线 */
+.dark .n-list-item__divider {
+  display: none !important;
+}
+
+/* NListItem 本身的样式 - 加强选择器优先级 */
+.dark .model-selector-popup .n-list .n-list-item {
+  border: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 5px 12px !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.dark .model-selector-popup .n-list .n-list-item:hover {
+  background-color: #2c2c2e !important;
+  background: #2c2c2e !important;
+}
+
+/* 选中时不要背景色，只显示 √ */
+.dark .model-selector-popup .n-list .n-list-item.selected {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* 选中项的 hover 效果 - 确保选中的项也能 hover */
+.dark .model-selector-popup .n-list .n-list-item.selected:hover {
+  background-color: #2c2c2e !important;
+  background: #2c2c2e !important;
+}
+
+/* NListItem 内部的 main 区域 */
+.dark .model-selector-popup .n-list .n-list-item .n-list-item__main {
+  padding: 0 !important;
+}
+
+/* model-item 内容区域 */
+.dark .model-item {
+  background: transparent !important;
+  border-radius: 10px !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.dark .model-name {
+  color: var(--dark-text-primary) !important;
+  font-weight: 500;
+}
+
+.dark .model-item.selected .model-name {
+  color: #ffffff !important;
+}
+
+.dark .model-id {
+  color: #aeaeb2 !important;
+  font-size: 12px;
+}
+
+.dark .model-item.selected .model-id {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.dark .model-item .n-icon {
+  color: #ffffff !important;
+}
+
+/* 空状态 */
+.dark .empty-state,
+.dark .empty-vendor {
+  color: #aeaeb2 !important;
+}
+
+/* 布局边框 */
+.dark .n-layout-sider {
+  border-color: #38383a !important;
+}
+
+.dark .n-layout-header {
+  border-color: #38383a !important;
+}
+
+/* 滚动条 */
+.dark .n-scrollbar-rail {
+  background-color: transparent !important;
+}
+
+.dark .n-scrollbar-rail__scrollbar {
+  background-color: #48484a !important;
+  border-radius: 4px;
 }
 </style>

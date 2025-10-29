@@ -117,11 +117,28 @@ watch(
   { immediate: true }, // 🔥 立即执行，确保初始加载时也设置 conversationId
 )
 
-// 监听输入框内容，判断是否多行
+// 🔥 改进：监听输入框的实际高度，而不是内容是否包含换行符
+// 单行高度阈值（根据实际情况调整）
+const SINGLE_LINE_HEIGHT_THRESHOLD = 60
+
+// 监听输入框内容变化，检测实际渲染高度
 watch(
   () => prompt.value,
-  (newValue) => {
-    isMultiLine.value = newValue.includes('\n')
+  async () => {
+    // 等待 DOM 更新
+    await nextTick()
+
+    // 获取输入框元素
+    const inputElement = inputRef.value?.$el?.querySelector('textarea')
+    if (!inputElement) {
+      // 降级：如果无法获取元素，使用换行符判断
+      isMultiLine.value = prompt.value.includes('\n')
+      return
+    }
+
+    // 🔥 根据实际渲染高度判断是否为多行
+    const currentHeight = inputElement.scrollHeight
+    isMultiLine.value = currentHeight > SINGLE_LINE_HEIGHT_THRESHOLD
   },
 )
 
@@ -283,6 +300,8 @@ async function onConversation() {
 
   try {
     let lastText = ''
+    let lastProcessedIndex = 0 // 🔥 记录上次处理的位置
+
     const fetchChatAPIOnce = async () => {
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         prompt: message,
@@ -299,11 +318,23 @@ async function onConversation() {
             console.log(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
           }
 
-          // Always process the final line
-          const lastIndex = responseText.lastIndexOf('\n', responseText.length - 2)
-          let chunk = responseText
-          if (lastIndex !== -1)
-            chunk = responseText.substring(lastIndex)
+          // 🔥 改进：从上次处理的位置开始，找到最后一个完整的 JSON 对象
+          // SSE 格式：每行一个 JSON，以换行符分隔
+          const newData = responseText.substring(lastProcessedIndex)
+          const lines = newData.split('\n')
+
+          // 保留最后一个可能不完整的行
+          const completeLines = lines.slice(0, -1)
+          if (completeLines.length === 0)
+            return // 还没有完整的数据行
+
+          // 处理最后一个完整的行（最新的数据）
+          const chunk = completeLines[completeLines.length - 1].trim()
+          if (!chunk)
+            return // 空行，跳过
+
+          // 更新已处理的位置
+          lastProcessedIndex = responseText.lastIndexOf(chunk) + chunk.length
 
           try {
             const data = JSON.parse(chunk)
@@ -518,6 +549,8 @@ async function onRegenerate(index: number) {
 
   try {
     let lastText = ''
+    let lastProcessedIndex = 0 // 🔥 记录上次处理的位置
+
     const fetchChatAPIOnce = async () => {
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         prompt: message,
@@ -526,11 +559,24 @@ async function onRegenerate(index: number) {
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
           const { responseText } = xhr
-          // Always process the final line
-          const lastIndex = responseText.lastIndexOf('\n', responseText.length - 2)
-          let chunk = responseText
-          if (lastIndex !== -1)
-            chunk = responseText.substring(lastIndex)
+
+          // 🔥 改进：从上次处理的位置开始，找到最后一个完整的 JSON 对象
+          const newData = responseText.substring(lastProcessedIndex)
+          const lines = newData.split('\n')
+
+          // 保留最后一个可能不完整的行
+          const completeLines = lines.slice(0, -1)
+          if (completeLines.length === 0)
+            return // 还没有完整的数据行
+
+          // 处理最后一个完整的行（最新的数据）
+          const chunk = completeLines[completeLines.length - 1].trim()
+          if (!chunk)
+            return // 空行，跳过
+
+          // 更新已处理的位置
+          lastProcessedIndex = responseText.lastIndexOf(chunk) + chunk.length
+
           try {
             const data = JSON.parse(chunk)
 
@@ -1439,9 +1485,9 @@ function handleSelectModel(model: ModelItem) {
               <footer :class="footerClass">
                 <div class="w-full max-w-screen-xl m-auto">
                   <!-- 多行布局：上下结构 -->
-                  <div v-if="isMultiLine" class="relative chat-input-wrapper">
+                  <div v-if="isMultiLine" class="relative chat-input-wrapper chat-input-wrapper-multiline">
                     <!-- 输入框 - 最上层 -->
-                    <div class="relative z-10">
+                    <div class="relative z-10 w-full mb-[35px]">
                       <NInput
                         ref="inputRef"
                         v-model:value="prompt"
@@ -1661,10 +1707,18 @@ function handleSelectModel(model: ModelItem) {
   display: flex;
   align-items: center;
   min-height: 60px;
+  /* 🔥 默认单行样式：胶囊形状 */
   border-radius: 30px / 50%;
   background: #f7f7f7;
   border: 1px solid rgba(0, 0, 0, 0.08);
   padding: 0.5rem; /* 上下内边距 */
+  transition: border-radius 0.2s ease; /* 平滑过渡 */
+}
+
+/* 🔥 多行模式：改为普通圆角（当高度超过单行时） */
+.chat-input-wrapper-multiline {
+  border-radius: 12px !important;
+  align-items: flex-start !important; /* 多行时顶部对齐 */
 }
 
 /* 移除边框 */

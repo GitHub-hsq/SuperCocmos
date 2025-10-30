@@ -1390,7 +1390,7 @@ function handleSelectModel(model: ModelItem) {
               @update:show="(show) => show && loadCurrentModel()"
             >
               <template #trigger>
-                <NButton quaternary>
+                <NButton quaternary round style="padding-left: 8px; padding-right: 8px;">
                   <template #icon>
                     <SvgIcon icon="ri:openai-fill" />
                   </template>
@@ -1423,10 +1423,14 @@ function handleSelectModel(model: ModelItem) {
                     <NLayoutHeader bordered class="search-header">
                       <NInput
                         v-model:value="modelSearch"
-                        placeholder="🔍 搜索模型名称..."
+                        placeholder=" 搜索模型名称..."
                         clearable
                         size="small"
-                      />
+                      >
+                        <template #prefix>
+                          <SvgIcon icon="mdi-light:magnify" />
+                        </template>
+                      </NInput>
                     </NLayoutHeader>
                     <NLayoutContent>
                       <NScrollbar style="height: 100%">

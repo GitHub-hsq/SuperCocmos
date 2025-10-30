@@ -325,7 +325,7 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
 /* 🍎 弹出菜单样式 */
 .session-menu {
   z-index: 9999;
-  background-color: #e1e1e1;
+  background-color: #ffffff;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -355,22 +355,22 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  color: #FF3B30; /* iOS红色 */
+  color: #ff3b30; /* iOS红色 */
   font-size: 14px;
 }
 
 .session-menu-item-delete:hover {
   color: #ffffff;
-  background-color: #FF3B30; /* iOS红色背景 */
+  background-color: #ff3b30; /* iOS红色背景 */
 }
 
 :deep(.dark) .session-menu-item-delete {
-  color: #FF453A; /* 暗黑模式iOS红色 */
+  color: #ff453a; /* 暗黑模式iOS红色 */
 }
 
 :deep(.dark) .session-menu-item-delete:hover {
   color: #ffffff;
-  background-color: #FF453A;
+  background-color: #ff453a;
 }
 
 .session-menu-item:hover {

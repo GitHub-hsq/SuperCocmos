@@ -22,8 +22,31 @@
 
 **获取以下信息：**
 ```
-Endpoint: xxx.upstash.io
+Endpoint: https://caring-hedgehog-31136.upstash.io
 Port: 6379
+token：AXmgAAIncDJmZWJmNWM2N2ZiNTk0NDc3YWEwYjRiMzg3Yjg0NDdhMnAyMzExMzY
+只读token：AnmgAAIgcDJs87rq2xQ5yK7bvX7rNN5qe_VNCU_DZ1GMmWKnBX51VA
+redis-cli --tls -u redis://default:AXmgAAIncDJmZWJmNWM2N2ZiNTk0NDc3YWEwYjRiMzg3Yjg0NDdhMnAyMzExMzY@caring-hedgehog-31136.upstash.io:6379
+REST:UPSTASH_REDIS_REST_URL="https://caring-hedgehog-31136.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="AXmgAAIncDJmZWJmNWM2N2ZiNTk0NDc3YWEwYjRiMzg3Yjg0NDdhMnAyMzExMzY"
+TCP:REDIS_URL="rediss://default:AXmgAAIncDJmZWJmNWM2N2ZiNTk0NDc3YWEwYjRiMzg3Yjg0NDdhMnAyMzExMzY@caring-hedgehog-31136.upstash.io:6379"
+----------------------------
+example:node-redis
+import { createClient } from "redis"
+
+const client = createClient({
+  url: "rediss://default:AXmgAAIncDJmZWJmNWM2N2ZiNTk0NDc3YWEwYjRiMzg3Yjg0NDdhMnAyMzExMzY@caring-hedgehog-31136.upstash.io:6379"
+});
+
+client.on("error", function(err) {
+  throw err;
+});
+await client.connect()
+await client.set('foo','bar');
+
+// Disconnect after usage
+await client.disconnect();
+-------------------------------
 Password: your-password
 ```
 

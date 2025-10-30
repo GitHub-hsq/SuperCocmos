@@ -41,7 +41,8 @@
       "Bash(git push)",
       "Bash(git push:*)",
       "Bash(git rm:*)",
-      "WebFetch(domain:www.naiveui.com)"
+      "WebFetch(domain:www.naiveui.com)",
+      "WebFetch(domain:upstash.com)"
     ],
     "deny": [],
     "ask": []

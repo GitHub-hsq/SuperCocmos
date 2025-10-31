@@ -2,6 +2,7 @@
 import { NButton, NEmpty, NInput, NModal, NScrollbar, NTag } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
+import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useModelStore } from '@/store'
 
 interface Props {
@@ -17,6 +18,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emit>()
 
 const modelStore = useModelStore()
+const { isMobile } = useBasicLayout()
 
 const show = computed({
   get() {
@@ -73,7 +75,8 @@ const searchKeyword = ref('')
 // 当前供应商的模型列表（过滤后）
 const currentModels = computed(() => {
   let models = enabledModels.value.filter((model: any) => {
-    if (selectedProvider.value && model.provider !== selectedProvider.value)
+    // 移动端显示所有供应商的模型，PC端根据选中的供应商过滤
+    if (!isMobile.value && selectedProvider.value && model.provider !== selectedProvider.value)
       return false
     return true
   })
@@ -83,7 +86,8 @@ const currentModels = computed(() => {
     const keyword = searchKeyword.value.toLowerCase()
     models = models.filter((model: any) =>
       model.name.toLowerCase().includes(keyword)
-      || model.displayName.toLowerCase().includes(keyword),
+      || model.displayName.toLowerCase().includes(keyword)
+      || model.provider.toLowerCase().includes(keyword),
     )
   }
 
@@ -129,10 +133,13 @@ function handleConfirm() {
   show.value = false
 }
 
-// 取消选择
-function handleCancel() {
-  show.value = false
-}
+// 当前选中的模型显示名称
+const currentModelDisplayName = computed(() => {
+  if (!selectedModel.value)
+    return ''
+  const model = enabledModels.value.find((m: any) => m.id === selectedModel.value)
+  return model ? (model.displayName || model.name) : ''
+})
 
 // 监听对话框打开，初始化选择
 watch(() => props.visible, (visible) => {
@@ -157,12 +164,13 @@ watch(() => props.visible, (visible) => {
     v-model:show="show"
     :auto-focus="false"
     preset="card"
-    title="选择模型"
-    style="width: 90%; max-width: 900px"
+    title="Model"
+    :style="isMobile ? 'width: 95%; max-width: 95vw' : 'width: 90%; max-width: 900px'"
+    class="model-selector-modal"
   >
-    <div class="flex gap-4" style="height: 500px">
-      <!-- 左侧：供应商列表 -->
-      <div class="w-1/3 flex flex-col border-r dark:border-neutral-700 pr-4">
+    <div class="flex gap-4" :style="isMobile ? 'height: 60vh' : 'height: 500px'">
+      <!-- 左侧：供应商列表 (仅PC端显示) -->
+      <div v-if="!isMobile" class="w-1/3 flex flex-col border-r dark:border-neutral-700 pr-4">
         <div class="mb-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
           供应商
         </div>
@@ -182,9 +190,9 @@ watch(() => props.visible, (visible) => {
             <div
               v-for="provider in providers"
               :key="provider.id"
-              class="p-4 rounded-lg cursor-pointer transition-all"
+              class="provider-item p-4 rounded-lg cursor-pointer transition-all"
               :class="{
-                'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500': selectedProvider === provider.id,
+                'bg-primary-light dark:bg-primary-dark border-2 border-primary': selectedProvider === provider.id,
                 'bg-gray-50 dark:bg-neutral-800 hover:bg-gray-100 dark:hover:bg-neutral-700 border-2 border-transparent': selectedProvider !== provider.id,
               }"
               @mouseenter="selectProvider(provider.id)"
@@ -206,51 +214,67 @@ watch(() => props.visible, (visible) => {
         </NScrollbar>
       </div>
 
-      <!-- 右侧：模型列表 + 搜索 -->
-      <div class="flex-1 flex flex-col">
-        <div class="mb-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
-          模型
+      <!-- 右侧：模型列表 + 搜索 (移动端占满全宽) -->
+      <div class="flex-1 flex flex-col" :class="{ 'mobile-model-list': isMobile }">
+        <div class="mb-3 flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">
+            {{ isMobile ? '搜索并选择模型' : '模型' }}
+          </span>
+          <span v-if="currentModelDisplayName" class="text-xs text-gray-500 dark:text-gray-500 truncate max-w-[50%]">
+            当前: {{ currentModelDisplayName }}
+          </span>
         </div>
 
         <!-- 搜索框 -->
         <div class="mb-3">
           <NInput
             v-model:value="searchKeyword"
-            placeholder="搜索模型名称..."
+            :placeholder="isMobile ? '搜索模型或供应商...' : '搜索模型名称...'"
             clearable
+            size="large"
           >
             <template #prefix>
-              <SvgIcon icon="ri:search-line" />
+              <SvgIcon icon="ri:search-line" class="search-icon" />
             </template>
           </NInput>
         </div>
 
         <!-- 模型列表 -->
         <div v-if="currentModels.length === 0" class="flex-1 flex items-center justify-center">
-          <NEmpty :description="searchKeyword ? '没有找到匹配的模型' : '该供应商没有可用模型'" />
+          <NEmpty :description="searchKeyword ? '没有找到匹配的模型' : (providers.length === 0 ? '请先在设置中配置模型' : '没有可用模型')" />
         </div>
 
         <NScrollbar v-else class="flex-1">
-          <div class="space-y-2 pr-2">
+          <div class="space-y-2">
             <div
               v-for="model in currentModels"
               :key="model.id"
-              class="p-3 rounded-lg cursor-pointer transition-all"
+              class="model-item p-3 rounded-lg cursor-pointer transition-all"
               :class="{
-                'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500': selectedModel === model.id,
+                'bg-primary-light dark:bg-primary-dark border-2 border-primary selected': selectedModel === model.id,
                 'bg-gray-50 dark:bg-neutral-800 hover:bg-gray-100 dark:hover:bg-neutral-700 border-2 border-transparent': selectedModel !== model.id,
               }"
               @click="selectModel(model.id)"
             >
-              <div class="flex items-center justify-between">
+              <div class="flex items-center justify-between gap-3 w-full">
                 <div class="flex-1 min-w-0">
-                  <div class="font-medium text-sm truncate">
+                  <div class="font-medium text-sm truncate model-name">
                     {{ model.displayName || model.name }}
+                  </div>
+                  <!-- 移动端显示供应商标签 -->
+                  <div v-if="isMobile" class="mt-1">
+                    <NTag
+                      :type="providerColorMap[model.provider] || 'default'"
+                      size="small"
+                      round
+                    >
+                      {{ modelStore.providers.find((p: any) => p.id === model.provider)?.displayName || model.provider }}
+                    </NTag>
                   </div>
                 </div>
                 <SvgIcon
                   v-if="selectedModel === model.id"
-                  class="text-blue-500 text-lg ml-2 flex-shrink-0"
+                  class="text-primary text-xl flex-shrink-0 check-icon"
                   icon="ri:checkbox-circle-fill"
                 />
               </div>
@@ -262,28 +286,112 @@ watch(() => props.visible, (visible) => {
 
     <!-- 底部按钮 -->
     <template #footer>
-      <div class="flex justify-between items-center">
-        <div v-if="selectedModel" class="text-sm text-gray-600 dark:text-gray-400">
-          已选择: <span class="font-medium">{{ enabledModels.find((m: any) => m.id === selectedModel)?.displayName }}</span>
-        </div>
-        <div v-else />
-        <div class="flex gap-2">
-          <NButton @click="handleCancel">
-            取消
-          </NButton>
-          <NButton type="primary" :disabled="!selectedModel" @click="handleConfirm">
-            确认
-          </NButton>
-        </div>
+      <div class="flex justify-end items-center footer-content">
+        <NButton
+          class="confirm-button"
+          :block="isMobile"
+          :size="isMobile ? 'large' : 'medium'"
+          type="primary"
+          :disabled="!selectedModel"
+          @click="handleConfirm"
+        >
+          确认选择
+        </NButton>
       </div>
     </template>
   </NModal>
 </template>
 
 <style scoped>
-/* 自定义滚动条样式 */
+/* 🎨 主题色定义 */
+.bg-primary-light {
+  background-color: rgba(22, 22, 24, 0.08) !important;
+}
+
+.bg-primary-dark {
+  background-color: rgba(22, 22, 24, 0.3) !important;
+}
+
+.border-primary {
+  border-color: #161618 !important;
+}
+
+.text-primary {
+  color: #161618 !important;
+}
+
+.dark .text-primary {
+  color: #ffffff !important;
+}
+
+/* 隐藏滚动条 */
+:deep(.n-scrollbar-rail) {
+  display: none !important;
+}
+
 :deep(.n-scrollbar-content) {
-  padding-right: 8px;
+  padding-right: 0px;
+}
+
+/* 🎨 移动端优化 */
+.mobile-model-list {
+  width: 100%;
+}
+
+/* 移动端模型项增加内边距 */
+.model-item {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+}
+
+.model-item.selected {
+  box-shadow: 0 2px 8px rgba(22, 22, 24, 0.15);
+}
+
+.dark .model-item.selected {
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+.model-name {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.check-icon {
+  animation: checkIn 0.3s ease;
+}
+
+@keyframes checkIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.search-icon {
+  font-size: 18px;
+}
+
+/* 供应商项悬停效果 */
+.provider-item {
+  user-select: none;
+}
+
+.provider-item:active {
+  transform: scale(0.98);
+}
+
+/* 模型项点击效果 */
+.model-item:active {
+  transform: scale(0.98);
 }
 
 /* 🍎 iOS 风格 - 暗黑模式 */
@@ -331,14 +439,7 @@ watch(() => props.visible, (visible) => {
   background-color: #3a3a3c !important; /* iOS 三级背景 */
 }
 
-/* 供应商/模型列表项 - 选中状态 */
-.dark .bg-blue-50 {
-  background-color: rgba(10, 132, 255, 0.15) !important; /* iOS 蓝色半透明 */
-}
-
-.dark .border-blue-500 {
-  border-color: #0a84ff !important; /* iOS 蓝色 */
-}
+/* 供应商/模型列表项 - 选中状态 (已通过 .bg-primary-dark 和 .border-primary 类处理) */
 
 /* 文本颜色 */
 .dark .font-medium {
@@ -374,8 +475,9 @@ watch(() => props.visible, (visible) => {
 }
 
 :deep(.dark .n-input--focus) {
-  border-color: #0a84ff !important;
+  border-color: #ffffff !important;
   background-color: #48484a !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
 }
 
 /* Tag 标签 */
@@ -401,13 +503,13 @@ watch(() => props.visible, (visible) => {
 
 /* 主按钮 */
 :deep(.dark .n-button--primary-type) {
-  background-color: #0a84ff !important; /* iOS 蓝色 */
-  border-color: #0a84ff !important;
-  color: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #161618 !important;
 }
 
 :deep(.dark .n-button--primary-type:hover) {
-  background-color: #0070e0 !important;
+  background-color: #e8e8ed !important;
 }
 
 :deep(.dark .n-button--primary-type:disabled) {
@@ -431,20 +533,9 @@ watch(() => props.visible, (visible) => {
   border-color: #38383a !important;
 }
 
-/* 滚动条 */
-:deep(.dark .n-scrollbar-rail) {
-  background-color: transparent !important;
-}
+/* 滚动条已全局隐藏 */
 
-:deep(.dark .n-scrollbar-rail__scrollbar) {
-  background-color: #48484a !important;
-  border-radius: 4px;
-}
-
-/* 选中图标颜色 */
-.dark .text-blue-500 {
-  color: #0a84ff !important; /* iOS 蓝色 */
-}
+/* 选中图标颜色 (已通过 .text-primary 类处理) */
 
 /* 列表项圆角和过渡效果 */
 .dark .rounded-lg {
@@ -455,5 +546,182 @@ watch(() => props.visible, (visible) => {
 .dark .cursor-pointer:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 🌞 iOS 风格 - 浅色模式增强 */
+
+/* Modal 整体 */
+:deep(.n-card) {
+  background-color: #ffffff !important;
+  border-radius: 1.125rem;
+}
+
+:deep(.n-card-header) {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e5e5e7 !important;
+  padding: 16px 20px;
+}
+
+:deep(.n-card-header__main) {
+  font-weight: 600;
+  font-size: 17px;
+}
+
+:deep(.n-card__footer) {
+  background-color: #ffffff !important;
+  border-top: 1px solid #e5e5e7 !important;
+  padding: 16px 20px;
+}
+
+/* 浅色模式搜索框 */
+:deep(.n-input) {
+  background-color: #f5f5f5 !important;
+  border-color: transparent !important;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+:deep(.n-input:hover) {
+  background-color: #e8e8ed !important;
+}
+
+:deep(.n-input--focus) {
+  border-color: #161618 !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(22, 22, 24, 0.1);
+}
+
+/* 浅色模式按钮 */
+:deep(.n-button) {
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+:deep(.n-button--default-type) {
+  background-color: #f5f5f5 !important;
+  border-color: transparent !important;
+  color: #000000 !important;
+}
+
+:deep(.n-button--default-type:hover) {
+  background-color: #e8e8ed !important;
+}
+
+:deep(.n-button--default-type:active) {
+  transform: scale(0.98);
+}
+
+:deep(.n-button--primary-type) {
+  background-color: #161618 !important;
+  border-color: #161618 !important;
+  color: #ffffff !important;
+}
+
+:deep(.n-button--primary-type:hover) {
+  background-color: #2c2c2e !important;
+}
+
+:deep(.n-button--primary-type:active) {
+  transform: scale(0.98);
+}
+
+:deep(.n-button--primary-type:disabled) {
+  background-color: #f5f5f5 !important;
+  border-color: transparent !important;
+  color: #c7c7cc !important;
+  opacity: 0.6;
+}
+
+/* 浅色模式列表项 */
+.bg-gray-50 {
+  background-color: #f5f5f5 !important;
+}
+
+.hover\:bg-gray-100:hover {
+  background-color: #e8e8ed !important;
+}
+
+/* 已通过 .bg-primary-light 和 .border-primary 类处理 */
+
+/* 浅色模式 Tag */
+:deep(.n-tag) {
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* 分隔线 */
+.border-r {
+  border-color: #e5e5e7 !important;
+}
+
+/* 📱 移动端特定优化 */
+@media (max-width: 768px) {
+  :deep(.n-modal) {
+    padding: 12px;
+  }
+
+  :deep(.n-card) {
+    border-radius: 1.125rem;
+    max-height: 85vh;
+  }
+
+  :deep(.n-card-header) {
+    padding: 16px;
+  }
+
+  :deep(.n-card__footer) {
+    padding: 16px;
+  }
+
+  .model-item {
+    min-height: 72px;
+    padding: 16px !important;
+  }
+
+  .model-name {
+    font-size: 16px;
+  }
+
+  :deep(.n-input) {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+  }
+
+  :deep(.n-button) {
+    font-size: 16px;
+    padding: 12px 20px;
+    min-height: 48px;
+  }
+
+  /* 移动端搜索图标 */
+  .search-icon {
+    font-size: 20px;
+  }
+
+  /* 移动端选中图标 */
+  .check-icon {
+    font-size: 24px !important;
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) {
+  .provider-item:hover {
+    transform: none;
+  }
+
+  .model-item:hover {
+    transform: none;
+  }
+
+  .cursor-pointer:hover {
+    transform: none !important;
+  }
+}
+</style>
+
+<style>
+.n-card {
+  border-radius: 1.25rem;
 }
 </style>

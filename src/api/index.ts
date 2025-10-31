@@ -210,6 +210,14 @@ export function toggleModelEnabled<T = any>(id: string, enabled: boolean) {
   })
 }
 
+// 测试模型连接
+export function testModelConnection<T = any>(id: string) {
+  return post<T>({
+    url: `/models/${id}/test`,
+    method: 'POST',
+  })
+}
+
 // 认证相关 API
 export function fetchLogin(data: LoginRequest) {
   return post<ApiResponse<LoginResponse>>({

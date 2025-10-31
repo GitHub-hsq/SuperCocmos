@@ -462,3 +462,147 @@ export async function toggleModel(req: Request, res: Response) {
     })
   }
 }
+
+/**
+ * 测试模型连接
+ */
+export async function testModel(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+
+    if (!id) {
+      return res.status(400).json({
+        status: 'Fail',
+        message: '缺少模型ID',
+        data: null,
+      })
+    }
+
+    // 获取模型信息
+    const model = await getModelById(id)
+    if (!model) {
+      return res.status(404).json({
+        status: 'Fail',
+        message: '模型不存在',
+        data: null,
+      })
+    }
+
+    // 获取供应商信息
+    const provider = await getProviderById(model.provider_id)
+    if (!provider) {
+      return res.status(404).json({
+        status: 'Fail',
+        message: '供应商不存在',
+        data: null,
+      })
+    }
+
+    // 测试模型连接
+    const fetch = (await import('node-fetch')).default
+    const baseUrl = provider.base_url.endsWith('/v1')
+      ? provider.base_url
+      : `${provider.base_url}/v1`
+
+    const requestUrl = `${baseUrl}/chat/completions`
+    const requestBody = {
+      model: model.model_id,
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello',
+        },
+      ],
+      max_tokens: 10,
+    }
+
+    // 脱敏处理 API Key（显示前8位和后4位）
+    const maskedApiKey = provider.api_key
+      ? `${provider.api_key.substring(0, 8)}...${provider.api_key.substring(provider.api_key.length - 4)}`
+      : '未设置'
+
+    console.log('[模型测试] 发送请求:', {
+      url: requestUrl,
+      method: 'POST',
+      apiKey: maskedApiKey,
+      body: requestBody,
+    })
+
+    // 记录开始时间
+    const startTime = Date.now()
+
+    const testResponse = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${provider.api_key}`,
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(10000), // 10秒超时
+    })
+
+    // 计算响应时间
+    const responseTime = Date.now() - startTime
+
+    console.log(`[模型测试] 响应状态: ${testResponse.status} ${testResponse.statusText} (${responseTime}ms)`)
+
+    if (!testResponse.ok) {
+      const errorData = await testResponse.json().catch(() => ({ error: { message: '未知错误' } }))
+      console.error('[模型测试] 失败:', errorData)
+      return res.status(200).json({
+        status: 'Fail',
+        message: `测试失败: ${errorData.error?.message || testResponse.statusText}`,
+        data: {
+          success: false,
+          statusCode: testResponse.status,
+          error: errorData.error?.message || testResponse.statusText,
+          responseTime,
+        },
+      })
+    }
+
+    // 解析响应
+    let data
+    try {
+      data = await testResponse.json()
+      console.log('[模型测试] 成功解析响应:', {
+        id: data.id,
+        model: data.model,
+        hasChoices: !!data.choices?.length,
+      })
+    }
+    catch (parseError: any) {
+      console.error('[模型测试] JSON解析失败:', parseError.message)
+      return res.status(200).json({
+        status: 'Fail',
+        message: '测试失败: 响应格式错误',
+        data: {
+          success: false,
+          error: `无法解析响应: ${parseError.message}`,
+          responseTime,
+        },
+      })
+    }
+
+    res.json({
+      status: 'Success',
+      message: '测试成功，模型连接正常',
+      data: {
+        success: true,
+        response: data.choices?.[0]?.message?.content || '连接成功',
+        responseTime,
+      },
+    })
+  }
+  catch (error: any) {
+    console.error('测试模型失败:', error)
+    res.status(200).json({
+      status: 'Fail',
+      message: `测试失败: ${error.message || '未知错误'}`,
+      data: {
+        success: false,
+        error: error.message || '未知错误',
+      },
+    })
+  }
+}

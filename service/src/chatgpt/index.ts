@@ -1,17 +1,16 @@
 import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt'
 import type { ApiModel, ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
-import type { RequestOptions, SetProxyOptions, UsageResponse } from './types'
+import type { RequestOptions, UsageResponse } from './types'
+import type { SetProxyOptions } from './utils'
 import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt'
 import * as dotenv from 'dotenv'
-import httpsProxyAgent from 'https-proxy-agent'
-import fetch from 'node-fetch'
-import { SocksProxyAgent } from 'socks-proxy-agent'
-import { getProviderById } from '../db/providerService' // 🔥 导入供应商服务
+import { getProviderById } from '../db/providerService'
 import { sendResponse } from '../utils'
 import { isNotEmptyString } from '../utils/is'
+import { chatReplyProcessLibrary } from './chatLibrary'
+import { chatReplyProcessNative } from './chatNative'
+import { setupProxy } from './utils'
 import 'isomorphic-fetch'
-
-const { HttpsProxyAgent } = httpsProxyAgent
 
 dotenv.config()
 
@@ -28,7 +27,6 @@ const timeoutMs: number = !Number.isNaN(+process.env.TIMEOUT_MS) ? +process.env.
 const disableDebug: boolean = process.env.OPENAI_API_DISABLE_DEBUG === 'true'
 
 // 抑制 chatgpt 库的 token 计算错误日志
-// 这些错误通常是由于网络问题导致的 tiktoken 模型下载失败
 const originalConsoleWarn = console.warn
 const originalConsoleError = console.error
 
@@ -43,7 +41,6 @@ console.warn = (...args: any[]) => {
     || msg.includes('falling back to approximate count')) {
     return
   }
-
   originalConsoleWarn.apply(console, args)
 }
 
@@ -76,8 +73,7 @@ async function initializeAPI() {
 
   const model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
 
-  // 🔥 新架构：优先使用数据库配置，环境变量作为后备
-  // 如果没有配置环境变量，直接跳过初始化（将使用数据库配置）
+  // 新架构：优先使用数据库配置，环境变量作为后备
   if (!isNotEmptyString(process.env.OPENAI_API_KEY) && !isNotEmptyString(process.env.OPENAI_ACCESS_TOKEN)) {
     isInitialized = true
     return
@@ -87,8 +83,6 @@ async function initializeAPI() {
   console.warn('✅ [ChatGPT] 检测到环境变量配置，使用环境变量初始化 API')
 
   await (async () => {
-  // More Info: https://github.com/transitive-bullshit/chatgpt-api
-
     if (isNotEmptyString(process.env.OPENAI_API_KEY)) {
       const OPENAI_API_BASE_URL = process.env.OPENAI_API_BASE_URL
 
@@ -96,14 +90,10 @@ async function initializeAPI() {
         apiKey: process.env.OPENAI_API_KEY,
         completionParams: { model },
         debug: !disableDebug,
-        // 禁用 token 计数以避免网络错误
-        // chatgpt库会尝试从网络下载tiktoken模型，可能导致ECONNRESET错误
-        // messageStore: undefined, // 🔥 移除此行，使用默认的内存存储以支持对话历史
       }
 
       // increase max token limit if use gpt-4
       if (model.toLowerCase().includes('gpt-4')) {
-      // if use 32k model
         if (model.toLowerCase().includes('32k')) {
           options.maxModelTokens = 32768
           options.maxResponseTokens = 8192
@@ -112,7 +102,6 @@ async function initializeAPI() {
           options.maxModelTokens = 128000
           options.maxResponseTokens = 16384
         }
-        // if use GPT-4 Turbo or GPT-4o
         else if (/-preview|-turbo|o/.test(model.toLowerCase())) {
           options.maxModelTokens = 128000
           options.maxResponseTokens = 4096
@@ -130,7 +119,6 @@ async function initializeAPI() {
       }
 
       if (isNotEmptyString(OPENAI_API_BASE_URL)) {
-      // 模型调用需要加 /v1
         options.apiBaseUrl = `${OPENAI_API_BASE_URL}/v1`
       }
 
@@ -165,7 +153,6 @@ function isKrioraModel(modelId: string): boolean {
 // 为特定供应商创建 API 实例
 function createApiForProvider(modelId: string, maxTokens?: number): ChatGPTAPI {
   if (isKrioraModel(modelId)) {
-    // 使用 Kriora API 配置
     const krioraApiKey = process.env.KRIORA_API_KEY || process.env.OPENAI_API_KEY
     const krioraApiUrl = process.env.KRIORA_API_URL || 'https://api.kriora.com'
 
@@ -173,255 +160,45 @@ function createApiForProvider(modelId: string, maxTokens?: number): ChatGPTAPI {
       apiKey: krioraApiKey,
       completionParams: { model: modelId },
       debug: !disableDebug,
-      // messageStore: undefined, // 🔥 移除此行，使用默认的内存存储以支持对话历史
       apiBaseUrl: `${krioraApiUrl}/v1`,
       maxModelTokens: 128000,
-      maxResponseTokens: maxTokens || 8192, // 使用配置的 maxTokens，默认 8192
+      maxResponseTokens: maxTokens || 8192,
     }
 
     setupProxy(options as any)
     return new ChatGPTAPI({ ...options })
   }
 
-  // 默认使用全局 API 实例（可能未初始化）
   return api as ChatGPTAPI
 }
 
-// 对话历史存储（简单的内存存储，生产环境应该用数据库或 Redis）
-const conversationHistory = new Map<string, Array<{ role: string, content: string }>>()
-
 /**
- * 🚀 原生实现的聊天回复处理（更快、更可控）
- * 直接使用 fetch API 调用 OpenAI 兼容的接口
- * 已禁用，使用 chatgpt 库代替
+ * 聊天回复处理（主入口）
  */
-async function _chatReplyProcessNative(options: RequestOptions) {
-  const { message, lastContext, process: processCallback, systemMessage, temperature, top_p, model: requestModel, maxTokens, baseURL, apiKey } = options
-
-  if (!baseURL || !apiKey)
-    throw new Error('缺少必需的参数: baseURL 或 apiKey')
-
-  try {
-    const apiUrl = baseURL.endsWith('/v1')
-      ? `${baseURL}/chat/completions`
-      : `${baseURL}/v1/chat/completions`
-
-    // 🔥 构建对话历史
-    const conversationId = lastContext?.conversationId || `conv_${Date.now()}`
-    let messages: Array<{ role: string, content: string }> = []
-
-    // 如果有历史记录，加载它
-    if (conversationHistory.has(conversationId)) {
-      messages = conversationHistory.get(conversationId)!
-      console.warn(`📚 [原生实现] 加载历史对话: ${messages.length} 条消息`)
-    }
-    else {
-      // 添加系统消息
-      if (systemMessage)
-        messages.push({ role: 'system', content: systemMessage })
-    }
-
-    // 添加当前用户消息
-    messages.push({ role: 'user', content: message })
-
-    const requestBody = {
-      model: requestModel || 'gpt-3.5-turbo',
-      messages,
-      temperature: temperature || 0.7,
-      top_p: top_p || 1,
-      max_tokens: maxTokens || 4096,
-      stream: true, // 使用流式响应
-    }
-
-    console.warn('🚀 [原生实现] 发送请求:', {
-      url: apiUrl,
-      model: requestBody.model,
-      messageLength: message.length,
-    })
-
-    const startTime = Date.now()
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(100000), // 100秒超时
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API 请求失败: ${response.status} ${errorText}`)
-    }
-
-    // 处理流式响应（兼容 Node.js Readable Stream）
-    let fullText = ''
-    let reasoningText = ''
-    const messageId = `msg_${Date.now()}`
-    let chunkCount = 0
-    let lastLogTime = Date.now()
-    let hasReceivedContent = false
-
-    if (response.body) {
-      // Node.js 环境中 response.body 是 Readable stream
-      let buffer = ''
-
-      // 监听 data 事件
-      for await (const chunk of response.body as any) {
-        chunkCount++
-        buffer += chunk.toString()
-
-        // 按行处理数据
-        const lines = buffer.split('\n')
-        // 保留最后一个不完整的行
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (!trimmedLine)
-            continue
-
-          if (trimmedLine.startsWith('data: ')) {
-            const data = trimmedLine.slice(6)
-            if (data === '[DONE]')
-              continue
-
-            try {
-              const parsed = JSON.parse(data)
-              const choice = parsed.choices?.[0]
-
-              // 🔥 同时处理 content 和 reasoning_content
-              const contentDelta = choice?.delta?.content || ''
-              const reasoningDelta = choice?.delta?.reasoning_content || ''
-
-              // 🔥 处理思考过程（显示给用户，让他们知道 AI 在思考）
-              if (reasoningDelta && !hasReceivedContent) {
-                reasoningText += reasoningDelta
-                // 发送思考状态给前端（使用特殊格式，前端可以识别）
-                processCallback?.({
-                  id: messageId,
-                  text: `💭 
-                  ...\n${reasoningText.substring(0, 100)}...`,
-                  role: 'assistant',
-                  conversationId,
-                  parentMessageId: messageId,
-                })
-              }
-
-              // 🔥 如果有实际内容，发送给前端
-              if (contentDelta) {
-                hasReceivedContent = true
-                fullText += contentDelta
-                processCallback?.({
-                  id: messageId,
-                  text: fullText,
-                  role: 'assistant',
-                  conversationId,
-                  parentMessageId: messageId,
-                })
-              }
-
-              // 记录第一个 chunk 的完整内容，用于调试
-              if (chunkCount === 1) {
-                console.warn('🔍 [原生实现] 第一个 chunk 示例:', JSON.stringify(parsed).substring(0, 200))
-              }
-            }
-            catch {
-              // 忽略解析错误
-            }
-          }
-        }
-
-        // 每5秒打印一次进度
-        const now = Date.now()
-        if (now - lastLogTime > 5000) {
-          console.warn(`⏱️ [原生实现] 已接收 ${chunkCount} 个 chunks，思考 ${reasoningText.length} 字符，回复 ${fullText.length} 字符，耗时 ${now - startTime}ms`)
-          lastLogTime = now
-        }
-      }
-
-      console.warn(`📊 [原生实现] 总共接收 ${chunkCount} 个 chunks，思考 ${reasoningText.length} 字符，回复 ${fullText.length} 字符`)
-    }
-
-    const endTime = Date.now()
-    console.warn(`✅ [原生实现] 完成，耗时: ${endTime - startTime}ms`)
-
-    // 🔥 保存助手回复到对话历史
-    messages.push({ role: 'assistant', content: fullText })
-    conversationHistory.set(conversationId, messages)
-
-    // 🔥 限制历史记录长度（只保留最近10条消息）
-    if (messages.length > 20) {
-      // 保留系统消息 + 最近10轮对话（20条消息）
-      const systemMsg = messages[0].role === 'system' ? [messages[0]] : []
-      conversationHistory.set(conversationId, [...systemMsg, ...messages.slice(-20)])
-      console.warn(`🗑️ [原生实现] 历史记录过长，已清理旧消息`)
-    }
-
-    console.warn(`💾 [原生实现] 已保存对话历史，总计 ${messages.length} 条消息`)
-
-    return sendResponse({
-      type: 'Success',
-      data: {
-        id: messageId,
-        text: fullText,
-        role: 'assistant',
-        conversationId,
-        parentMessageId: messageId,
-      },
-    })
-  }
-  catch (error: any) {
-    console.error('❌ [原生实现] 失败:', error)
-    return sendResponse({ type: 'Fail', message: error.message || '请求失败' })
-  }
-}
-
 async function chatReplyProcess(options: RequestOptions) {
   // 确保API已初始化
   await initializeAPI()
 
   const { message, lastContext, historyMessages, process: processCallback, systemMessage, temperature, top_p, model: requestModel, maxTokens, providerId, baseURL, apiKey } = options
+
   try {
-    let options: SendMessageOptions = { timeoutMs }
     const defaultModel = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
     const selectedModel = requestModel || defaultModel
-
-    // ✅ 历史消息日志已在 messageCache 中统一输出，此处不重复
 
     // 🔥 优先使用直接传递的 baseURL 和 apiKey（新方式）
     let apiInstance: ChatGPTAPI | ChatGPTUnofficialProxyAPI | null = api
     let providerInfo: { baseUrl: string, apiKey: string, name: string } | null = null
 
     if (baseURL && apiKey) {
-      // 🔥 新方式：直接使用传递的配置
+      // 新方式：直接使用传递的配置
       providerInfo = {
         baseUrl: baseURL,
         apiKey,
         name: 'Direct Config',
       }
-
-      // 🔥 创建 API 实例（不依赖 apiModel，直接使用 ChatGPTAPI）
-      // ChatGPT API 需要完整的 URL，包括 /v1
-      const apiBaseUrl = providerInfo.baseUrl.endsWith('/v1')
-        ? providerInfo.baseUrl
-        : `${providerInfo.baseUrl}/v1`
-
-      const providerOptions: ChatGPTAPIOptions = {
-        apiKey: providerInfo.apiKey,
-        completionParams: { model: selectedModel },
-        debug: !disableDebug,
-        apiBaseUrl,
-        maxModelTokens: 128000,
-        maxResponseTokens: maxTokens || 8192,
-      }
-
-      setupProxy(providerOptions as any)
-      apiInstance = new ChatGPTAPI({ ...providerOptions })
     }
     else if (lastContext?.providerId || providerId) {
-      // 🔥 旧方式：通过 providerId 查询数据库（兼容）
+      // 旧方式：通过 providerId 查询数据库（兼容）
       const currentProviderId = lastContext?.providerId || providerId
       console.warn('🔍 [ChatGPT] 查找供应商:', currentProviderId)
 
@@ -437,26 +214,6 @@ async function chatReplyProcess(options: RequestOptions) {
             name: providerInfo.name,
             baseUrl: providerInfo.baseUrl,
           })
-
-          // 🔥 使用供应商配置创建新的 API 实例
-          // ChatGPT API 需要完整的 URL，包括 /v1
-          const apiBaseUrl = providerInfo.baseUrl.endsWith('/v1')
-            ? providerInfo.baseUrl
-            : `${providerInfo.baseUrl}/v1`
-
-          const providerOptions: ChatGPTAPIOptions = {
-            apiKey: providerInfo.apiKey,
-            completionParams: { model: selectedModel },
-            debug: !disableDebug,
-            // messageStore: undefined, // 🔥 移除此行，使用默认的内存存储以支持对话历史
-            apiBaseUrl,
-            maxModelTokens: 128000,
-            maxResponseTokens: maxTokens || 8192,
-          }
-
-          setupProxy(providerOptions as any)
-          apiInstance = new ChatGPTAPI({ ...providerOptions })
-          console.warn('🔧 [ChatGPT] 已创建供应商专用 API 实例，URL:', apiBaseUrl)
         }
         else {
           console.warn('⚠️ [ChatGPT] 未找到供应商，使用默认配置')
@@ -464,38 +221,70 @@ async function chatReplyProcess(options: RequestOptions) {
       }
       catch (error) {
         console.error('❌ [ChatGPT] 查找供应商失败:', error)
-        // 降级到默认实例
+      }
+    }
+
+    // 🔥 使用新架构的实现（统一参数，内部根据情况选择调用方式）
+    if (providerInfo) {
+      // 可以通过环境变量选择使用哪个实现
+      const useNativeImplementation = process.env.USE_NATIVE_CHAT === 'true'
+
+      if (useNativeImplementation) {
+        // 使用原生 fetch 实现
+        return await chatReplyProcessNative({
+          message,
+          historyMessages: historyMessages || [],
+          baseURL: providerInfo.baseUrl,
+          apiKey: providerInfo.apiKey,
+          model: selectedModel,
+          temperature,
+          top_p,
+          maxTokens,
+          processCallback,
+        })
+      }
+      else {
+        // 使用 ChatGPT 库实现（默认）
+        return await chatReplyProcessLibrary({
+          message,
+          historyMessages,
+          lastContext,
+          systemMessage,
+          temperature,
+          top_p,
+          model: selectedModel,
+          maxTokens,
+          baseURL: providerInfo.baseUrl,
+          apiKey: providerInfo.apiKey,
+          processCallback,
+        })
       }
     }
 
     // 如果没有使用供应商配置，则使用原有逻辑
-    if (!providerInfo && isNotEmptyString(selectedModel) && apiModel === 'ChatGPTAPI') {
+    if (isNotEmptyString(selectedModel) && apiModel === 'ChatGPTAPI') {
       apiInstance = createApiForProvider(selectedModel, maxTokens)
     }
 
-    // 🔥 确保 apiInstance 已创建
     if (!apiInstance) {
       throw new Error('API 实例未创建，请检查配置或提供 baseURL 和 apiKey')
     }
 
-    // 🔥 判断当前使用的 API 类型
+    // 使用默认 API 实例（环境变量配置）
     const currentApiModel = apiInstance instanceof ChatGPTAPI ? 'ChatGPTAPI' : 'ChatGPTUnofficialProxyAPI'
+
+    let sendOptions: SendMessageOptions = { timeoutMs }
 
     if (currentApiModel === 'ChatGPTAPI') {
       if (isNotEmptyString(systemMessage))
-        options.systemMessage = systemMessage
+        sendOptions.systemMessage = systemMessage
 
-      // 使用请求中的模型参数，如果没有则使用默认模型
-      options.completionParams = {
+      sendOptions.completionParams = {
         model: selectedModel,
         temperature,
         top_p,
-        // 🔥 OpenAI 默认值都是 0，我们保持默认即可
-        // presence_penalty: 0,
-        // frequency_penalty: 0,
       }
 
-      // 如果提供了 maxTokens，设置 maxResponseTokens
       if (maxTokens && apiInstance instanceof ChatGPTAPI) {
         const chatGptApi = apiInstance as any
         if (chatGptApi.maxResponseTokens !== maxTokens)
@@ -505,229 +294,22 @@ async function chatReplyProcess(options: RequestOptions) {
 
     if (lastContext != null) {
       if (currentApiModel === 'ChatGPTAPI')
-        options.parentMessageId = lastContext.parentMessageId
+        sendOptions.parentMessageId = lastContext.parentMessageId
       else
-        options = { ...lastContext }
+        sendOptions = { ...lastContext }
     }
 
     const startTime = Date.now()
-
-    // 🔥 手动累积文本（修复 GLM-4.6 等模型的 text 字段为空问题）
-    let accumulatedText = ''
-    let accumulatedThinkingText = '' // 🔥 累积思考过程
-
-    let _progressCallbackCount = 0
-    const _progressStartTime = Date.now()
-    let _lastProgressTime = _progressStartTime
-
-    // 🔥 如果提供了历史消息，使用直接 API 调用而不是 chatgpt 库
-    if (historyMessages && historyMessages.length > 0 && baseURL && apiKey) {
-      // ✅ 日志已在 messageCache 中统一输出
-
-      // 构建完整的消息列表
-      const fullMessages = [
-        ...historyMessages,
-        { role: 'user', content: message },
-      ]
-
-      // 直接调用 OpenAI API
-      const apiUrl = baseURL.endsWith('/v1')
-        ? `${baseURL}/chat/completions`
-        : `${baseURL}/v1/chat/completions`
-
-      const requestBody = {
-        model: selectedModel,
-        messages: fullMessages,
-        temperature: temperature || 0.7,
-        top_p: top_p || 1,
-        max_tokens: maxTokens || 4096,
-        stream: true,
-      }
-
-      const fetchResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      if (!fetchResponse.ok) {
-        throw new Error(`API 调用失败: ${fetchResponse.statusText}`)
-      }
-
-      // 🔥 使用 Node.js 流处理（node-fetch）
-      const body = fetchResponse.body as any
-      let buffer = ''
-      const messageId = `msg_${Date.now()}`
-
-      // 🔥 监听流数据
-      body.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString('utf-8')
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.trim() || line === 'data: [DONE]')
-            continue
-
-          if (line.startsWith('data: ')) {
-            try {
-              const jsonStr = line.substring(6)
-              const data = JSON.parse(jsonStr)
-              const delta = data.choices?.[0]?.delta?.content || ''
-
-              if (delta) {
-                accumulatedText += delta
-
-                // 调用进度回调
-                if (processCallback) {
-                  processCallback({
-                    id: messageId,
-                    text: accumulatedText,
-                    role: 'assistant',
-                    detail: data,
-                  } as any)
-                }
-              }
-            }
-            catch {
-              // 忽略解析错误
-            }
-          }
-        }
-      })
-
-      // 🔥 等待流结束
-      await new Promise((resolve, reject) => {
-        body.on('end', resolve)
-        body.on('error', reject)
-      })
-
-      // 返回最终响应
-      const response = {
-        id: messageId,
-        text: accumulatedText,
-        role: 'assistant',
-        detail: {
-          model: selectedModel,
-          usage: {
-            total_tokens: 0, // 需要从实际响应中获取
-            estimated: true,
-          },
-        },
-      }
-
-      const Spend_time = Date.now() - startTime
-      // eslint-disable-next-line no-console
-      console.log('📊 [ChatGPT] 响应信息:', {
-        time: `${Spend_time} + 'ms'`,
-        id: response.id,
-        model: selectedModel,
-        textLength: accumulatedText.length,
-      })
-
-      return sendResponse({
-        type: 'Success',
-        data: response,
-      })
-    }
-
-    // 🔥 否则使用 chatgpt 库的默认行为
     const response = await apiInstance.sendMessage(message, {
-      ...options,
+      ...sendOptions,
       onProgress: (partialResponse) => {
-        _progressCallbackCount++
-        const currentTime = Date.now()
-        const _timeSinceLastProgress = currentTime - _lastProgressTime
-
-        // if (_progressCallbackCount === 1) {
-        //   console.warn(`⏱️ [ChatGPT-性能] 首次onProgress回调: ${currentTime - _progressStartTime}ms`)
-        // }
-
-        // if (_timeSinceLastProgress > 100) {
-        //   console.warn(`⏱️ [ChatGPT-性能] 第${_progressCallbackCount}次回调，距离上次: ${_timeSinceLastProgress}ms`)
-        // }
-
-        _lastProgressTime = currentTime
-
-        // 🔥 从 delta 或 detail.choices[0].delta.content 获取增量内容
-        const delta = (partialResponse as any).delta || ''
-        const content = (partialResponse.detail?.choices?.[0] as any)?.delta?.content || ''
-        const reasoningContent = (partialResponse.detail?.choices?.[0] as any)?.delta?.reasoning_content || ''
-
-        // 🔥 记录跳过的次数
-        let shouldSkip = false
-        let _skipReason = ''
-
-        // 🔥 累积实际内容
-        const actualContent = content || delta
-        if (actualContent) {
-          accumulatedText += actualContent
-        }
-
-        // 🔥 处理思考过程：如果有 reasoning_content，也传递给前端
-        if (reasoningContent && !actualContent) {
-          // 🔥 累积思考过程
-          accumulatedThinkingText += reasoningContent
-
-          // 思考过程：显示思考状态，但不累积到最终文本
-          const thinkingText = `💭 思考中...\n${accumulatedThinkingText}`
-
-          // 创建包含思考过程的响应对象
-          const thinkingResponse = {
-            ...partialResponse,
-            text: thinkingText,
-            isThinking: true, // 标记这是思考过程
-          }
-
-          processCallback?.(thinkingResponse)
-          return
-        }
-
-        // 如果既没有实际内容也没有思考内容，跳过
-        if (!actualContent && !reasoningContent) {
-          shouldSkip = true
-          _skipReason = '没有内容'
-        }
-
-        // 记录跳过情况
-        // if (shouldSkip && _progressCallbackCount <= 50) {
-        //   console.warn(`⏱️ [ChatGPT-性能] 第${_progressCallbackCount}次被跳过，原因: ${_skipReason}`)
-        // }
-
-        if (shouldSkip) {
-          return
-        }
-
-        // 🔥 确保 text 字段有值（修复前端打字机效果）
-        if (!partialResponse.text && accumulatedText) {
-          partialResponse.text = accumulatedText
-        }
-
-        // const callbackStartTime = Date.now()
         processCallback?.(partialResponse)
-        // const callbackTime = Date.now() - callbackStartTime
-
-        // if (callbackTime > 10) {
-        //   console.warn(`⏱️ [ChatGPT-性能] processCallback耗时: ${callbackTime}ms`)
-        // }
-
-        // if (_progressCallbackCount <= 20) {
-        //   console.warn(`⏱️ [ChatGPT-性能] 第${_progressCallbackCount}次成功调用processCallback，累积文本长度: ${accumulatedText.length}`)
-        // }
       },
     })
-    const endTime = Date.now()
 
-    // eslint-disable-next-line no-console
-    console.log('✅ [ChatGPT] API 调用完成')
-    // eslint-disable-next-line no-console
-    console.log('⏱️ [ChatGPT] 耗时:', endTime - startTime, 'ms')
-    // console.warn(`⏱️ [ChatGPT-性能] onProgress总共被调用: ${_progressCallbackCount}次`)
-    // eslint-disable-next-line no-console
+    const responseTime = Date.now() - startTime
     console.log('📊 [ChatGPT] 响应信息:', {
+      time: `${responseTime}ms`,
       id: response.id,
       model: response.detail?.model || '未知',
       tokens: response.detail?.usage || '未知',
@@ -755,7 +337,6 @@ async function fetchUsage() {
     ? OPENAI_API_BASE_URL
     : 'https://api.openai.com'
 
-  // 调用余额不需要加 /v1，使用 /api/usage/token
   const urlUsage = `${API_BASE_URL}/api/usage/token`
 
   const headers = {
@@ -768,7 +349,6 @@ async function fetchUsage() {
   setupProxy(options)
 
   try {
-    // 获取已使用量
     const useResponse = await options.fetch(urlUsage, { headers })
     if (!useResponse.ok)
       throw new Error('获取使用量失败')
@@ -780,17 +360,6 @@ async function fetchUsage() {
     globalThis.console.error(error)
     return Promise.resolve('-')
   }
-}
-
-// eslint-disable-next-line unused-imports/no-unused-vars
-function formatDate(): string[] {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth() + 1
-  const lastDay = new Date(year, month, 0)
-  const formattedFirstDay = `${year}-${month.toString().padStart(2, '0')}-01`
-  const formattedLastDay = `${year}-${month.toString().padStart(2, '0')}-${lastDay.getDate().toString().padStart(2, '0')}`
-  return [formattedFirstDay, formattedLastDay]
 }
 
 async function chatConfig() {
@@ -806,38 +375,9 @@ async function chatConfig() {
   })
 }
 
-function setupProxy(options: SetProxyOptions) {
-  if (isNotEmptyString(process.env.SOCKS_PROXY_HOST) && isNotEmptyString(process.env.SOCKS_PROXY_PORT)) {
-    const agent = new SocksProxyAgent({
-      hostname: process.env.SOCKS_PROXY_HOST,
-      port: process.env.SOCKS_PROXY_PORT,
-      userId: isNotEmptyString(process.env.SOCKS_PROXY_USERNAME) ? process.env.SOCKS_PROXY_USERNAME : undefined,
-      password: isNotEmptyString(process.env.SOCKS_PROXY_PASSWORD) ? process.env.SOCKS_PROXY_PASSWORD : undefined,
-    })
-    options.fetch = (url, options) => {
-      return fetch(url, { agent, ...options })
-    }
-  }
-  else if (isNotEmptyString(process.env.HTTPS_PROXY) || isNotEmptyString(process.env.ALL_PROXY)) {
-    const httpsProxy = process.env.HTTPS_PROXY || process.env.ALL_PROXY
-    if (httpsProxy) {
-      const agent = new HttpsProxyAgent(httpsProxy)
-      options.fetch = (url, options) => {
-        return fetch(url, { agent, ...options })
-      }
-    }
-  }
-  else {
-    options.fetch = (url, options) => {
-      return fetch(url, { ...options })
-    }
-  }
-}
-
 function currentModel(): ApiModel {
   return apiModel || 'ChatGPTAPI'
 }
 
 export type { ChatContext, ChatMessage }
-
 export { chatConfig, chatReplyProcess, currentModel }

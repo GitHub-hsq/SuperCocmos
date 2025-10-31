@@ -3,7 +3,7 @@ import type { DataTableColumns } from 'naive-ui'
 import type { Role } from '@/api/services/roleService'
 import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
 import { computed, h, ref, watch } from 'vue'
-import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, updateModel, updateProvider } from '@/api'
+import { addModel, addProvider, testModelConnection, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, updateModel, updateProvider } from '@/api'
 import { getAllModelsWithRoles, getAllRoles } from '@/api/services/roleService'
 import { SvgIcon } from '@/components/common'
 import { useModelStore } from '@/store'
@@ -91,6 +91,10 @@ const editModelForm = ref<ModelItem | null>(null)
 
 // 记录上一次的模型ID，用于判断是否自动同步
 const oldModelId = ref('')
+
+// 测试模型连接
+const testingModel = ref(false)
+const testResult = ref<{ success: boolean, message: string, responseTime?: number } | null>(null)
 
 // 监听模型ID变化，自动生成 display_name（供应商名_模型ID）
 watch(() => addModelForm.value.modelId, (newId) => {
@@ -543,6 +547,7 @@ async function handleAddModel() {
 // 编辑模型
 function editModel(model: ModelItem) {
   editModelForm.value = { ...model }
+  testResult.value = null // 清空测试结果
   showEditModel.value = true
 }
 
@@ -624,6 +629,48 @@ async function handleDeleteModel(id: string, _providerId: string) {
   catch (error: any) {
     console.error('删除模型失败:', error)
     message.error(error.response?.data?.message || error.message || '删除失败')
+  }
+}
+
+// 测试模型连接
+async function handleTestModel() {
+  if (!editModelForm.value)
+    return
+
+  testingModel.value = true
+  testResult.value = null
+
+  try {
+    const response = await testModelConnection(editModelForm.value.id)
+
+    if (response.status === 'Success') {
+      testResult.value = {
+        success: true,
+        message: response.message || '测试成功',
+        responseTime: response.data?.responseTime,
+      }
+      message.success('测试成功，模型连接正常')
+    }
+    else {
+      testResult.value = {
+        success: false,
+        message: response.message || '测试失败',
+        responseTime: response.data?.responseTime,
+      }
+      message.error(response.message || '测试失败')
+    }
+  }
+  catch (error: any) {
+    console.error('测试模型失败:', error)
+    testResult.value = {
+      success: false,
+      message: error.response?.data?.message || error.message || '测试失败',
+      responseTime: error.response?.data?.data?.responseTime,
+    }
+    message.error(error.response?.data?.message || error.message || '测试失败')
+  }
+  finally {
+    testingModel.value = false
   }
 }
 
@@ -865,6 +912,43 @@ watch(() => props.visible, async (visible) => {
         </NFormItem>
         <div class="text-xs text-orange-500 -mt-2 mb-2">
           <span class="font-medium">⚠️ 注意：</span>修改 display_name 会影响前端模型选择，请谨慎操作
+        </div>
+
+        <!-- 测试连接区域 -->
+        <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium">测试连接</span>
+            <NButton
+              size="small"
+              :loading="testingModel"
+              @click="handleTestModel"
+            >
+              <template #icon>
+                <SvgIcon icon="ri:wireless-charging-line" />
+              </template>
+              {{ testingModel ? '测试中...' : '测试连接' }}
+            </NButton>
+          </div>
+          <div v-if="testResult" class="text-xs mt-2">
+            <div
+              v-if="testResult.success"
+              class="text-green-600 dark:text-green-400"
+            >
+              ✓ {{ testResult.message }}
+              <span v-if="testResult.responseTime" class="ml-2 text-gray-500 dark:text-gray-400">
+                ({{ testResult.responseTime }}ms)
+              </span>
+            </div>
+            <div
+              v-else
+              class="text-red-600 dark:text-red-400"
+            >
+              ✗ {{ testResult.message }}
+              <span v-if="testResult.responseTime" class="ml-2 text-gray-500 dark:text-gray-400">
+                ({{ testResult.responseTime }}ms)
+              </span>
+            </div>
+          </div>
         </div>
       </NForm>
 

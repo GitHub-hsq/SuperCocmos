@@ -1763,7 +1763,7 @@ function handleSelectModel(model: ModelItem) {
   min-height: 60px;
   /* 🔥 默认单行样式：胶囊形状 */
   border-radius: 30px / 50%;
-  background: #fff;
+  background: #f7f7f7;
   border: 1px solid rgba(0, 0, 0, 0.08);
   padding: 0.5rem; /* 上下内边距 */
   transition: border-radius 0.2s ease; /* 平滑过渡 */
@@ -1772,7 +1772,7 @@ function handleSelectModel(model: ModelItem) {
 
 /* 🔥 多行模式：改为普通圆角（当高度超过单行时） */
 .chat-input-wrapper-multiline {
-  border-radius: 28px !important;
+  border-radius: 12px !important;
   align-items: flex-start !important; /* 多行时顶部对齐 */
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important; /* 🍎 iOS 风格阴影 */
 }

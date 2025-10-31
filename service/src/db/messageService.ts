@@ -166,6 +166,8 @@ export async function getConversationMessages(
 
       if (cached) {
         console.log(`✅ [MessageCache] 缓存命中! 返回 ${cached.length} 条消息，耗时: ${cacheTime}ms`)
+        console.log(`📊 [MessageCache] 缓存的消息ID: ${cached.map(m => m.id.substring(0, 8)).join(', ')}`)
+        console.log(`⚠️  [MessageCache] 如果消息数量不对，请检查Redis缓存是否过期或清除失败`)
         return cached
       }
       console.log(`❌ [MessageCache] 缓存未命中，查询数据库...`)

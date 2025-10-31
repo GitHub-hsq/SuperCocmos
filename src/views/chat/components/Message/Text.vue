@@ -4,7 +4,7 @@ import hljs from 'highlight.js'
 import MarkdownIt from 'markdown-it'
 import MdLinkAttributes from 'markdown-it-link-attributes'
 import MdMermaid from 'mermaid-it-markdown'
-import { computed, onMounted, onUnmounted, onUpdated, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { copyToClip } from '@/utils/copy'
@@ -22,6 +22,11 @@ const props = defineProps<Props>()
 const { isMobile } = useBasicLayout()
 
 const textRef = ref<HTMLElement>()
+const wrapperRef = ref<HTMLElement>()
+const isUserMessageMultiline = ref(false)
+let resizeObserver: ResizeObserver | null = null
+let singleLineThreshold = 0
+const USER_MESSAGE_DEFAULT_HEIGHT = 40
 
 const mdi = new MarkdownIt({
   html: false,
@@ -38,11 +43,18 @@ const mdi = new MarkdownIt({
 
 mdi.use(MdLinkAttributes, { attrs: { target: '_blank', rel: 'noopener' } }).use(MdKatex).use(MdMermaid)
 
+const userMessageRadiusClass = computed(() => {
+  if (!props.inversion)
+    return ''
+  return isUserMessageMultiline.value ? 'user-message-multiline' : 'user-message-single-line'
+})
+
 const wrapClass = computed(() => {
   return [
     'text-wrap',
     'min-w-[20px]',
-    props.inversion ? 'user-message-rounded' : 'rounded-md',
+    props.inversion ? 'min-h-[40px]' : '',
+    props.inversion ? userMessageRadiusClass.value : 'rounded-md',
     isMobile.value ? 'p-2' : 'px-4 py-2',
     props.inversion ? 'bg-[#f4f4f4]' : 'bg-transparent',
     props.inversion ? 'dark:bg-[#2a2a2a]' : 'dark:bg-transparent',
@@ -51,6 +63,30 @@ const wrapClass = computed(() => {
     props.inversion ? 'max-w-[65%]' : '',
     { 'text-red-500': props.error },
   ]
+})
+
+watch(
+  () => props.inversion,
+  (isInversion) => {
+    if (isInversion) {
+      nextTick(() => {
+        evaluateUserMessageHeight()
+        setupUserMessageObserver()
+      })
+    }
+    else {
+      teardownUserMessageObserver()
+    }
+  },
+)
+
+watch(isMobile, () => {
+  if (!props.inversion)
+    return
+  singleLineThreshold = 0
+  nextTick(() => {
+    evaluateUserMessageHeight()
+  })
 })
 
 const text = computed(() => {
@@ -136,19 +172,91 @@ function escapeBrackets(text: string) {
 
 onMounted(() => {
   addCopyEvents()
+  nextTick(() => {
+    evaluateUserMessageHeight()
+    setupUserMessageObserver()
+  })
 })
 
 onUpdated(() => {
   addCopyEvents()
+  nextTick(() => {
+    evaluateUserMessageHeight()
+  })
 })
 
 onUnmounted(() => {
   removeCopyEvents()
+  teardownUserMessageObserver()
 })
+
+function evaluateUserMessageHeight(height?: number) {
+  if (!props.inversion || !wrapperRef.value) {
+    isUserMessageMultiline.value = false
+    return
+  }
+
+  const currentHeight = height ?? wrapperRef.value.offsetHeight
+  if (currentHeight <= 0)
+    return
+
+  const tolerance = 0
+  singleLineThreshold = Math.max(calculateSingleLineThreshold(), USER_MESSAGE_DEFAULT_HEIGHT)
+
+  const baseline = singleLineThreshold || USER_MESSAGE_DEFAULT_HEIGHT
+  isUserMessageMultiline.value = currentHeight > baseline + tolerance
+}
+
+function setupUserMessageObserver() {
+  if (!props.inversion || !wrapperRef.value || typeof ResizeObserver === 'undefined' || resizeObserver)
+    return
+
+  resizeObserver = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      evaluateUserMessageHeight(entry.contentRect.height)
+    })
+  })
+  resizeObserver.observe(wrapperRef.value)
+}
+
+function teardownUserMessageObserver() {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  singleLineThreshold = 0
+}
+
+function calculateSingleLineThreshold() {
+  if (typeof window === 'undefined' || !wrapperRef.value)
+    return 0
+
+  const style = window.getComputedStyle(wrapperRef.value)
+  const textStyle = textRef.value ? window.getComputedStyle(textRef.value) : null
+
+  const lineHeightSources = [
+    parseFloat(style.lineHeight),
+    textStyle ? parseFloat(textStyle.lineHeight) : NaN,
+  ].filter((value) => Number.isFinite(value) && value > 0) as number[]
+
+  const lineHeight = lineHeightSources.length ? lineHeightSources[0] : 24
+  const paddingTop = parseFloat(style.paddingTop) || 0
+  const paddingBottom = parseFloat(style.paddingBottom) || 0
+  const borderTop = parseFloat(style.borderTopWidth) || 0
+  const borderBottom = parseFloat(style.borderBottomWidth) || 0
+  const minHeight = parseFloat(style.minHeight) || 0
+
+  const estimatedHeight = lineHeight + paddingTop + paddingBottom + borderTop + borderBottom
+  const baseHeight = minHeight > 0
+    ? Math.max(minHeight, estimatedHeight)
+    : estimatedHeight
+
+  return Math.max(USER_MESSAGE_DEFAULT_HEIGHT, baseHeight)
+}
 </script>
 
 <template>
-  <div class="text-black dark:text-[var(--dark-text-primary)]" :class="wrapClass">
+  <div ref="wrapperRef" class="text-black dark:text-[var(--dark-text-primary)]" :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion">
         <!-- 🔥 思考过程特殊显示 -->
@@ -171,8 +279,16 @@ onUnmounted(() => {
 <style lang="less">
 @import url(./style.less);
 
-.user-message-rounded {
-  border-radius: 15px;
+.user-message-single-line {
+  border-radius: 20px / 50%;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.user-message-multiline {
+  border-radius: 18px;
+  min-height: 40px;
 }
 
 // 🔥 思考过程样式

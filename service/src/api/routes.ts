@@ -16,6 +16,7 @@ import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
 import * as sseController from './sseController'
+import * as debugController from './debugController'
 
 const router = express.Router()
 
@@ -144,6 +145,11 @@ router.delete('/models/:id', auth, requireAuth, providerController.removeModel)
  * 切换模型启用状态
  */
 router.patch('/models/:id/toggle', auth, requireAuth, providerController.toggleModel)
+
+/**
+ * 测试模型连接
+ */
+router.post('/models/:id/test', auth, requireAuth, providerController.testModel)
 
 // ==============================================
 // 用户配置路由
@@ -302,5 +308,16 @@ router.get('/events/sync', ...sseAuth, sseController.handleSSEConnection)
  * 需要管理员权限
  */
 router.get('/events/stats', auth, requireAdmin, sseController.getSSEStatsHandler)
+
+// ==============================================
+// 调试工具路由（仅开发环境）
+// ==============================================
+
+/**
+ * 清除会话缓存
+ * DELETE /api/debug/cache/conversation/:id
+ * 需要登录
+ */
+router.delete('/debug/cache/conversation/:id', auth, requireAuth, debugController.clearConversationCache)
 
 export default router

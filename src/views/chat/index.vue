@@ -79,6 +79,8 @@ const prompt = ref<string>('')
 const loading = ref<boolean>(false)
 const inputRef = ref<Ref | null>(null)
 const isMultiLine = ref<boolean>(false)
+// 🔥 新会话时footer上移的状态
+const isFooterElevated = ref(true) // 初始状态为true，新会话时上移
 
 // 未知原因刷新页面，loading 状态不会重置，手动重置
 dataSources.value.forEach((item, index) => {
@@ -207,6 +209,21 @@ watch(() => chatStore.active, async (newActive, oldActive) => {
     })
   }
 })
+
+// 🔥 监听消息列表变化，当有新消息时恢复footer位置
+watch(dataSources, (newSources, oldSources) => {
+  // 当从空消息列表变为有消息时（首次发送消息）
+  if (oldSources && oldSources.length === 0 && newSources.length > 0) {
+    // 延迟一点时间，让消息先渲染
+    setTimeout(() => {
+      isFooterElevated.value = false
+    }, 100)
+  }
+  // 当会话切换为空会话时，恢复上移状态
+  else if (newSources.length === 0 && oldSources && oldSources.length > 0) {
+    isFooterElevated.value = true
+  }
+}, { immediate: true })
 
 function handleSubmit() {
   onConversation()
@@ -771,21 +788,6 @@ function handleDelete(index: number) {
   })
 }
 
-function handleClear() {
-  if (loading.value)
-    return
-
-  dialog.warning({
-    title: t('chat.clearChat'),
-    content: t('chat.clearChatConfirm'),
-    positiveText: t('common.yes'),
-    negativeText: t('common.no'),
-    onPositiveClick: () => {
-      chatStore.clearChatByUuid(uuid.value)
-    },
-  })
-}
-
 function handleEnter(event: KeyboardEvent) {
   if (!isMobile.value) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -819,16 +821,27 @@ const buttonDisabled = computed(() => {
 })
 
 const footerClass = computed(() => {
-  let classes = ['px-4', 'pb-6', 'pt-0', '!bg-transparent', 'backdrop-blur-md']
+  let classes = ['px-4', 'pb-6', 'pt-0', '!bg-transparent', 'backdrop-blur-md', 'footer-transition']
   if (isMobile.value)
     classes = ['sticky', 'left-0', 'bottom-0', 'right-0', 'overflow-hidden', '!bg-transparent', 'backdrop-blur-md']
   return classes
 })
 
 const footerStyle = computed(() => {
-  if (isMobile.value)
-    return 'padding: 0px 16px 16px 16px;'
-  return ''
+  let style = ''
+
+  if (isMobile.value) {
+    style = 'padding: 0px 16px 16px 16px;'
+  }
+  else {
+    // 🔥 Web端：新会话时使用transform让输入框上移
+    // 使用transform而不是margin，因为footer在flex容器内
+    if (isFooterElevated.value && !dataSources.value.length) {
+      style = 'transform: translateY(-49vh); position: relative;' // 向上移动120px，可根据需要调整
+    }
+  }
+
+  return style
 })
 
 // 文件上传（拖拽）
@@ -1501,10 +1514,16 @@ function handleSelectModel(model: ModelItem) {
                   >
                     <div id="image-wrapper" class="relative h-full">
                       <template v-if="!dataSources.length">
-                        <div id="110110xxx" class="flex flex-col items-center justify-center h-full min-h-0 text-center text-neutral-400 dark:text-neutral-500">
-                          <div class="mb-4">
-                            <span class="text-2xl">{{ t('chat.newChatTitle') }}</span>
+                        <div
+                          id="110110xxx"
+                          class="flex flex-col items-center justify-center h-full min-h-0 text-center text-neutral-400 dark:text-neutral-500"
+                          :style="!isMobile ? '' : ''"
+                        >
+                          <div :class="!isMobile ? 'mb-32' : 'mb-4'">
+                            <span :style="!isMobile ? 'font-size: 2rem; line-height: 2rem;' : ''" class="text-2xl">{{ t('chat.newChatTitle') }}</span>
                           </div>
+                          <!-- Web端：为footer预留84px高度的空间，防止footer上移后遮挡内容 -->
+                          <div v-if="!isMobile" style="height: 0px; flex-shrink: 0;" />
                           <div class="flex items-center flex-wrap justify-center gap-2 w-full max-w-[80%] px-4">
                             <NButton round>
                               <template #icon>
@@ -1808,6 +1827,11 @@ function handleSelectModel(model: ModelItem) {
   display: flex;
   flex-flow: column;
   gap: 1rem;
+}
+
+/* 🔥 Footer缓动效果 - 在80%后速度慢慢减少 */
+.footer-transition {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* 最外层包装器样式 - 统一背景 */

@@ -58,6 +58,14 @@ const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
 
+// 判断是否是暗色主题（支持 auto 模式）
+const isDarkTheme = computed(() => {
+  if (appStore.theme === 'auto') {
+    return document.documentElement.classList.contains('dark')
+  }
+  return appStore.theme === 'dark'
+})
+
 const currentSelectedModel = ref<ModelItem | null>(null)
 // 🔥 当前对话ID（用于跨浏览器同步）
 const currentConversationId = ref<string>('')
@@ -1523,7 +1531,13 @@ function handleSelectModel(model: ModelItem) {
                             :style="!isMobile ? '' : ''"
                           >
                             <div :class="!isMobile ? 'mb-32' : 'mb-4'">
-                              <span :style="!isMobile ? 'font-size: 2rem; line-height: 2rem;' : ''" class="text-2xl">{{ t('chat.newChatTitle') }}</span>
+                              <span
+                                :style="{
+                                  ...(!isMobile ? { 'font-size': '2rem', 'line-height': '2rem' } : {}),
+                                  color: isDarkTheme ? 'var(--dark-text-primary)' : 'var(--white-text-primary)',
+                                }"
+                                class="text-2xl"
+                              >{{ t('chat.newChatTitle') }}</span>
                             </div>
                             <!-- Web端：为footer预留84px高度的空间，防止footer上移后遮挡内容 -->
                             <div v-if="!isMobile" style="height: 0px; flex-shrink: 0;" />
@@ -2041,11 +2055,11 @@ function handleSelectModel(model: ModelItem) {
 
 /* 🔥 按钮区域淡入淡出效果 - 后半段缩短到1/3，便于观察 */
 .fade-slow-enter-active {
-  animation: fade-slow-enter 5s linear forwards;
+  animation: fade-slow-enter 1s linear forwards;
 }
 
 .fade-slow-leave-active {
-  animation: fade-slow-leave 5s linear forwards;
+  animation: fade-slow-leave 1s linear forwards;
 }
 
 /* 初始/结束状态（Vue 自动应用，但显式定义以防） */
@@ -2065,14 +2079,15 @@ function handleSelectModel(model: ModelItem) {
     opacity: 0;
   }
   10% {
-    /* ≈1.5s，前半段结束，匹配原 0.5 opacity 时间 */
+    /* 0s → 0.5s，快速变化到 0.5 */
     opacity: 0.5;
   }
-  40% {
-    /* 10% + 30% = 40%，后半段结束 */
+  70% {
+    /* 0.5s → 3.5s，缓慢变化到 1（主要缓慢变化阶段，持续3秒） */
     opacity: 1;
   }
   100% {
+    /* 3.5s → 5s，保持不透明状态（无变化） */
     opacity: 1;
   }
 }
@@ -2082,14 +2097,15 @@ function handleSelectModel(model: ModelItem) {
     opacity: 1;
   }
   10% {
-    /* 快速到 0.5 */
+    /* 0s → 0.5s，快速变化到 0.5 */
     opacity: 0.5;
   }
-  40% {
-    /* 后半段缓慢到 0 */
+  70% {
+    /* 0.5s → 3.5s，缓慢变化到 0（主要缓慢变化阶段，持续3秒） */
     opacity: 0;
   }
   100% {
+    /* 3.5s → 5s，保持透明状态（无变化） */
     opacity: 0;
   }
 }

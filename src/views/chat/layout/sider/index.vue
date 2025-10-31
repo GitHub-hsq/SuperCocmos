@@ -5,7 +5,6 @@ import { nanoid } from 'nanoid'
 import { computed, ref, watch } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useTheme } from '@/hooks/useTheme'
 import { t } from '@/locales'
 import { useAppStore, useAuthStore, useChatStore } from '@/store'
 import Profile from '@/views/chat/components/User/Profile.vue'
@@ -14,7 +13,6 @@ import List from './List.vue'
 const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
-const { theme } = useTheme()
 
 const { isMobile } = useBasicLayout()
 
@@ -66,8 +64,13 @@ const settingItems = computed(() => {
 
 const collapsed = computed(() => appStore.siderCollapsed)
 
-// 判断是否为深色模式
-const isDark = computed(() => !!theme.value)
+// 判断是否为深色模式（支持 auto 模式）
+const isDark = computed(() => {
+  if (appStore.theme === 'auto') {
+    return document.documentElement.classList.contains('dark')
+  }
+  return appStore.theme === 'dark'
+})
 
 // 历史记录展开状态
 const historyExpanded = ref(true)
@@ -366,7 +369,7 @@ watch(
         >
           <!-- 设置标题 -->
           <div class="settings-header">
-            <h2 class="settings-title" :style="{ color: isDark ? '#fff' : '#161618' }">
+            <h2 class="settings-title" :style="{ color: isDark ? 'var(--dark-text-primary)' : 'var(--white-text-primary)' }">
               {{ settingsTitle }}
             </h2>
           </div>
@@ -725,13 +728,12 @@ watch(
 
 /* 设置标题 */
 .settings-header {
-  padding: 20px 16px 16px;
-  text-align: center;
+  padding: 20px 16px 16px 30px;
+  text-align: start;
 }
 
 .settings-title {
   font-size: 18px;
-  font-weight: 600;
   margin: 0;
 }
 
@@ -744,33 +746,19 @@ watch(
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.1s ease;
-  color: #666;
+  /* 浅色模式默认颜色 */
+  color: var(--white-text-primary);
 }
 
 .setting-nav-item:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-/* 深色模式下的未激活状态 - 暗一点 */
-:deep(.dark) .setting-nav-item {
-  color: #999;
-}
-
-:deep(.dark) .setting-nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-/* 激活状态 */
+/* 激活状态 - 浅色模式 */
 .setting-nav-item.active {
   background-color: rgba(0, 0, 0, 0.08);
-  color: #333;
   font-weight: 500;
-}
-
-/* 深色模式下的激活状态 - 亮白色 */
-:deep(.dark) .setting-nav-item.active {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--white-text-active);
 }
 
 /* 🍎 优化按钮的iOS风格 */
@@ -857,5 +845,20 @@ watch(
 :deep(.dark .n-button--dashed-type:hover) {
   border-color: #5e5e60 !important;
   background-color: rgba(255, 255, 255, 0.05);
+}
+</style>
+
+<style lang="less">
+.dark .setting-nav-item {
+  color: var(--dark-text-primary);
+}
+
+.dark .setting-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark .setting-nav-item.active {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--dark-text-active);
 }
 </style>

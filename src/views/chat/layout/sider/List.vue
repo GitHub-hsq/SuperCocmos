@@ -113,6 +113,7 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
       <template v-else>
         <div
           v-for="(item, index) of dataSources"
+          id="session-chat-item"
           :key="index"
           @mouseenter="hoveredUuid = item.uuid"
           @mouseleave="hoveredUuid = null"
@@ -198,20 +199,12 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
   cursor: pointer;
   transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   background-color: transparent;
-  color: #333;
+  /* 浅色模式默认颜色 */
+  color: var(--white-text-primary);
 }
 
 .session-item:hover {
   background-color: var(--session-hover-light);
-}
-
-/* 深色模式 */
-:deep(.dark) .session-item {
-  color: #aeaeb2;
-}
-
-:deep(.dark) .session-item:hover {
-  background-color: var(--session-hover-dark);
 }
 
 /* 激活状态 */
@@ -219,11 +212,6 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
   background-color: var(--session-active-light) !important;
   color: #333 !important;
   font-weight: 500;
-}
-
-:deep(.dark) .session-item-active {
-  background-color: var(--session-active-dark) !important;
-  color: #fff !important;
 }
 
 /* 会话图标 */
@@ -411,5 +399,20 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
   background-color: rgba(255, 255, 255, 0.05) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   color: #ffffff !important;
+}
+</style>
+
+<style lang="less">
+/* 深色模式 */
+.dark .session-item {
+  color: var(--dark-text-primary);
+}
+
+.dark .session-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.dark .session-item-active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: var(--dark-text-active) !important;
 }
 </style>

@@ -380,7 +380,7 @@ watch(
               <div
                 v-for="item in settingItems"
                 :key="item.key"
-                class="setting-nav-item"
+                class="sidebar-nav-item"
                 :class="{ active: activeSettingTab === item.key }"
                 @click="handleSelectSettingItem(item.key)"
               >
@@ -466,24 +466,11 @@ watch(
   background-color: var(--nav-hover-light);
 }
 
-:deep(.dark) .nav-item {
-  color: #aeaeb2;
-}
-
-:deep(.dark) .nav-item:hover {
-  background-color: var(--nav-hover-dark);
-}
-
 /* 激活状态 */
 .nav-item-active {
   background-color: var(--nav-active-light) !important;
   color: #333 !important;
   font-weight: 500;
-}
-
-:deep(.dark) .nav-item-active {
-  background-color: var(--nav-active-dark) !important;
-  color: #fff !important;
 }
 
 /* 导航项图标 */
@@ -737,30 +724,6 @@ watch(
   margin: 0;
 }
 
-/* 设置导航项样式 */
-.setting-nav-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  margin: 4px 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.1s ease;
-  /* 浅色模式默认颜色 */
-  color: var(--white-text-primary);
-}
-
-.setting-nav-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-/* 激活状态 - 浅色模式 */
-.setting-nav-item.active {
-  background-color: rgba(0, 0, 0, 0.08);
-  font-weight: 500;
-  color: var(--white-text-active);
-}
-
 /* 🍎 优化按钮的iOS风格 */
 :deep(.n-button) {
   border-radius: 10px;
@@ -849,16 +812,16 @@ watch(
 </style>
 
 <style lang="less">
-.dark .setting-nav-item {
+.dark .nav-item {
   color: var(--dark-text-primary);
 }
 
-.dark .setting-nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+.dark .nav-item:hover {
+  background-color: var(--nav-hover-dark);
 }
 
-.dark .setting-nav-item.active {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--dark-text-active);
+.dark .nav-item-active {
+  background-color: var(--nav-active-dark) !important;
+  color: #fff !important;
 }
 </style>

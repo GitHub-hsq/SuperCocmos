@@ -1,0 +1,41 @@
+/* 🎨 侧边栏主题样式 - 统一的亮色/暗色主题和字体管理 */
+
+/* 导航项基础样式 */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  /* 浅色模式默认颜色 */
+  color: var(--white-text-primary);
+}
+
+.sidebar-nav-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* 激活状态 - 浅色模式 */
+.sidebar-nav-item.active {
+  background-color: rgba(0, 0, 0, 0.08);
+  font-weight: 500;
+  color: var(--white-text-active);
+}
+
+/* 深色模式下的未激活状态 */
+.dark .sidebar-nav-item {
+  color: var(--dark-text-primary);
+}
+
+.dark .sidebar-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* 深色模式下的激活状态 */
+.dark .sidebar-nav-item.active {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--dark-text-active);
+}
+

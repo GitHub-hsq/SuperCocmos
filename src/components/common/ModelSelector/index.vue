@@ -170,7 +170,7 @@ watch(() => props.visible, (visible) => {
   >
     <div class="flex gap-4" :style="isMobile ? 'height: 60vh' : 'height: 500px'">
       <!-- 左侧：供应商列表 (仅PC端显示) -->
-      <div v-if="!isMobile" class="w-1/3 flex flex-col border-r dark:border-neutral-700 pr-4">
+      <div v-if="!isMobile" class="w-1/3 flex flex-col pr-4">
         <div class="mb-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
           供应商
         </div>
@@ -324,14 +324,7 @@ watch(() => props.visible, (visible) => {
   color: #ffffff !important;
 }
 
-/* 隐藏滚动条 */
-:deep(.n-scrollbar-rail) {
-  display: none !important;
-}
-
-:deep(.n-scrollbar-content) {
-  padding-right: 0px;
-}
+/* 隐藏滚动条 - 已移至全局样式 */
 
 /* 🎨 移动端优化 */
 .mobile-model-list {
@@ -394,35 +387,7 @@ watch(() => props.visible, (visible) => {
   transform: scale(0.98);
 }
 
-/* 🍎 iOS 风格 - 暗黑模式 */
-
-/* Modal 整体背景 */
-:deep(.dark .n-card) {
-  background-color: #1c1c1e !important; /* iOS 主背景色 */
-  color: var(--dark-text-primary) !important;
-}
-
-/* Modal 标题 */
-:deep(.dark .n-card-header) {
-  background-color: #1c1c1e !important;
-  border-bottom: 1px solid #38383a !important; /* iOS 分隔线 */
-}
-
-:deep(.dark .n-card-header__main) {
-  color: var(--dark-text-primary) !important;
-  font-weight: 600;
-}
-
-/* Modal 内容区 */
-:deep(.dark .n-card__content) {
-  background-color: #1c1c1e !important;
-}
-
-/* Modal 底部 */
-:deep(.dark .n-card__footer) {
-  background-color: #1c1c1e !important;
-  border-top: 1px solid #38383a !important;
-}
+/* 🍎 iOS 风格 - 暗黑模式 - Naive UI 组件样式已移至全局样式 */
 
 /* 标题文本 */
 .dark .text-gray-600 {
@@ -454,84 +419,7 @@ watch(() => props.visible, (visible) => {
   color: #aeaeb2 !important;
 }
 
-/* 搜索框 */
-:deep(.dark .n-input) {
-  background-color: #3a3a3c !important;
-  border-color: transparent !important;
-  color: var(--dark-text-primary) !important;
-  border-radius: 10px;
-}
-
-:deep(.dark .n-input:hover) {
-  background-color: #48484a !important;
-}
-
-:deep(.dark .n-input__input-el) {
-  color: var(--dark-text-primary) !important;
-}
-
-:deep(.dark .n-input__placeholder) {
-  color: #aeaeb2 !important;
-}
-
-:deep(.dark .n-input--focus) {
-  border-color: #ffffff !important;
-  background-color: #48484a !important;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
-}
-
-/* Tag 标签 */
-:deep(.dark .n-tag) {
-  background-color: #3a3a3c !important;
-  color: var(--dark-text-primary) !important;
-  border-color: #48484a !important;
-}
-
-/* 按钮 */
-:deep(.dark .n-button) {
-  background-color: #2c2c2e !important;
-  border-color: #38383a !important;
-  color: var(--dark-text-primary) !important;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-:deep(.dark .n-button:hover) {
-  background-color: #3a3a3c !important;
-  transform: scale(1.02);
-}
-
-/* 主按钮 */
-:deep(.dark .n-button--primary-type) {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
-  color: #161618 !important;
-}
-
-:deep(.dark .n-button--primary-type:hover) {
-  background-color: #e8e8ed !important;
-}
-
-:deep(.dark .n-button--primary-type:disabled) {
-  background-color: #3a3a3c !important;
-  border-color: #48484a !important;
-  color: #636366 !important;
-  opacity: 0.5;
-}
-
-/* Empty 空状态 */
-:deep(.dark .n-empty) {
-  color: #aeaeb2 !important;
-}
-
-:deep(.dark .n-empty__description) {
-  color: #aeaeb2 !important;
-}
-
-/* 分隔线 */
-.dark .border-r {
-  border-color: #38383a !important;
-}
+/* 暗黑模式 Naive UI 组件样式已移至全局样式 */
 
 /* 滚动条已全局隐藏 */
 
@@ -548,90 +436,7 @@ watch(() => props.visible, (visible) => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* 🌞 iOS 风格 - 浅色模式增强 */
-
-/* Modal 整体 */
-:deep(.n-card) {
-  background-color: #ffffff !important;
-  border-radius: 1.125rem;
-}
-
-:deep(.n-card-header) {
-  background-color: #ffffff !important;
-  border-bottom: 1px solid #e5e5e7 !important;
-  padding: 16px 20px;
-}
-
-:deep(.n-card-header__main) {
-  font-weight: 600;
-  font-size: 17px;
-}
-
-:deep(.n-card__footer) {
-  background-color: #ffffff !important;
-  border-top: 1px solid #e5e5e7 !important;
-  padding: 16px 20px;
-}
-
-/* 浅色模式搜索框 */
-:deep(.n-input) {
-  background-color: #f5f5f5 !important;
-  border-color: transparent !important;
-  border-radius: 10px;
-  transition: all 0.2s ease;
-}
-
-:deep(.n-input:hover) {
-  background-color: #e8e8ed !important;
-}
-
-:deep(.n-input--focus) {
-  border-color: #161618 !important;
-  background-color: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(22, 22, 24, 0.1);
-}
-
-/* 浅色模式按钮 */
-:deep(.n-button) {
-  border-radius: 10px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-:deep(.n-button--default-type) {
-  background-color: #f5f5f5 !important;
-  border-color: transparent !important;
-  color: #000000 !important;
-}
-
-:deep(.n-button--default-type:hover) {
-  background-color: #e8e8ed !important;
-}
-
-:deep(.n-button--default-type:active) {
-  transform: scale(0.98);
-}
-
-:deep(.n-button--primary-type) {
-  background-color: #161618 !important;
-  border-color: #161618 !important;
-  color: #ffffff !important;
-}
-
-:deep(.n-button--primary-type:hover) {
-  background-color: #2c2c2e !important;
-}
-
-:deep(.n-button--primary-type:active) {
-  transform: scale(0.98);
-}
-
-:deep(.n-button--primary-type:disabled) {
-  background-color: #f5f5f5 !important;
-  border-color: transparent !important;
-  color: #c7c7cc !important;
-  opacity: 0.6;
-}
+/* 🌞 iOS 风格 - 浅色模式增强 - Naive UI 组件样式已移至全局样式 */
 
 /* 浅色模式列表项 */
 .bg-gray-50 {
@@ -644,36 +449,8 @@ watch(() => props.visible, (visible) => {
 
 /* 已通过 .bg-primary-light 和 .border-primary 类处理 */
 
-/* 浅色模式 Tag */
-:deep(.n-tag) {
-  border-radius: 12px;
-  font-weight: 500;
-}
-
-/* 分隔线 */
-.border-r {
-  border-color: #e5e5e7 !important;
-}
-
 /* 📱 移动端特定优化 */
 @media (max-width: 768px) {
-  :deep(.n-modal) {
-    padding: 12px;
-  }
-
-  :deep(.n-card) {
-    border-radius: 1.125rem;
-    max-height: 85vh;
-  }
-
-  :deep(.n-card-header) {
-    padding: 16px;
-  }
-
-  :deep(.n-card__footer) {
-    padding: 16px;
-  }
-
   .model-item {
     min-height: 72px;
     padding: 16px !important;
@@ -681,16 +458,6 @@ watch(() => props.visible, (visible) => {
 
   .model-name {
     font-size: 16px;
-  }
-
-  :deep(.n-input) {
-    font-size: 16px; /* 防止 iOS 自动缩放 */
-  }
-
-  :deep(.n-button) {
-    font-size: 16px;
-    padding: 12px 20px;
-    min-height: 48px;
   }
 
   /* 移动端搜索图标 */
@@ -720,8 +487,239 @@ watch(() => props.visible, (visible) => {
 }
 </style>
 
+<style scoped>
+/* ========== Naive UI 组件全局样式 ========== */
+
+/* 隐藏滚动条 */
+.n-scrollbar-rail {
+  display: none !important;
+}
+
+.n-scrollbar-content {
+  padding-right: 0px;
+}
+
+/* ========== Modal 卡片样式 ========== */
+.n-card {
+  border-radius: 1.25rem;
+  background-color: #ffffff !important;
+}
+
+.n-card-header {
+  background-color: #ffffff !important;
+  border-bottom: none !important;
+  padding: 16px 20px;
+}
+
+.n-card-header__main {
+  font-weight: 600;
+  font-size: 17px;
+}
+
+.n-card__footer {
+  background-color: #ffffff !important;
+  border-top: none !important;
+  padding: 16px 20px;
+}
+
+/* ========== 搜索框样式 ========== */
+.model-selector-modal .n-input {
+  background-color: #f5f5f5 !important;
+  border-color: transparent !important;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.model-selector-modal .n-input:hover {
+  background-color: #e8e8ed !important;
+}
+
+.model-selector-modal .n-input--focus {
+  border-color: #161618 !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(22, 22, 24, 0.1);
+}
+
+/* ========== 按钮样式 ========== */
+.n-button {
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.n-button--default-type {
+  background-color: #f5f5f5 !important;
+  border-color: transparent !important;
+  color: #000000 !important;
+}
+
+.n-button--default-type:hover {
+  background-color: #e8e8ed !important;
+}
+
+.n-button--default-type:active {
+  transform: scale(0.98);
+}
+
+.n-button--primary-type {
+  background-color: #161618 !important;
+  border-color: #161618 !important;
+  color: #ffffff !important;
+}
+
+.n-button--primary-type:hover {
+  background-color: #2c2c2e !important;
+}
+
+.n-button--primary-type:active {
+  transform: scale(0.98);
+}
+
+.n-button--primary-type:disabled {
+  background-color: #f5f5f5 !important;
+  border-color: transparent !important;
+  color: #c7c7cc !important;
+  opacity: 0.6;
+}
+
+/* ========== Tag 标签样式 ========== */
+.n-tag {
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* ========== 暗黑模式样式 ========== */
+.dark .n-card {
+  background-color: #1c1c1e !important;
+  color: var(--dark-text-primary) !important;
+}
+
+.dark .n-card-header {
+  background-color: #1c1c1e !important;
+  border-bottom: none !important;
+}
+
+.dark .n-card-header__main {
+  color: var(--dark-text-primary) !important;
+  font-weight: 600;
+}
+
+.dark .n-card__content {
+  background-color: #1c1c1e !important;
+}
+
+.dark .n-card__footer {
+  background-color: #1c1c1e !important;
+  border-top: none !important;
+}
+
+/* 暗黑模式搜索框 */
+.dark .model-selector-modal .n-input {
+  background-color: #3a3a3c !important;
+  border-color: transparent !important;
+  color: var(--dark-text-primary) !important;
+  border-radius: 10px;
+}
+
+.dark .model-selector-modal .n-input:hover {
+  background-color: #48484a !important;
+}
+
+.dark .model-selector-modal .n-input__input-el {
+  color: var(--dark-text-primary) !important;
+}
+
+.dark .model-selector-modal .n-input__placeholder {
+  color: #aeaeb2 !important;
+}
+
+.dark .model-selector-modal .n-input--focus {
+  border-color: #ffffff !important;
+  background-color: #48484a !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+/* 暗黑模式 Tag */
+.dark .n-tag {
+  background-color: #3a3a3c !important;
+  color: var(--dark-text-primary) !important;
+  border-color: #48484a !important;
+}
+
+/* 暗黑模式按钮 */
+.dark .n-button {
+  background-color: #2c2c2e !important;
+  border-color: #38383a !important;
+  color: var(--dark-text-primary) !important;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.dark .n-button:hover {
+  background-color: #3a3a3c !important;
+  transform: scale(1.02);
+}
+
+.dark .n-button--primary-type {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #161618 !important;
+}
+
+.dark .n-button--primary-type:hover {
+  background-color: #e8e8ed !important;
+}
+
+.dark .n-button--primary-type:disabled {
+  background-color: #3a3a3c !important;
+  border-color: #48484a !important;
+  color: #636366 !important;
+  opacity: 0.5;
+}
+
+/* 暗黑模式空状态 */
+.dark .n-empty {
+  color: #aeaeb2 !important;
+}
+
+.dark .n-empty__description {
+  color: #aeaeb2 !important;
+}
+
+/* ========== 移动端样式 ========== */
+@media (max-width: 768px) {
+  .n-modal {
+    padding: 12px;
+  }
+
+  .n-card {
+    border-radius: 1.25rem;
+    max-height: 85vh;
+  }
+
+  .n-card-header {
+    padding: 16px;
+  }
+
+  .n-card__footer {
+    padding: 16px;
+  }
+
+  .model-selector-modal .n-input {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+  }
+
+  .n-button {
+    font-size: 16px;
+    padding: 12px 20px;
+    min-height: 48px;
+  }
+}
+</style>
+
 <style>
 .n-card {
   border-radius: 1.25rem;
+  background-color: #ffffff !important;
 }
 </style>

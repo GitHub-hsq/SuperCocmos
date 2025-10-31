@@ -1374,8 +1374,6 @@ function handleSelectModel(model: ModelItem) {
         <HeaderComponent
           v-if="isMobile"
           :using-context="usingContext"
-          @export="handleExport"
-          @handle-clear="handleClear"
         />
 
         <!-- Web端Header - 悬浮透明 -->
@@ -1391,10 +1389,10 @@ function handleSelectModel(model: ModelItem) {
             >
               <template #trigger>
                 <NButton quaternary round style="padding-left: 8px; padding-right: 8px;">
-                  <template #icon>
-                    <SvgIcon icon="ri:openai-fill" />
-                  </template>
                   {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 4px; flex-shrink: 0; vertical-align: middle;">
+                    <SvgIcon icon="ic:keyboard-arrow-down" style="font-size: 20px; width: 1em; height: 1em; display: inline-block; flex-shrink: 0; line-height: 1; vertical-align: middle;" />
+                  </span>
                 </NButton>
               </template>
 

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { computed, nextTick, ref } from 'vue'
-import { HoverButton, SvgIcon } from '@/components/common'
+import { HoverButton } from '@/components/common'
+import MenuIcon from '@/components/common/MenuIcon.vue'
 import ModelSelector from '@/components/common/ModelSelector/index.vue'
 import { useAppStore, useChatStore } from '@/store'
 
@@ -8,14 +9,7 @@ interface Props {
   usingContext: boolean
 }
 
-interface Emit {
-  (ev: 'export'): void
-  (ev: 'handleClear'): void
-}
-
 defineProps<Props>()
-
-const emit = defineEmits<Emit>()
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
@@ -35,14 +29,6 @@ function onScrollToTop() {
     nextTick(() => scrollRef.scrollTop = 0)
 }
 
-function handleExport() {
-  emit('export')
-}
-
-function handleClear() {
-  emit('handleClear')
-}
-
 function openModelSelector() {
   showModelSelector.value = true
 }
@@ -58,15 +44,15 @@ function handleModelSelect(modelId: string, provider: string) {
 <template>
   <header
     class="sticky top-0 left-0 right-0 z-30 border-b dark:border-neutral-800 bg-white/80 dark:bg-black/20 backdrop-blur"
+    style="height: 52px; padding-left: 8px; padding-right: 8px;"
   >
-    <div class="relative flex items-center justify-between min-w-0 overflow-hidden h-14">
+    <div class="relative flex items-center justify-between min-w-0 overflow-hidden" style="height: 100%;">
       <div class="flex items-center">
         <button
           class="flex items-center justify-center w-11 h-11"
           @click="handleUpdateCollapsed"
         >
-          <SvgIcon v-if="collapsed" class="text-2xl" icon="ri:align-justify" />
-          <SvgIcon v-else class="text-2xl" icon="ri:align-right" />
+          <MenuIcon :size="20" class="text-[#4f555e] dark:text-white" />
         </button>
       </div>
       <h1
@@ -76,19 +62,9 @@ function handleModelSelect(modelId: string, provider: string) {
         {{ currentChatHistory?.title ?? '' }}
       </h1>
       <div class="flex items-center space-x-2">
-        <HoverButton tooltip="模型选择器" @click="openModelSelector">
+        <HoverButton @click="openModelSelector">
           <span class="text-xl text-[#4f555e] dark:text-white">
-            <SvgIcon icon="ri:robot-line" />
-          </span>
-        </HoverButton>
-        <HoverButton @click="handleExport">
-          <span class="text-xl text-[#4f555e] dark:text-[var(--dark-text-primary)]">
-            <SvgIcon icon="ri:download-2-line" />
-          </span>
-        </HoverButton>
-        <HoverButton @click="handleClear">
-          <span class="text-xl text-[#4f555e] dark:text-[var(--dark-text-primary)]">
-            <SvgIcon icon="ri:delete-bin-line" />
+            <img src="/favicon.svg" alt="Logo" style="width: 20px; height: 20px; display: block;">
           </span>
         </HoverButton>
       </div>

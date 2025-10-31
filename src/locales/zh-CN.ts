@@ -103,7 +103,7 @@ export default {
   },
   chat: {
     newChatButton: '新建聊天',
-    newChatTitle: '新建聊天',
+    newChatTitle: '有什么可以帮忙的？',
     placeholder: '有什么我能帮你的吗？',
     placeholderMobile: '来说点什么...',
     copy: '复制',

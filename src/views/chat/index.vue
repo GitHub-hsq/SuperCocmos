@@ -10,6 +10,9 @@ import { nanoid } from 'nanoid'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
+import planningIcon from '@/assets/icons/planning.svg'
+import testIcon from '@/assets/icons/test.svg'
+import writingIcon from '@/assets/icons/writing.svg'
 import { HoverButton, SvgIcon } from '@/components/common'
 import About from '@/components/common/Setting/About.vue'
 import Advanced from '@/components/common/Setting/Advanced.vue'
@@ -818,8 +821,14 @@ const buttonDisabled = computed(() => {
 const footerClass = computed(() => {
   let classes = ['px-4', 'pb-6', 'pt-0', '!bg-transparent', 'backdrop-blur-md']
   if (isMobile.value)
-    classes = ['sticky', 'left-0', 'bottom-0', 'right-0', 'p-2', 'pr-3', 'overflow-hidden', '!bg-transparent', 'backdrop-blur-md']
+    classes = ['sticky', 'left-0', 'bottom-0', 'right-0', 'overflow-hidden', '!bg-transparent', 'backdrop-blur-md']
   return classes
+})
+
+const footerStyle = computed(() => {
+  if (isMobile.value)
+    return 'padding: 0px 16px 16px 16px;'
+  return ''
 })
 
 // 文件上传（拖拽）
@@ -1484,20 +1493,61 @@ function handleSelectModel(model: ModelItem) {
           >
             <article class="h-full overflow-hidden flex flex-col bg-white dark:bg-[#161618]">
               <div class="flex-1 overflow-hidden">
-                <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
+                <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto" :class="{ 'mobile-scrollbar-hide': isMobile }">
                   <div
-                    class="w-full max-w-screen-xl m-auto bg-white dark:bg-[#161618]"
-                    :class="[isMobile ? 'p-2' : 'p-4']"
+                    class="w-full h-full max-w-screen-xl m-auto bg-white dark:bg-[#161618]"
+                    :class="[isMobile ? '' : 'p-4']"
+                    :style="isMobile ? 'padding: 0px 16px 5%;' : ''"
                   >
-                    <div id="image-wrapper" class="relative">
+                    <div id="image-wrapper" class="relative h-full">
                       <template v-if="!dataSources.length">
-                        <div class="flex items-center justify-center mt-4 text-center text-neutral-400 dark:text-neutral-500">
-                          <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
-                          <span>{{ t('chat.newChatTitle') }}</span>
+                        <div id="110110xxx" class="flex flex-col items-center justify-center h-full min-h-0 text-center text-neutral-400 dark:text-neutral-500">
+                          <div class="mb-4">
+                            <span class="text-2xl">{{ t('chat.newChatTitle') }}</span>
+                          </div>
+                          <div class="flex items-center flex-wrap justify-center gap-2 w-full max-w-[80%] px-4">
+                            <NButton round>
+                              <template #icon>
+                                <NIcon>
+                                  <img :src="writingIcon" alt="写小说" class="w-4 h-4">
+                                </NIcon>
+                              </template>
+                              写小说
+                            </NButton>
+                            <NButton round>
+                              <template #icon>
+                                <NIcon>
+                                  <img :src="testIcon" alt="笔记测验" class="w-4 h-4">
+                                </NIcon>
+                              </template>
+                              笔记测验
+                            </NButton>
+                            <NButton round>
+                              <template #icon>
+                                <NIcon>
+                                  <img :src="planningIcon" alt="学习规划" class="w-4 h-4">
+                                </NIcon>
+                              </template>
+                              学习规划
+                            </NButton>
+                            <NButton round>
+                              <template #icon>
+                                <NIcon>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-600 dark:text-neutral-400">
+                                    <path d="M2 10v3" /><path d="M6 6v11" /><path d="M10 3v18" /><path d="M14 8v7" /><path d="M18 5v13" /><path d="M22 10v3" />
+                                  </svg>
+                                </NIcon>
+                              </template>
+                              声音对话
+                            </NButton>
+                            <NButton round>
+                              更多
+                            </NButton>
+                          </div>
                         </div>
                       </template>
                       <template v-else>
-                        <div style="padding: 0 15% 5%;">
+                        <div :style="isMobile ? '' : 'padding: 0 15% 5%;'">
                           <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
                           <div v-if="!isMobile" class="h-24" />
                           <Message
@@ -1527,8 +1577,8 @@ function handleSelectModel(model: ModelItem) {
               </div>
 
               <!-- Footer 固定在底部 -->
-              <footer :class="footerClass">
-                <div class="w-full max-w-screen-xl m-auto" style="padding: 0 10%">
+              <footer :class="footerClass" :style="footerStyle">
+                <div class="w-full max-w-screen-xl m-auto" :style="isMobile ? '' : 'padding: 0 10%'">
                   <!-- 多行布局：上下结构 -->
                   <div v-if="isMultiLine" class="relative chat-input-wrapper chat-input-wrapper-multiline">
                     <!-- 输入框 - 最上层 -->
@@ -1754,6 +1804,12 @@ function handleSelectModel(model: ModelItem) {
 </template>
 
 <style scoped>
+.classico {
+  display: flex;
+  flex-flow: column;
+  gap: 1rem;
+}
+
 /* 最外层包装器样式 - 统一背景 */
 .chat-input-wrapper {
   display: flex;
@@ -2548,5 +2604,15 @@ function handleSelectModel(model: ModelItem) {
 .dark .n-scrollbar-rail__scrollbar {
   background-color: #48484a !important;
   border-radius: 4px;
+}
+
+/* 移动端隐藏滚动条 */
+.mobile-scrollbar-hide {
+  -ms-overflow-style: none; /* IE 和 Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.mobile-scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 </style>

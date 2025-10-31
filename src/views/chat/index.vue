@@ -1514,56 +1514,60 @@ function handleSelectModel(model: ModelItem) {
                   >
                     <div id="image-wrapper" class="relative h-full">
                       <template v-if="!dataSources.length">
-                        <div
-                          id="110110xxx"
-                          class="flex flex-col items-center justify-center h-full min-h-0 text-center text-neutral-400 dark:text-neutral-500"
-                          :style="!isMobile ? '' : ''"
-                        >
-                          <div :class="!isMobile ? 'mb-32' : 'mb-4'">
-                            <span :style="!isMobile ? 'font-size: 2rem; line-height: 2rem;' : ''" class="text-2xl">{{ t('chat.newChatTitle') }}</span>
+                        <transition name="fade-slow" appear>
+                          <div
+                            v-if="isFooterElevated"
+                            id="110110xxx"
+                            key="new-chat-buttons"
+                            class="flex flex-col items-center justify-center h-full min-h-0 text-center text-neutral-400 dark:text-neutral-500"
+                            :style="!isMobile ? '' : ''"
+                          >
+                            <div :class="!isMobile ? 'mb-32' : 'mb-4'">
+                              <span :style="!isMobile ? 'font-size: 2rem; line-height: 2rem;' : ''" class="text-2xl">{{ t('chat.newChatTitle') }}</span>
+                            </div>
+                            <!-- Web端：为footer预留84px高度的空间，防止footer上移后遮挡内容 -->
+                            <div v-if="!isMobile" style="height: 0px; flex-shrink: 0;" />
+                            <div class="flex items-center flex-wrap justify-center gap-2 w-full max-w-[80%] px-4">
+                              <NButton round>
+                                <template #icon>
+                                  <NIcon>
+                                    <img :src="writingIcon" alt="写小说" class="w-4 h-4">
+                                  </NIcon>
+                                </template>
+                                写小说
+                              </NButton>
+                              <NButton round>
+                                <template #icon>
+                                  <NIcon>
+                                    <img :src="testIcon" alt="笔记测验" class="w-4 h-4">
+                                  </NIcon>
+                                </template>
+                                笔记测验
+                              </NButton>
+                              <NButton round>
+                                <template #icon>
+                                  <NIcon>
+                                    <img :src="planningIcon" alt="学习规划" class="w-4 h-4">
+                                  </NIcon>
+                                </template>
+                                学习规划
+                              </NButton>
+                              <NButton round>
+                                <template #icon>
+                                  <NIcon>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-600 dark:text-neutral-400">
+                                      <path d="M2 10v3" /><path d="M6 6v11" /><path d="M10 3v18" /><path d="M14 8v7" /><path d="M18 5v13" /><path d="M22 10v3" />
+                                    </svg>
+                                  </NIcon>
+                                </template>
+                                声音对话
+                              </NButton>
+                              <NButton round>
+                                更多
+                              </NButton>
+                            </div>
                           </div>
-                          <!-- Web端：为footer预留84px高度的空间，防止footer上移后遮挡内容 -->
-                          <div v-if="!isMobile" style="height: 0px; flex-shrink: 0;" />
-                          <div class="flex items-center flex-wrap justify-center gap-2 w-full max-w-[80%] px-4">
-                            <NButton round>
-                              <template #icon>
-                                <NIcon>
-                                  <img :src="writingIcon" alt="写小说" class="w-4 h-4">
-                                </NIcon>
-                              </template>
-                              写小说
-                            </NButton>
-                            <NButton round>
-                              <template #icon>
-                                <NIcon>
-                                  <img :src="testIcon" alt="笔记测验" class="w-4 h-4">
-                                </NIcon>
-                              </template>
-                              笔记测验
-                            </NButton>
-                            <NButton round>
-                              <template #icon>
-                                <NIcon>
-                                  <img :src="planningIcon" alt="学习规划" class="w-4 h-4">
-                                </NIcon>
-                              </template>
-                              学习规划
-                            </NButton>
-                            <NButton round>
-                              <template #icon>
-                                <NIcon>
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-600 dark:text-neutral-400">
-                                    <path d="M2 10v3" /><path d="M6 6v11" /><path d="M10 3v18" /><path d="M14 8v7" /><path d="M18 5v13" /><path d="M22 10v3" />
-                                  </svg>
-                                </NIcon>
-                              </template>
-                              声音对话
-                            </NButton>
-                            <NButton round>
-                              更多
-                            </NButton>
-                          </div>
-                        </div>
+                        </transition>
                       </template>
                       <template v-else>
                         <div :style="isMobile ? '' : 'padding: 0 15% 5%;'">
@@ -2033,6 +2037,61 @@ function handleSelectModel(model: ModelItem) {
 .fade-fast-enter-from,
 .fade-fast-leave-to {
   opacity: 0;
+}
+
+/* 🔥 按钮区域淡入淡出效果 - 后半段缩短到1/3，便于观察 */
+.fade-slow-enter-active {
+  animation: fade-slow-enter 5s linear forwards;
+}
+
+.fade-slow-leave-active {
+  animation: fade-slow-leave 5s linear forwards;
+}
+
+/* 初始/结束状态（Vue 自动应用，但显式定义以防） */
+.fade-slow-enter-from,
+.fade-slow-leave-to {
+  opacity: 0;
+}
+
+.fade-slow-enter-to,
+.fade-slow-leave-from {
+  opacity: 1;
+}
+
+/* Keyframes 定义 */
+@keyframes fade-slow-enter {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    /* ≈1.5s，前半段结束，匹配原 0.5 opacity 时间 */
+    opacity: 0.5;
+  }
+  40% {
+    /* 10% + 30% = 40%，后半段结束 */
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-slow-leave {
+  0% {
+    opacity: 1;
+  }
+  10% {
+    /* 快速到 0.5 */
+    opacity: 0.5;
+  }
+  40% {
+    /* 后半段缓慢到 0 */
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* 🍎 iOS 风格 - 模型选择器弹出框样式 */

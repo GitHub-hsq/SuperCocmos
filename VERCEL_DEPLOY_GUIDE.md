@@ -277,7 +277,7 @@ Vercel Dashboard → Deployments → [选择部署] → Functions → 查看日�
 {
   "functions": {
     "service/build/*.mjs": {
-      "maxDuration": 60  // 增加到 60 秒
+      "maxDuration": 60 // 增加到 60 秒
     }
   }
 }
@@ -300,10 +300,10 @@ Vercel Dashboard → Deployments → [选择部署] → Functions → 查看日�
 // service/src/cache/redisClient.ts
 const redisConfig = {
   // ... 现有配置
-  lazyConnect: true,        // 延迟连接
-  keepAlive: 30000,         // 保持连接 30 秒
+  lazyConnect: true, // 延迟连接
+  keepAlive: 30000, // 保持连接 30 秒
   connectionName: 'vercel', // 连接命名
-  enableReadyCheck: true,   // 启用就绪检查
+  enableReadyCheck: true, // 启用就绪检查
 }
 ```
 

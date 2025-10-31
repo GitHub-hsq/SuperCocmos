@@ -1,47 +1,45 @@
 /* eslint-disable no-console */
-/* eslint-disable import/first */
-// 🔥 必须在所有导入之前加载环境变量 - 禁用 ESLint import 排序规则
-import 'dotenv/config'
-
-// 🔥 调试：确认 dotenv 已加载
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-/* eslint-enable import/first */
-
-const envPath = join(process.cwd(), '.env')
-console.log('🔍 [Dotenv Debug] 当前工作目录:', process.cwd())
-console.log('🔍 [Dotenv Debug] .env 文件路径:', envPath)
-console.log('🔍 [Dotenv Debug] .env 文件是否存在:', existsSync(envPath))
-console.log('🔍 [Dotenv Debug] AUTH0_DOMAIN:', process.env.AUTH0_DOMAIN)
-console.log('🔍 [Dotenv Debug] SUPABASE_URL:', process.env.SUPABASE_URL?.substring(0, 30))
 
 import type { ChatMessage } from './chatgpt' // 聊天消息类型
 
 import type { SavePayload } from './quiz/types' // 保存题目的数据结构类型
+// 🔥 调试：确认 dotenv 已加载
+import { existsSync } from 'node:fs'
 
 // 引入自定义类型和模块
 // 请求参数类型
 // 引入 Node.js 内置模块：文件系统（fs）和路径（path）
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
+
 import { join } from 'node:path'
 
 import cookieParser from 'cookie-parser'
+
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
 import multer from 'multer'
-
 import { nanoid } from 'nanoid'
+
 import auth0Routes from './api/routes' // Auth0 + Supabase 路由
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
-
 import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
+
 import { requireAuth, unifiedAuth } from './middleware/authUnified' // 统一认证中间件（仅支持 Auth0）
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
 import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
 import { initUserTable, testConnection } from './utils/db' // 数据库连接
 import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字符串
-import { createUser, deleteUser, findUserByEmail, findUserById, findUserByUsername, getAllUsers, updateUser, validateUserPassword } from './utils/userService' // 用户服务
+import { createUser, deleteUser, findUserByEmail, findUserById, findUserByUsername, getAllUsers, updateUser, validateUserPassword } from './utils/userService'
+// 🔥 必须在所有导入之前加载环境变量 - 禁用 ESLint import 排序规则
+import 'dotenv/config'
+
+const envPath = join(process.cwd(), '.env')
+console.log('🔍 [Dotenv Debug] 当前工作目录:', process.cwd())
+console.log('🔍 [Dotenv Debug] .env 文件路径:', envPath)
+console.log('🔍 [Dotenv Debug] .env 文件是否存在:', existsSync(envPath))
+console.log('🔍 [Dotenv Debug] AUTH0_DOMAIN:', process.env.AUTH0_DOMAIN)
+console.log('🔍 [Dotenv Debug] SUPABASE_URL:', process.env.SUPABASE_URL?.substring(0, 30)) // 用户服务
 
 const app = express()
 const router = express.Router()

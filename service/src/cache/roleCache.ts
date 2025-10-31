@@ -3,8 +3,8 @@
  * 启动时预加载所有角色到 Redis，提供快速查询
  */
 
-import { getAllRoles } from '../db/roleService'
 import type { Role } from '../db/roleService'
+import { getAllRoles } from '../db/roleService'
 import { redis } from './redisClient'
 
 const ROLE_LIST_KEY = 'roles:list'

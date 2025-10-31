@@ -235,16 +235,16 @@ function calculateSingleLineThreshold() {
   const textStyle = textRef.value ? window.getComputedStyle(textRef.value) : null
 
   const lineHeightSources = [
-    parseFloat(style.lineHeight),
-    textStyle ? parseFloat(textStyle.lineHeight) : NaN,
-  ].filter((value) => Number.isFinite(value) && value > 0) as number[]
+    Number.parseFloat(style.lineHeight),
+    textStyle ? Number.parseFloat(textStyle.lineHeight) : Number.NaN,
+  ].filter(value => Number.isFinite(value) && value > 0) as number[]
 
   const lineHeight = lineHeightSources.length ? lineHeightSources[0] : 24
-  const paddingTop = parseFloat(style.paddingTop) || 0
-  const paddingBottom = parseFloat(style.paddingBottom) || 0
-  const borderTop = parseFloat(style.borderTopWidth) || 0
-  const borderBottom = parseFloat(style.borderBottomWidth) || 0
-  const minHeight = parseFloat(style.minHeight) || 0
+  const paddingTop = Number.parseFloat(style.paddingTop) || 0
+  const paddingBottom = Number.parseFloat(style.paddingBottom) || 0
+  const borderTop = Number.parseFloat(style.borderTopWidth) || 0
+  const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0
+  const minHeight = Number.parseFloat(style.minHeight) || 0
 
   const estimatedHeight = lineHeight + paddingTop + paddingBottom + borderTop + borderBottom
   const baseHeight = minHeight > 0

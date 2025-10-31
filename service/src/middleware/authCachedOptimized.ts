@@ -79,8 +79,8 @@ const pendingVerifications = new Map<string, Promise<any>>()
 async function verifyJWTWithDedup(
   token: string,
   req: Request,
-  res: Response
-): Promise<{ userId: string; roles: string[] } | null> {
+  res: Response,
+): Promise<{ userId: string, roles: string[] } | null> {
   // 检查是否已有正在进行的验证
   const existing = pendingVerifications.get(token)
   if (existing) {
@@ -114,7 +114,8 @@ async function verifyJWTWithDedup(
         })
 
         resolve({ userId, roles })
-      } else {
+      }
+      else {
         resolve(null)
       }
     })
@@ -126,7 +127,8 @@ async function verifyJWTWithDedup(
   try {
     const result = await verificationPromise
     return result
-  } finally {
+  }
+  finally {
     // 验证完成后清理
     setTimeout(() => {
       pendingVerifications.delete(token)

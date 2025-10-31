@@ -78,15 +78,15 @@
 import type { Response } from 'express'
 
 // SSE 事件类型
-export type SSEEventType =
-  | 'connected'              // 连接建立
-  | 'conversation_created'   // 新建会话
-  | 'conversation_updated'   // 会话更新
-  | 'conversation_deleted'   // 删除会话
-  | 'new_message'            // 新消息
-  | 'message_updated'        // 消息更新
-  | 'sync_required'          // 需要完整同步
-  | 'config_updated'         // 配置更新
+export type SSEEventType
+  = | 'connected' // 连接建立
+    | 'conversation_created' // 新建会话
+    | 'conversation_updated' // 会话更新
+    | 'conversation_deleted' // 删除会话
+    | 'new_message' // 新消息
+    | 'message_updated' // 消息更新
+    | 'sync_required' // 需要完整同步
+    | 'config_updated' // 配置更新
 
 // SSE 事件数据结构
 export interface SSEEvent {

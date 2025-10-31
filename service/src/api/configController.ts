@@ -16,8 +16,8 @@ import {
   updateWorkflowConfig,
 } from '../db/configService'
 import { findUserByAuth0Id } from '../db/supabaseUserService'
-import { broadcastToUser } from '../services/sseEventBroadcaster'
 import { addPerfCheckpoint } from '../middleware/performanceLogger'
+import { broadcastToUser } from '../services/sseEventBroadcaster'
 
 /**
  * 获取当前用户的数据库 user_id

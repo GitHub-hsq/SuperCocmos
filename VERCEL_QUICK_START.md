@@ -280,7 +280,7 @@ Vercel Dashboard → 你的项目 → Deployments → [最新部署] → View Fu
 2. ✅ 确认代码使用了正确的导入：
    ```typescript
    // service/src/index.ts
-   import { redis } from './cache/redisClient.upstash'  // ✅ 正确
+   import { redis } from './cache/redisClient.upstash' // ✅ 正确
    // import { redis } from './cache/redisClient'      // ❌ 错误（ioredis 不适合 Serverless）
    ```
 

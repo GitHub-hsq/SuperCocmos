@@ -12,11 +12,11 @@ import * as auth0Controller from './auth0Controller'
 import * as authController from './authController'
 import * as configController from './configController'
 import * as conversationController from './conversationController'
+import * as debugController from './debugController'
 import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
 import * as sseController from './sseController'
-import * as debugController from './debugController'
 
 const router = express.Router()
 

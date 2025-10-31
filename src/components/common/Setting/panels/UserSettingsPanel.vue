@@ -208,7 +208,9 @@ function handleReset() {
               @click="handleThemeChange(option.value as 'auto' | 'light' | 'dark')"
             >
               <SvgIcon :icon="option.icon" class="theme-card-icon" />
-              <div class="theme-card-label">{{ getDisplayLabel(option) }}</div>
+              <div class="theme-card-label">
+                {{ getDisplayLabel(option) }}
+              </div>
             </div>
           </div>
         </NFormItem>
@@ -223,7 +225,9 @@ function handleReset() {
               @click="handleLanguageChange(option.value as 'zh-CN' | 'en-US')"
             >
               <SvgIcon :icon="option.icon" class="language-card-icon" />
-              <div class="language-card-label">{{ getDisplayLabel(option) }}</div>
+              <div class="language-card-label">
+                {{ getDisplayLabel(option) }}
+              </div>
             </div>
           </div>
         </NFormItem>

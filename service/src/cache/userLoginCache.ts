@@ -3,12 +3,12 @@
  * 在用户登录时预加载用户个人数据到 Redis，提升后续请求性能
  */
 
-import { CONVERSATION_KEYS, USER_CONFIG_KEYS, USER_ROLE_KEYS } from './cacheKeys'
-import { CACHE_TTL, setCached } from './cacheService'
 import { getUserConfig } from '../db/configService'
 import { getUserConversations } from '../db/conversationService'
 import { getConversationMessages } from '../db/messageService'
 import { getUserRoles } from '../db/userRoleService'
+import { CONVERSATION_KEYS, USER_CONFIG_KEYS, USER_ROLE_KEYS } from './cacheKeys'
+import { CACHE_TTL, setCached } from './cacheService'
 
 /**
  * 用户登录时预加载所有个人数据到 Redis

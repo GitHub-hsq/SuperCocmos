@@ -356,11 +356,11 @@ export async function deleteConversationHandler(req: Request, res: Response) {
  * GET /api/conversations/:id/messages
  */
 export async function getConversationMessagesHandler(req: Request, res: Response) {
-  console.log('=' .repeat(80))
+  console.log('='.repeat(80))
   console.log('🔥🔥🔥 [DEBUG] ========== 进入 getConversationMessagesHandler ==========')
   console.log('🔥🔥🔥 [DEBUG] conversationId:', req.params.id)
   console.log('🔥🔥🔥 [DEBUG] query:', req.query)
-  console.log('=' .repeat(80))
+  console.log('='.repeat(80))
   try {
     console.log('🔍 [DEBUG] 正在获取用户 Supabase UUID...')
     const userId = await getSupabaseUserIdFromRequest(req)

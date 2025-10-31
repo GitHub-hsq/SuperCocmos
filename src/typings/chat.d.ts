@@ -88,20 +88,20 @@ declare namespace Chat {
    * 用于 localStorage 存储和会话列表显示
    */
   interface ConversationMetadata {
-    uuid: string                      // 前端 nanoid（用于路由）
-    backendConversationId: string     // 后端 UUID（用于 API 请求）
-    title: string                     // 会话标题
-    isEdit: boolean                   // 是否处于编辑状态
-    mode: 'normal' | 'noteToQuestion' | 'noteToStory'  // 会话模式
+    uuid: string // 前端 nanoid（用于路由）
+    backendConversationId: string // 后端 UUID（用于 API 请求）
+    title: string // 会话标题
+    isEdit: boolean // 是否处于编辑状态
+    mode: 'normal' | 'noteToQuestion' | 'noteToStory' // 会话模式
 
     // 统计信息（从服务器同步）
-    messageCount: number              // 消息总数
-    lastMessagePreview: string        // 最后一条消息预览
-    lastMessageTime: string           // 最后消息时间
-    updatedAt: string                 // 更新时间
+    messageCount: number // 消息总数
+    lastMessagePreview: string // 最后一条消息预览
+    lastMessageTime: string // 最后消息时间
+    updatedAt: string // 更新时间
 
     // 本地标记（不同步到服务器）
-    hasUnreadMessages: boolean        // 是否有未读消息
+    hasUnreadMessages: boolean // 是否有未读消息
   }
 
   /**
@@ -109,9 +109,9 @@ declare namespace Chat {
    * 只存储当前查看会话的消息（临时缓存）
    */
   interface CurrentMessagesCache {
-    conversationId: string | null     // 当前会话 ID
-    messages: Chat[]                  // 消息列表
-    lastSyncTime: number              // 最后同步时间戳
+    conversationId: string | null // 当前会话 ID
+    messages: Chat[] // 消息列表
+    lastSyncTime: number // 最后同步时间戳
   }
 
   /**
@@ -119,8 +119,8 @@ declare namespace Chat {
    * 只在 localStorage 中保存会话元数据，消息按需加载
    */
   interface ChatStorageV2 {
-    version: 2                        // 版本号（用于数据迁移识别）
-    active: string | null             // 当前激活的会话 UUID
+    version: 2 // 版本号（用于数据迁移识别）
+    active: string | null // 当前激活的会话 UUID
 
     // 🔥 只保存会话元数据
     conversations: ConversationMetadata[]
@@ -137,9 +137,9 @@ declare namespace Chat {
    * 后端返回的会话元数据格式
    */
   interface ConversationMetadataResponse {
-    id: string                        // 后端 UUID
+    id: string // 后端 UUID
     title: string
-    frontend_uuid?: string            // 前端 UUID（如果有）
+    frontend_uuid?: string // 前端 UUID（如果有）
     message_count: number
     last_message: string
     last_message_time: string

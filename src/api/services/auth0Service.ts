@@ -57,4 +57,3 @@ export async function getSupabaseUserByAuth0Id(auth0Id: string) {
     throw error
   }
 }
-

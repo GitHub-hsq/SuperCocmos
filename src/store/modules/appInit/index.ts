@@ -416,7 +416,7 @@ export const useAppInitStore = defineStore('app-init', {
      */
     showPermissionNotification(notificationApi: any, userName?: string) {
       // 🔥 不显示弹窗
-      return
+
     },
 
     /**

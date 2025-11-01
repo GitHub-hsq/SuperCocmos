@@ -933,11 +933,19 @@ const footerClass = computed(() => {
   return classes
 })
 
+// 🔥 移动端键盘高度（用于动态调整 footer 位置）
+const keyboardHeight = ref(0)
+
+// 🔥 监听移动端键盘弹起/收起的处理函数
+let viewportResizeHandler: (() => void) | null = null
+
 const footerStyle = computed(() => {
   let style = ''
 
   if (isMobile.value) {
-    style = 'padding: 0px 16px 16px 16px;'
+    // 🔥 移动端：根据键盘高度动态调整 bottom 值，使输入框始终贴近键盘
+    const bottomValue = keyboardHeight.value > 0 ? `${keyboardHeight.value}px` : '0px'
+    style = `padding: 0px 16px 16px 16px; bottom: ${bottomValue}; transition: bottom 0.25s ease-out;`
   }
   else {
     // 🔥 Web端：新会话时使用transform让输入框上移
@@ -1256,6 +1264,25 @@ onMounted(async () => {
     // 可以添加 loading 状态或等待逻辑
   }
 
+  // 🔥 监听移动端键盘弹起/收起
+  if (isMobile.value && typeof window !== 'undefined' && 'visualViewport' in window) {
+    const visualViewport = window.visualViewport
+
+    viewportResizeHandler = () => {
+      if (visualViewport) {
+        // 计算键盘高度（viewport 高度变化）
+        const viewportHeight = visualViewport.height
+        const windowHeight = window.innerHeight
+        const keyboardHeightValue = Math.max(0, windowHeight - viewportHeight)
+
+        keyboardHeight.value = keyboardHeightValue
+      }
+    }
+
+    visualViewport?.addEventListener('resize', viewportResizeHandler)
+    visualViewport?.addEventListener('scroll', viewportResizeHandler)
+  }
+
   // 📋 组件特定的初始化
   scrollToBottom()
   // 🔥 只有移动端才自动 focus，Web 端需要用户手动点击
@@ -1292,6 +1319,14 @@ onMounted(async () => {
 onUnmounted(() => {
   if (loading.value)
     controller.abort()
+
+  // 🔥 清理移动端键盘监听器
+  if (isMobile.value && typeof window !== 'undefined' && 'visualViewport' in window && viewportResizeHandler) {
+    const visualViewport = window.visualViewport
+    visualViewport?.removeEventListener('resize', viewportResizeHandler)
+    visualViewport?.removeEventListener('scroll', viewportResizeHandler)
+    viewportResizeHandler = null
+  }
 
   document.removeEventListener('mousemove', handleResizeMove)
   document.removeEventListener('mouseup', handleResizeEnd)

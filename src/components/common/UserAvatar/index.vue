@@ -1,9 +1,10 @@
 <script setup lang='ts'>
 import { NAvatar } from 'naive-ui'
 import { computed } from 'vue'
-import defaultAvatar from '@/assets/avatar.jpg'
 import { useUserStore } from '@/store'
 import { isString } from '@/utils/is'
+
+const DEFAULT_AVATAR = 'https://raw.githubusercontent.com/Chanzhaoyu/chatgpt-web/main/src/assets/avatar.jpg'
 
 const userStore = useUserStore()
 
@@ -18,11 +19,11 @@ const userInfo = computed(() => userStore.userInfo)
           size="large"
           round
           :src="userInfo.avatar"
-          :fallback-src="defaultAvatar"
+          :fallback-src="DEFAULT_AVATAR"
         />
       </template>
       <template v-else>
-        <NAvatar size="large" round :src="defaultAvatar" />
+        <NAvatar size="large" round :src="DEFAULT_AVATAR" />
       </template>
     </div>
     <div class="flex-1 min-w-0 ml-2">

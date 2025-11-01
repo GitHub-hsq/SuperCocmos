@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import { NAvatar } from 'naive-ui'
 import { computed } from 'vue'
-import defaultAvatar from '@/assets/avatar.jpg'
 import { useUserStore } from '@/store'
 import { isString } from '@/utils/is'
+
+const DEFAULT_AVATAR = 'https://raw.githubusercontent.com/Chanzhaoyu/chatgpt-web/main/src/assets/avatar.jpg'
 
 interface Props {
   image?: boolean
@@ -17,8 +18,8 @@ const avatar = computed(() => userStore.userInfo.avatar)
 
 <template>
   <template v-if="image">
-    <NAvatar v-if="isString(avatar) && avatar.length > 0" :src="avatar" :fallback-src="defaultAvatar" />
-    <NAvatar v-else round :src="defaultAvatar" />
+    <NAvatar v-if="isString(avatar) && avatar.length > 0" :src="avatar" :fallback-src="DEFAULT_AVATAR" />
+    <NAvatar v-else round :src="DEFAULT_AVATAR" />
   </template>
   <span v-else class="text-[28px] dark:text-white">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" aria-hidden="true" width="1em" height="1em">

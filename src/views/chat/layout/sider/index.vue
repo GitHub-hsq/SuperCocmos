@@ -3,6 +3,7 @@ import type { CSSProperties } from 'vue'
 import { NButton, NLayoutSider, NPopover } from 'naive-ui'
 import { nanoid } from 'nanoid'
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import SuperCocmosIcon from '@/assets/icons/Logo.vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
@@ -11,6 +12,7 @@ import { useAppStore, useAuthStore, useChatStore } from '@/store'
 import Profile from '@/views/chat/components/User/Profile.vue'
 import List from './List.vue'
 
+const router = useRouter()
 const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -83,6 +85,7 @@ const currentLanguage = computed(() => appStore.language)
 const settingsTitle = computed(() => currentLanguage.value === 'zh-CN' ? '设置' : 'Settings')
 
 function handleAdd() {
+  // 🔥 清除当前空会话（如果有）
   const previousUuid = chatStore.active
   if (previousUuid) {
     const prevMessages = chatStore.getChatByUuid(previousUuid)
@@ -93,7 +96,12 @@ function handleAdd() {
     }
   }
 
-  chatStore.addHistory({ title: t('chat.newChatTitle'), uuid: nanoid(), isEdit: false, mode: 'normal' })
+  // 🔥 跳转到新建会话页面（不立即创建会话，只有发送消息后才创建）
+  // 设置 active 为 null，跳转到 /chat（无 uuid）
+  chatStore.active = null
+  chatStore.chatMode = 'normal'
+  router.replace({ name: 'Chat', params: {} })
+
   if (isMobile.value)
     appStore.setSiderCollapsed(true)
 }

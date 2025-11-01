@@ -517,13 +517,18 @@ export const useChatStore = defineStore('chat-store', {
             })
           }
 
-          // 🔥 优先使用偏好设置中的 active，否则设置为第一个会话
+          // 🔥 首次登录时不自动设置 active，保持为 null 显示新建会话页面
+          // 只有当用户偏好设置中有 active 且该会话存在时才设置（说明用户之前有会话）
           if (this.history.length > 0) {
             const preferences = getLocalPreferences()
             const preferredActive = preferences.active && this.history.find(h => h.uuid === preferences.active)
               ? preferences.active
-              : this.history[0].uuid
+              : null // 🔥 首次登录时保持 null，不自动选择第一个会话
             this.active = preferredActive
+          }
+          else {
+            // 没有会话时，确保 active 为 null
+            this.active = null
           }
 
           // 🔥 保存偏好设置
@@ -592,9 +597,18 @@ export const useChatStore = defineStore('chat-store', {
             })
           }
 
-          // 设置第一个会话为激活状态
+          // 🔥 首次登录时不自动设置 active，保持为 null 显示新建会话页面
+          // 只有当用户偏好设置中有 active 且该会话存在时才设置（说明用户之前有会话）
           if (this.history.length > 0) {
-            this.active = this.history[0].uuid
+            const preferences = getLocalPreferences()
+            const preferredActive = preferences.active && this.history.find(h => h.uuid === preferences.active)
+              ? preferences.active
+              : null // 🔥 首次登录时保持 null，不自动选择第一个会话
+            this.active = preferredActive
+          }
+          else {
+            // 没有会话时，确保 active 为 null
+            this.active = null
           }
 
           // 🔥 保存偏好设置

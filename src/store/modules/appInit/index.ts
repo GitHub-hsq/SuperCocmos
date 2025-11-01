@@ -309,19 +309,24 @@ export const useAppInitStore = defineStore('app-init', {
               if (result.success && result.count && result.count > 0) {
                 console.log(`✅ [AppInit] 已从数据库同步 ${result.count} 个会话`)
 
-                // 🔥 加载当前激活会话的消息（如果存在）
-                const activeConversation = chatStore.history.find(
-                  h => h.uuid === chatStore.active,
-                ) || chatStore.history[0] // 如果没有激活的会话，使用第一个
-
-                if (activeConversation?.backendConversationId) {
-                  console.log('🔄 [AppInit] 加载当前会话的消息...')
-                  const msgResult = await chatStore.loadConversationMessages(
-                    activeConversation.backendConversationId,
+                // 🔥 只有当 active 不为 null 时才加载消息（首次登录时 active 为 null，不加载）
+                if (chatStore.active) {
+                  const activeConversation = chatStore.history.find(
+                    h => h.uuid === chatStore.active,
                   )
-                  if (msgResult.success && import.meta.env.DEV) {
-                    console.log(`✅ [AppInit] 当前会话消息加载完成: ${msgResult.count} 条`)
+
+                  if (activeConversation?.backendConversationId) {
+                    console.log('🔄 [AppInit] 加载当前会话的消息...')
+                    const msgResult = await chatStore.loadConversationMessages(
+                      activeConversation.backendConversationId,
+                    )
+                    if (msgResult.success && import.meta.env.DEV) {
+                      console.log(`✅ [AppInit] 当前会话消息加载完成: ${msgResult.count} 条`)
+                    }
                   }
+                }
+                else {
+                  console.log('ℹ️ [AppInit] 首次登录，显示新建会话页面，不加载任何会话消息')
                 }
               }
               else if (result.success && result.count === 0) {

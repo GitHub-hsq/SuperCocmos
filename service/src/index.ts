@@ -404,50 +404,26 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       apiKey: modelConfig.provider.api_key,
     })
 
-    // 🔥 异步保存消息到数据库和缓存（不阻塞响应）
+    // 🔥 异步保存消息到数据库和缓存（优化的两阶段写入）
+    // Step 1: 先写 Redis（pending）→ Step 2: 异步写数据库 → Step 3: 更新 Redis 状态
     const saveMessagesAsync = async () => {
       try {
-        const { createMessage, estimateTokens } = await import('./db/messageService')
-        const { appendMessageToCache } = await import('./cache/messageCache')
-        const { incrementConversationStats } = await import('./db/conversationService')
+        const { saveMessagePair } = await import('./services/messageSaveService')
 
-        // 计算用户消息的 tokens
-        const userTokens = estimateTokens(prompt)
-        const assistantTokens = responseTokens > 0 ? responseTokens : estimateTokens(assistantResponse)
-
-        // 保存用户消息
-        const userMessage = await createMessage({
-          conversation_id: conversationId,
-          role: 'user',
-          content: prompt,
-          tokens: userTokens,
-        })
-
-        // 保存助手消息
-        const assistantMessage = await createMessage({
-          conversation_id: conversationId,
-          role: 'assistant',
-          content: assistantResponse,
-          tokens: assistantTokens,
-          model_info: {
+        // 🔥 使用优化的两阶段写入方案
+        await saveMessagePair(
+          conversationId,
+          prompt,
+          assistantResponse,
+          responseTokens,
+          {
             model: modelConfig.model_id,
             provider: modelConfig.provider.name,
             response_id: responseId,
           },
-        })
+        )
 
-        // 更新对话统计
-        await incrementConversationStats(conversationId, userTokens + assistantTokens)
-
-        // 更新 Redis 缓存
-        if (userMessage) {
-          await appendMessageToCache(conversationId, userMessage)
-        }
-        if (assistantMessage) {
-          await appendMessageToCache(conversationId, assistantMessage)
-        }
-
-        console.log('✅ [保存] 消息已保存到数据库和缓存')
+        console.log('✅ [保存] 消息已写入 Redis（pending），异步保存到数据库')
       }
       catch (error) {
         console.error('❌ [保存] 保存消息失败:', error)
@@ -475,48 +451,22 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
       try {
         // 只有在已经创建了会话的情况下才保存消息
         if (typeof conversationId !== 'undefined' && typeof prompt !== 'undefined') {
-          const { createMessage, estimateTokens } = await import('./db/messageService')
-
-          // 计算用户消息的 tokens
-          const userTokens = estimateTokens(prompt)
-
-          // 保存用户消息
-          const userMessage = await createMessage({
-            conversation_id: conversationId,
-            role: 'user',
-            content: prompt,
-            tokens: userTokens,
-          })
-
-          // 保存错误消息（作为助手回复）
+          // 🔥 使用优化的两阶段写入方案
+          const { saveMessagePair } = await import('./services/messageSaveService')
           const errorMessage = error?.message || String(error)
-          const errorTokens = estimateTokens(errorMessage)
 
-          const assistantMessage = await createMessage({
-            conversation_id: conversationId,
-            role: 'assistant',
-            content: `API 调用失败: ${errorMessage}`,
-            tokens: errorTokens,
-            model_info: {
+          await saveMessagePair(
+            conversationId,
+            prompt,
+            `API 调用失败: ${errorMessage}`,
+            0,
+            {
               error: true,
               errorMessage,
             },
-          })
+          )
 
-          // 更新 Redis 缓存
-          const { appendMessageToCache } = await import('./cache/messageCache')
-          if (userMessage) {
-            await appendMessageToCache(conversationId, userMessage)
-          }
-          if (assistantMessage) {
-            await appendMessageToCache(conversationId, assistantMessage)
-          }
-
-          // 更新对话统计
-          const { incrementConversationStats } = await import('./db/conversationService')
-          await incrementConversationStats(conversationId, userTokens + errorTokens)
-
-          console.log('✅ [保存] 错误消息已保存到数据库，保持与前端同步')
+          console.log('✅ [保存] 错误消息已写入 Redis（pending），异步保存到数据库')
         }
       }
       catch (saveError) {

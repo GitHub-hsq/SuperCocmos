@@ -5,6 +5,9 @@ import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheSer
 import { redis } from '../cache/redisClient'
 import { supabase } from './supabaseClient'
 
+// 🔥 消息状态类型
+export type MessageStatus = 'pending' | 'saved' | 'failed'
+
 // 🔥 消息类型定义
 export interface Message {
   id: string
@@ -14,6 +17,8 @@ export interface Message {
   tokens: number
   model_info?: Record<string, any>
   created_at: string
+  status?: MessageStatus // 🔥 消息状态（仅在 Redis 缓存中使用，数据库不存储）
+  timestamp?: number // 🔥 时间戳（用于 Redis 缓存）
 }
 
 export interface CreateMessageParams {
@@ -143,6 +148,8 @@ async function manageCachedConversations(userId: string, conversationId: string)
  * @param conversationId 会话ID
  * @param userId 用户ID（用于缓存管理）
  * @param options 分页选项
+ * @param options.limit 分页限制
+ * @param options.offset 分页偏移量
  * @param client Supabase 客户端
  */
 export async function getConversationMessages(

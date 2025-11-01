@@ -1320,19 +1320,43 @@ app.set('trust proxy', 1)
 const distPath = join(process.cwd(), 'dist')
 if (existsSync(distPath)) {
   logger.info('✅ [启动] 检测到 dist 目录，启用静态文件服务')
-  app.use(express.static(distPath))
+  app.use(express.static(distPath, { index: false })) // 禁用默认 index.html，使用 catch-all 路由
 
   // Catch-all 路由：所有非 API 路由都返回 index.html（支持 History 模式）
-  app.get('*', (req, res) => {
+  app.get('*', (req, res, next) => {
     // 排除 API 路由
     if (req.path.startsWith('/api')) {
       return res.status(404).send({ status: 'Fail', message: 'API not found', data: null })
     }
-    res.sendFile(join(distPath, 'index.html'))
+
+    // 排除静态资源（.js, .css, .png, .jpg, .svg 等）
+    const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map']
+    const isStaticFile = staticExtensions.some(ext => req.path.toLowerCase().endsWith(ext))
+    if (isStaticFile) {
+      return next() // 让 express.static 处理静态文件
+    }
+
+    // 返回 index.html（支持前端路由）
+    const indexPath = join(distPath, 'index.html')
+    if (existsSync(indexPath)) {
+      res.sendFile(indexPath)
+    }
+    else {
+      logger.warn(`⚠️ [启动] index.html 不存在: ${indexPath}`)
+      res.status(404).send('Frontend not found. Please build the frontend first.')
+    }
   })
 }
 else {
   logger.warn('⚠️  [启动] 未检测到 dist 目录，请先运行 pnpm build 构建前端')
+
+  // 即使在 Vercel 环境中也提供基本的错误响应
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) {
+      return res.status(404).send({ status: 'Fail', message: 'API not found', data: null })
+    }
+    res.status(404).send('Frontend not found. Please build the frontend first.')
+  })
 }
 
 // 初始化数据库

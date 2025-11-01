@@ -8,9 +8,14 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/service/build/index.mjs"
+      "destination": "/api"
     }
   ],
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "service/**"
+    }
+  },
   "env": {
     "NODE_ENV": "production"
   }

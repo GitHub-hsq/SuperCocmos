@@ -1335,7 +1335,23 @@ async function initDatabase() {
   }
 }
 
-// 启动服务器
+// 初始化数据库（懒加载，避免在 Vercel 冷启动时阻塞）
+let isInitialized = false
+async function initialize() {
+  if (!isInitialized) {
+    await initDatabase()
+    isInitialized = true
+  }
+}
+
+// Vercel Serverless Function handler
+// 导出 Express 应用的 handler
+export default async function handler(req: any, res: any) {
+  await initialize()
+  return app(req, res)
+}
+
+// 启动服务器（本地开发）
 async function startServer() {
   // 初始化数据库
   await initDatabase()
@@ -1345,4 +1361,7 @@ async function startServer() {
   })
 }
 
-startServer()
+// 仅在非 Vercel 环境启动服务器（本地开发）
+if (!process.env.VERCEL) {
+  startServer()
+}

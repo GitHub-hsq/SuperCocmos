@@ -470,8 +470,8 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
   }
 })
 //////////////////////////////////////////////////////////////////
-// File upload config 设置上传目录：优先使用环境变量 UPLOAD_DIR，否则用项目根目录下的 uploads 文件夹
-const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads')
+// File upload config 设置上传目录：Vercel 使用 /tmp，本地使用 uploads
+const uploadDir = process.env.UPLOAD_DIR || (process.env.VERCEL ? '/tmp/uploads' : join(process.cwd(), 'uploads'))
 if (!existsSync(uploadDir))
   mkdirSync(uploadDir, { recursive: true })
 

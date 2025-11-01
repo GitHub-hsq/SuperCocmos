@@ -1,5 +1,6 @@
 {
   "name": "SuperCocmos",
+  "type": "module",
   "version": "2.0.0",
   "private": false,
   "description": "ChatGPT Web",

@@ -2,7 +2,7 @@
   "version": 2,
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pnpm install --no-frozen-lockfile && cd service && pnpm install --no-frozen-lockfile",
-  "buildCommand": "pnpm build && cd service && pnpm build",
+  "buildCommand": "pnpm build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [

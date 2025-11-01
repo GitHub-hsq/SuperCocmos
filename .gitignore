@@ -45,3 +45,8 @@ AUTH0_*.md
 
 # Documentation folder
 docs/
+
+# Supabase SQL files (moved from service/src/db)
+supabse/*.sql
+supabse/DatabaseSchema.txt
+supabse/sql表结构执行结果.js

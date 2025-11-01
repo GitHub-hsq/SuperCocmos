@@ -2,8 +2,7 @@
 node_modules/
 service/node_modules/
 
-# 构建输出（如果有）
-service/build/
+# 构建输出（前端）
 dist/
 
 # 测试文件

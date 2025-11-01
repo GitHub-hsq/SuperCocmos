@@ -125,8 +125,10 @@ function handleConfirm() {
   if (selectedModel.value) {
     const model = enabledModels.value.find((m: any) => m.id === selectedModel.value)
     if (model) {
-      // 更新 ModelStore
-      modelStore.setCurrentModel(model.id)
+      // 更新 ModelStore（异步保存到数据库）
+      modelStore.setCurrentModel(model.id).catch((error) => {
+        console.error('❌ [ModelSelector] 保存模型选择失败:', error)
+      })
       emit('select', model.id, model.provider)
     }
   }

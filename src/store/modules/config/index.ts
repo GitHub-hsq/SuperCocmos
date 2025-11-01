@@ -81,6 +81,21 @@ export const useConfigStore = defineStore('config', {
 
           this.loaded = true
 
+          // 🔥 如果模型列表已加载，尝试恢复模型选择
+          try {
+            const { useModelStore } = await import('../model')
+            const modelStore = useModelStore()
+            if (modelStore.isProvidersLoaded && this.chatConfig?.defaultModel) {
+              modelStore.restoreModelFromConfig()
+            }
+          }
+          catch (error) {
+            // 静默处理，不影响配置加载
+            if (import.meta.env.DEV) {
+              console.log('ℹ️ [ConfigStore] 恢复模型选择失败（模型列表可能未加载）:', error)
+            }
+          }
+
           // ✅ 日志已统一到 AppInitStore，此处不再重复输出
           // console.log('✅ [ConfigStore] 配置加载成功:', { ... })
         }

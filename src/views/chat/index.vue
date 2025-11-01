@@ -1408,13 +1408,10 @@ function handleSelectModel(model: ModelItem) {
     modelStore.setCurrentProvider(model.providerId as any)
   }
 
-  // 保存到ModelStore
-  try {
-    modelStore.setCurrentModel(model.id)
-  }
-  catch (error) {
+  // 保存到ModelStore（异步保存到数据库）
+  modelStore.setCurrentModel(model.id).catch((error) => {
     console.error('❌ [模型] 保存模型选择失败:', error)
-  }
+  })
 
   // 关闭弹窗
   showModelSelector.value = false
@@ -1551,7 +1548,7 @@ function handleSelectModel(model: ModelItem) {
             </NPopover>
           </div>
           <div class="chat-header" />
-          <div class="flex items-center space-x-2">
+          <div class="flex items-center space-x-2 hidden">
             <button v-if="!isMobile" class="chat-icon-btn" @click="handleExport">
               <SvgIcon icon="ri:download-2-line" />
             </button>

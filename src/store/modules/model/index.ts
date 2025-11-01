@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import { fetchProviders } from '@/api'
 import { store } from '@/store/helper'
+import { useConfigStore } from '../config'
 import { clearCurrentModelId, defaultModelState, getCurrentModelId, getLocalWorkflowConfig, saveCurrentModelId, setLocalWorkflowConfig } from './helper'
 
 // 后端供应商数据格式（使用下划线命名，匹配后端 API 和 Redis 缓存格式）
@@ -141,8 +142,19 @@ export const useModelStore = defineStore('model-store', {
           // 🔥 标记已加载（仅内存缓存，不写 localStorage）
           this.isProvidersLoaded = true
 
-          // 验证当前模型是否存在
-          this.validateCurrentModel()
+          // 🔥 优先从数据库恢复模型选择（如果配置已加载）
+          const configStore = useConfigStore()
+          if (configStore.loaded && configStore.chatConfig?.defaultModel) {
+            const restored = this.restoreModelFromConfig()
+            if (!restored) {
+              // 恢复失败，使用默认验证逻辑
+              this.validateCurrentModel()
+            }
+          }
+          else {
+            // 配置未加载，使用默认验证逻辑（会从 localStorage 恢复）
+            this.validateCurrentModel()
+          }
 
           console.log('✅ [ModelStore] 模型列表加载成功:', {
             供应商数量: this.providers.length,
@@ -177,15 +189,85 @@ export const useModelStore = defineStore('model-store', {
       }
     },
 
+    /**
+     * 🔥 从数据库恢复模型选择（从 chat_config.defaultModel）
+     * 应该在配置加载完成后、模型列表加载完成后调用
+     */
+    restoreModelFromConfig() {
+      try {
+        const configStore = useConfigStore()
+        const defaultModel = configStore.chatConfig?.defaultModel
+
+        if (!defaultModel || !defaultModel.providerId || !defaultModel.modelId) {
+          // 没有保存的模型选择，使用默认逻辑
+          return false
+        }
+
+        // 根据 providerId 和 modelId（display_name）查找模型
+        const provider = this.providers.find((p: any) => p.id === defaultModel.providerId)
+        if (!provider) {
+          if (import.meta.env.DEV) {
+            console.log('⚠️ [ModelStore] 配置中的供应商不存在:', defaultModel.providerId)
+          }
+          return false
+        }
+
+        // 查找模型（根据 modelId，即 display_name）
+        const model = provider.models.find((m: any) => {
+          // 匹配 modelId（display_name）或 id
+          return m.modelId === defaultModel.modelId
+            || m.displayName === defaultModel.modelId
+            || m.id === defaultModel.modelId
+        })
+
+        if (model && model.enabled !== false) {
+          this.currentModelId = model.id
+          this.currentProviderId = model.provider
+          if (import.meta.env.DEV) {
+            console.log('✅ [ModelStore] 从数据库恢复模型选择:', {
+              providerId: defaultModel.providerId,
+              modelId: defaultModel.modelId,
+              selectedModelId: model.id,
+            })
+          }
+          return true
+        }
+        else {
+          if (import.meta.env.DEV) {
+            console.log('⚠️ [ModelStore] 配置中的模型不存在或已禁用:', defaultModel.modelId)
+          }
+          return false
+        }
+      }
+      catch (error) {
+        console.error('❌ [ModelStore] 从数据库恢复模型选择失败:', error)
+        return false
+      }
+    },
+
     // 设置当前模型
-    setCurrentModel(modelId: string) {
+    async setCurrentModel(modelId: string) {
       // 验证模型是否存在
       const model = this.enabledModels.find((m: any) => m.id === modelId)
       if (model) {
         this.currentModelId = modelId
         this.currentProviderId = model.provider
-        // 🔥 保存到 localStorage
-        saveCurrentModelId(modelId)
+
+        // 🔥 保存到数据库的 chat_config.defaultModel
+        try {
+          const configStore = useConfigStore()
+          await configStore.updateChatConfig({
+            defaultModel: {
+              providerId: model.providerId || model.provider,
+              modelId: model.modelId || model.displayName || model.name, // 使用 display_name（全局唯一）
+            },
+          })
+        }
+        catch (error) {
+          console.error('❌ [ModelStore] 保存模型选择到数据库失败:', error)
+          // 降级：保存到 localStorage（兼容性）
+          saveCurrentModelId(modelId)
+        }
       }
     },
 

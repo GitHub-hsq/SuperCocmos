@@ -7,14 +7,28 @@ import { setupApiClient } from '@/api/client'
 import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
-import { setupAuthGuard } from '@/router'
+import { setupAuthGuard, waitForRouterReady } from '@/router'
 import { setupSSEReconnect } from '@/services/sseReconnect'
 
 // ✅ 初始化 Auth0 客户端实例（只能在 setup 中调用）
 const auth0Client = useAuth0()
 
 // ✅ 设置路由守卫，传入 Auth0 客户端实例(闭包自动捕获auth0)
+// ⚠️ 必须在路由匹配之前设置守卫，确保直接访问受保护路由时守卫生效
 setupAuthGuard(auth0Client)
+
+// ✅ 等待路由就绪（在守卫设置之后）
+// 这样可以确保守卫在初始路由匹配之前已经注册
+waitForRouterReady().catch((error) => {
+  // 如果导航被守卫阻止（例如用户未认证），这是预期的行为，不需要报错
+  const errorMessage = error?.message || String(error)
+  if (errorMessage.includes('Navigation aborted') || errorMessage.includes('navigation guard')) {
+    console.warn('ℹ️ [App.vue] 路由导航被守卫阻止（预期行为）')
+  }
+  else {
+    console.error('❌ [App.vue] 路由就绪失败:', error)
+  }
+})
 
 // ✅ 设置 API 客户端（Axios 拦截器），传入 Auth0 客户端实例(闭包自动捕获auth0)
 setupApiClient(auth0Client)

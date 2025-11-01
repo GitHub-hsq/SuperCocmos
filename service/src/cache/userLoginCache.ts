@@ -5,17 +5,14 @@
 
 import { getUserConfig } from '../db/configService'
 import { getUserConversations } from '../db/conversationService'
-import { getConversationMessages } from '../db/messageService'
 import { getUserRoles } from '../db/userRoleService'
-import { CONVERSATION_KEYS, USER_CONFIG_KEYS, USER_ROLE_KEYS } from './cacheKeys'
-import { CACHE_TTL, setCached } from './cacheService'
 
 /**
  * 用户登录时预加载所有个人数据到 Redis
  * @param userId 用户 UUID
- * @param auth0Id Auth0 用户 ID
+ * @param _auth0Id Auth0 用户 ID（保留参数以兼容调用方）
  */
-export async function preloadUserLoginData(userId: string, auth0Id: string): Promise<void> {
+export async function preloadUserLoginData(userId: string, _auth0Id: string): Promise<void> {
   try {
     // 并行预加载多项数据，提升性能
     await Promise.all([
@@ -57,46 +54,25 @@ async function preloadUserConfig(userId: string): Promise<void> {
 }
 
 /**
- * 预加载用户最新的会话和消息到 Redis
+ * 预加载用户会话列表到 Redis（不加载消息）
+ * 🔥 修改：前端已改为不自动加载第一个会话，所以后端也只预加载会话列表
  */
 async function preloadLatestConversation(userId: string): Promise<void> {
   try {
     // 🔥 使用 limit: 50 触发 getUserConversations 的自动缓存逻辑
     // getUserConversations 只在 limit === 50 时才会写入缓存
-    const conversations = await getUserConversations(userId, { limit: 50, offset: 0 })
-
-    if (!conversations || conversations.length === 0) {
-      return
-    }
-
-    const latestConversation = conversations[0]
-
-    // 2. 预加载最新会话的消息（最近100条）
-    await preloadConversationMessages(latestConversation.id, userId)
+    // 只加载会话列表，不加载消息（消息按需加载）
+    await getUserConversations(userId, { limit: 50, offset: 0 })
   }
   catch (error) {
-    console.error('❌ [UserLoginCache] 预加载会话数据失败:', error)
-  }
-}
-
-/**
- * 预加载会话消息到 Redis
- */
-async function preloadConversationMessages(conversationId: string, userId: string): Promise<void> {
-  try {
-    // 🔥 使用 limit=100 触发 getConversationMessages 的自动缓存逻辑
-    // getConversationMessages 会自动缓存并管理用户的会话缓存
-    await getConversationMessages(conversationId, userId, { limit: 100, offset: 0 })
-  }
-  catch (error) {
-    console.error('❌ [UserLoginCache] 预加载会话消息失败:', error)
+    console.error('❌ [UserLoginCache] 预加载会话列表失败:', error)
   }
 }
 
 /**
  * 清除用户登录缓存（用户登出时调用）
  */
-export async function clearUserLoginCache(userId: string): Promise<void> {
+export async function clearUserLoginCache(_userId: string): Promise<void> {
   try {
     // 清除用户相关的所有缓存
     // 注意：这里简化处理，实际可能需要更精细的缓存管理

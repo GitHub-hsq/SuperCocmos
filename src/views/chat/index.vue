@@ -1213,7 +1213,8 @@ onMounted(async () => {
 
   // 📋 组件特定的初始化
   scrollToBottom()
-  if (inputRef.value && !isMobile.value)
+  // 🔥 只有移动端才自动 focus，Web 端需要用户手动点击
+  if (inputRef.value && isMobile.value)
     inputRef.value?.focus()
 
   // 🔐 显示权限通知（只显示一次，由 AppInitStore 管理）

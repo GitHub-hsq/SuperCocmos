@@ -100,8 +100,8 @@ importers:
         specifier: ^1.4.11
         version: 1.4.13
       '@types/node':
-        specifier: ^18.14.6
-        version: 18.19.33
+        specifier: ^20.0.0
+        version: 20.19.24
       eslint:
         specifier: ^9.17.0
         version: 9.37.0
@@ -1217,8 +1217,8 @@ packages:
   '@types/node@18.19.127':
     resolution: {integrity: sha512-gSjxjrnKXML/yo0BO099uPixMqfpJU0TKYjpfLU7TrtA2WWDki412Np/RSTPRil1saKBhvVVKzVx/p/6p94nVA==}
 
-  '@types/node@18.19.33':
-    resolution: {integrity: sha512-NR9+KrpSajr2qBVp/Yt5TU/rp+b5Mayi3+OlMlcg2cVCfRmcG5PWZ7S4+MG9PZ5gWBoc9Pd0BKSRViuBCRPu0A==}
+  '@types/node@20.19.24':
+    resolution: {integrity: sha512-FE5u0ezmi6y9OZEzlJfg37mqqf6ZDSF2V/NLjUyGrR9uTZ7Sb9F7bLNZ03S4XVUNRWGA7Ck4c1kK+YnuWjl+DA==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -3791,6 +3791,9 @@ packages:
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
 
+  undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
   unist-util-is@6.0.0:
     resolution: {integrity: sha512-2qCTHimwdxLfz+YzdGfkqNlH0tLi9xjTnHddPmJwtIG9MGsdbutfTc4P+haPD7l7Cjxf/WZj+we5qfVPvvxfYw==}
 
@@ -4641,11 +4644,11 @@ snapshots:
   '@types/body-parser@1.19.5':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 18.19.33
+      '@types/node': 20.19.24
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 18.19.33
+      '@types/node': 20.19.24
 
   '@types/cookie-parser@1.4.10(@types/express@4.17.21)':
     dependencies:
@@ -4659,7 +4662,7 @@ snapshots:
 
   '@types/express-serve-static-core@4.19.0':
     dependencies:
-      '@types/node': 18.19.33
+      '@types/node': 20.19.24
       '@types/qs': 6.9.15
       '@types/range-parser': 1.2.7
       '@types/send': 0.17.4
@@ -4678,7 +4681,7 @@ snapshots:
   '@types/jsonwebtoken@9.0.10':
     dependencies:
       '@types/ms': 2.1.0
-      '@types/node': 18.19.127
+      '@types/node': 20.19.24
 
   '@types/mdast@4.0.4':
     dependencies:
@@ -4694,16 +4697,16 @@ snapshots:
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 18.19.33
+      '@types/node': 20.19.24
       form-data: 4.0.4
 
   '@types/node@18.19.127':
     dependencies:
       undici-types: 5.26.5
 
-  '@types/node@18.19.33':
+  '@types/node@20.19.24':
     dependencies:
-      undici-types: 5.26.5
+      undici-types: 6.21.0
 
   '@types/normalize-package-data@2.4.4': {}
 
@@ -4718,12 +4721,12 @@ snapshots:
   '@types/send@0.17.4':
     dependencies:
       '@types/mime': 1.3.5
-      '@types/node': 18.19.33
+      '@types/node': 20.19.24
 
   '@types/serve-static@1.15.7':
     dependencies:
       '@types/http-errors': 2.0.4
-      '@types/node': 18.19.33
+      '@types/node': 20.19.24
       '@types/send': 0.17.4
 
   '@types/tough-cookie@4.0.5': {}
@@ -4734,7 +4737,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 18.19.127
+      '@types/node': 20.19.24
 
   '@typescript-eslint/eslint-plugin@8.46.0(@typescript-eslint/parser@8.46.0(eslint@9.37.0)(typescript@4.9.5))(eslint@9.37.0)(typescript@4.9.5)':
     dependencies:
@@ -6926,7 +6929,7 @@ snapshots:
 
   openai@4.104.0(ws@8.18.3)(zod@3.25.76):
     dependencies:
-      '@types/node': 18.19.33
+      '@types/node': 18.19.127
       '@types/node-fetch': 2.6.13
       abort-controller: 3.0.0
       agentkeepalive: 4.6.0
@@ -7111,7 +7114,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 18.19.127
+      '@types/node': 20.19.24
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -7557,6 +7560,8 @@ snapshots:
   underscore@1.13.7: {}
 
   undici-types@5.26.5: {}
+
+  undici-types@6.21.0: {}
 
   unist-util-is@6.0.0:
     dependencies:

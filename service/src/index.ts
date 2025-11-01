@@ -26,6 +26,7 @@ import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天
 import { testSupabaseConnection } from './db/supabaseClient' // Supabase 连接
 import { requireAuth, unifiedAuth } from './middleware/authUnified' // 统一认证中间件（仅支持 Auth0）
 import { limiter } from './middleware/limiter' // 请求频率限制中间件
+import { requireModelAccess } from './middleware/modelAccessAuth' // 模型访问权限验证中间件
 
 import { saveQuestions } from './quiz/storage' // 保存题目到数据库/文件
 import { runWorkflow } from './quiz/workflow' // 生成测验题目的工作流
@@ -83,7 +84,7 @@ app.all('*', (req, res, next) => {
 })
 
 // 🚀 流式返回 LLM 的回复内容 - 优化版：支持消息历史
-router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res) => {
+router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAccess(), async (req, res) => {
   // 🔥 设置正确的响应头以支持真正的流式传输
   res.setHeader('Content-Type', 'text/event-stream') // 使用 SSE 格式
   res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -287,44 +288,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, async (req, res)
     // let authCheckFailed = false
     let firstChunk = true
 
-    // 🔥 异步验证权限（不阻塞响应） - 暂时注释掉用于调试
-    /*
-    const authCheckPromise = (async () => {
-      try {
-        const { findUserByAuth0Id } = await import('./db/supabaseUserService')
-        const { userHasRole } = await import('./db/userRoleService')
-        const { userCanAccessModel } = await import('./db/modelRoleAccessService')
-
-        const user = await findUserByAuth0Id(auth0UserId)
-        if (!user) {
-          console.error(`❌ [异步验证] 用户不存在: ${auth0UserId}`)
-          authCheckFailed = true
-          return
-        }
-
-        const isAdmin = await userHasRole(user.user_id, 'admin') || await userHasRole(user.user_id, 'Admin')
-        if (isAdmin) {
-          console.log(`✅ [异步验证] 管理员，权限通过`)
-          return
-        }
-
-        const hasAccess = await userCanAccessModel(user.user_id, modelConfig.id)
-        if (!hasAccess) {
-          console.error(`❌ [异步验证] 用户无权限访问模型`)
-          authCheckFailed = true
-          return
-        }
-
-        console.log(`✅ [异步验证] 权限检查通过`)
-      }
-      catch (error) {
-        console.error(`❌ [异步验证] 权限检查失败:`, error)
-        authCheckFailed = true
-      }
-    })()
-    */
-
-    console.log('🔓 [调试模式] 权限验证已禁用，直接调用 LLM')
+    // ✅ 权限验证已在中间件中完成，直接调用 LLM
 
     // 立即开始 LLM 调用
     const _llmCallStart = Date.now()

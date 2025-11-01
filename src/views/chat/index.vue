@@ -389,90 +389,103 @@ async function onConversation() {
             console.log(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
           }
 
-          // 🔥 改进：从上次处理的位置开始，找到最后一个完整的 JSON 对象
+          // 🔥 改进：从上次处理的位置开始，处理所有完整的 JSON 对象
           // SSE 格式：每行一个 JSON，以换行符分隔
           const newData = responseText.substring(lastProcessedIndex)
           const lines = newData.split('\n')
 
-          // 保留最后一个可能不完整的行
-          const completeLines = lines.slice(0, -1)
+          // 🔥 处理所有完整的行（包括最后一行，如果它是完整的）
+          // 检查最后一行是否以换行符结尾（表示它是完整的）
+          const isComplete = responseText.endsWith('\n') || responseText.length === lastProcessedIndex + newData.length
+          const completeLines = isComplete ? lines : lines.slice(0, -1)
+
           if (completeLines.length === 0)
             return // 还没有完整的数据行
 
-          // 处理最后一个完整的行（最新的数据）
-          const chunk = completeLines[completeLines.length - 1].trim()
-          if (!chunk)
-            return // 空行，跳过
+          // 处理所有完整的行
+          for (let i = 0; i < completeLines.length; i++) {
+            const chunk = completeLines[i].trim()
+            if (!chunk)
+              continue // 空行，跳过
 
-          // 更新已处理的位置
-          lastProcessedIndex = responseText.lastIndexOf(chunk) + chunk.length
+            // 更新已处理的位置
+            const chunkEndIndex = responseText.indexOf(chunk, lastProcessedIndex) + chunk.length
+            lastProcessedIndex = chunkEndIndex
 
-          try {
-            const data = JSON.parse(chunk)
+            try {
+              const data = JSON.parse(chunk)
 
-            // 🔥 步骤3：保存后端返回的 UUID，建立映射关系
-            if (data.conversationId) {
-              // 如果是首次收到后端 UUID，建立映射
-              if (!chatStore.getBackendConversationId(actualUuid)) {
-                chatStore.setBackendConversationId(actualUuid, data.conversationId)
+              // 🔥 步骤3：保存后端返回的 UUID，建立映射关系
+              if (data.conversationId) {
+                // 如果是首次收到后端 UUID，建立映射
+                if (!chatStore.getBackendConversationId(actualUuid)) {
+                  chatStore.setBackendConversationId(actualUuid, data.conversationId)
+                }
+
+                // 更新当前对话ID（用于 localStorage 缓存等）
+                if (data.conversationId !== currentConversationId.value) {
+                  currentConversationId.value = data.conversationId
+                }
               }
 
-              // 更新当前对话ID（用于 localStorage 缓存等）
-              if (data.conversationId !== currentConversationId.value) {
-                currentConversationId.value = data.conversationId
+              // 🔥 检查是否有错误
+              if (data.error) {
+                console.error('❌ [聊天错误] 后端返回错误:', data.error)
+                updateChat(
+                  actualUuid,
+                  dataSources.value.length - 1,
+                  {
+                    dateTime: new Date().toLocaleString(),
+                    text: data.error.message || '发生错误',
+                    inversion: false,
+                    error: true,
+                    loading: false,
+                    conversationOptions: null,
+                    requestOptions: { prompt: message, options: { ...options } },
+                  },
+                )
+                return
               }
-            }
 
-            // 🔥 检查是否有错误
-            if (data.error) {
-              console.error('❌ [聊天错误] 后端返回错误:', data.error)
+              // 🔥 检查是否是思考过程
+              const isThinking = data.isThinking || false
+              // 🔥 修复：正确累积文本，使用 data.text 而不是 lastText + data.text
+              // 因为 data.text 已经是累积的完整文本
+              const displayText = isThinking ? data.text : (data.text ?? '')
+
+              // 🔥 更新 lastText，确保最后的数据被保存
+              if (!isThinking && data.text) {
+                lastText = data.text
+              }
+
               updateChat(
                 actualUuid,
                 dataSources.value.length - 1,
                 {
                   dateTime: new Date().toLocaleString(),
-                  text: data.error.message || '发生错误',
+                  text: displayText,
                   inversion: false,
-                  error: true,
-                  loading: false,
-                  conversationOptions: null,
+                  error: false,
+                  loading: true,
+                  conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
                   requestOptions: { prompt: message, options: { ...options } },
                 },
               )
-              return
+
+              if (openLongReply && data.detail.choices[0].finish_reason === 'length') {
+                options.parentMessageId = data.id
+                lastText = data.text
+                message = ''
+                return fetchChatAPIOnce()
+              }
+
+              scrollToBottomIfAtBottom()
             }
-
-            // 🔥 检查是否是思考过程
-            const isThinking = data.isThinking || false
-            const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
-
-            updateChat(
-              actualUuid,
-              dataSources.value.length - 1,
-              {
-                dateTime: new Date().toLocaleString(),
-                text: displayText,
-                inversion: false,
-                error: false,
-                loading: true,
-                conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                requestOptions: { prompt: message, options: { ...options } },
-              },
-            )
-
-            if (openLongReply && data.detail.choices[0].finish_reason === 'length') {
-              options.parentMessageId = data.id
-              lastText = data.text
-              message = ''
-              return fetchChatAPIOnce()
+            catch (parseError: any) {
+              console.error('❌ [解析错误] chunk 解析失败:', parseError)
+              console.error('❌ [解析错误] chunk 内容:', chunk)
+              // 不要静默失败，记录错误
             }
-
-            scrollToBottomIfAtBottom()
-          }
-          catch (parseError: any) {
-            console.error('❌ [解析错误] chunk 解析失败:', parseError)
-            console.error('❌ [解析错误] chunk 内容:', chunk)
-            // 不要静默失败，记录错误
           }
         },
       })

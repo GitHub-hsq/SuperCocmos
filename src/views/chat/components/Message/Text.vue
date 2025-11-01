@@ -104,7 +104,13 @@ const text = computed(() => {
   return value
 })
 
-// 🔥 检查是否是思考过程
+// 🔥 检查是否是等待状态（loading 且内容是"思考中..."）
+const isLoading = computed(() => {
+  const thinkingText = t('chat.thinking') // 支持多语言
+  return props.loading && (props.text === thinkingText || props.text === '思考中...' || props.text === 'Thinking...')
+})
+
+// 🔥 检查是否是思考过程（后端返回的思考内容）
 const isThinking = computed(() => {
   return props.text?.startsWith('💭 思考中...') || false
 })
@@ -259,11 +265,14 @@ function calculateSingleLineThreshold() {
   <div ref="wrapperRef" class="text-black dark:text-[var(--dark-text-primary)]" :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion">
+        <!-- 🔥 等待状态：显示小圆点动画 -->
+        <div v-if="isLoading" class="loading-indicator">
+          <div class="loading-dot" />
+        </div>
         <!-- 🔥 思考过程特殊显示 -->
-        <div v-if="isThinking" class="thinking-content">
+        <div v-else-if="isThinking" class="thinking-content">
           <div class="thinking-header">
-            <span class="thinking-icon">💭</span>
-            <span class="thinking-title">思考中...</span>
+            <div class="thinking-dot" />
           </div>
           <div class="thinking-text" v-text="text.replace('💭 思考中...\n', '')" />
         </div>
@@ -291,6 +300,44 @@ function calculateSingleLineThreshold() {
   min-height: 40px;
 }
 
+// 🔥 等待状态样式（loading 时显示小圆点）
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 0;
+
+  .loading-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #161618;
+    animation: loading-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+// 暗色主题下的等待状态
+.dark .loading-indicator {
+  .loading-dot {
+    background-color: #c9d1d9;
+  }
+}
+
+@keyframes loading-pulse {
+  0% {
+    transform: scale(0.666);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.666);
+    opacity: 0.8;
+  }
+}
+
 // 🔥 思考过程样式
 .thinking-content {
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
@@ -306,16 +353,14 @@ function calculateSingleLineThreshold() {
     align-items: center;
     gap: 8px;
     margin-bottom: 12px;
-    font-weight: 600;
-    color: #475569;
+    height: 24px;
 
-    .thinking-icon {
-      font-size: 18px;
-      animation: pulse 2s infinite;
-    }
-
-    .thinking-title {
-      font-size: 14px;
+    .thinking-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #3b82f6;
+      animation: thinking-pulse 1.5s ease-in-out infinite;
     }
   }
 
@@ -336,33 +381,40 @@ function calculateSingleLineThreshold() {
   }
 }
 
+@keyframes thinking-pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.5);
+    opacity: 0.8;
+  }
+}
+
 // 暗色主题
 .dark .thinking-content {
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   border-color: #475569;
 
   .thinking-header {
-    color: #cbd5e1;
+    .thinking-dot {
+      background-color: #60a5fa;
+    }
   }
 
   .thinking-text {
     color: #94a3b8;
     background: rgba(0, 0, 0, 0.3);
     border-left-color: #60a5fa;
-    font-size: 14px; // 🔥 暗色主题也使用大字体
-    padding: 16px; // 🔥 暗色主题也使用大内边距
-    min-height: 60px; // 🔥 暗色主题也设置最小高度
-    max-height: 400px; // 🔥 暗色主题也设置最大高度
-  }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
+    font-size: 14px;
+    padding: 16px;
+    min-height: 60px;
+    max-height: 400px;
   }
 }
 </style>

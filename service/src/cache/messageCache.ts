@@ -79,6 +79,7 @@ export async function setMessagesToCache(
 /**
  * ➕ 添加新消息到缓存（追加到列表末尾，状态为 pending）
  * 🔥 优化：先写 Redis，状态为 pending，后续异步确认
+ * ⚠️ 注意：不限制消息数量，保留所有消息以确保数据完整性
  */
 export async function appendMessageToCache(
   conversationId: string,
@@ -97,20 +98,33 @@ export async function appendMessageToCache(
     const cached = await redis.get(key)
     const messages: Message[] = cached ? JSON.parse(cached) : []
 
-    // 添加新消息，设置状态和时间戳
-    const messageWithStatus: Message = {
-      ...message,
-      status,
-      timestamp: Date.now(),
+    // 检查消息是否已存在（避免重复添加）
+    const existingIndex = messages.findIndex(msg => msg.id === message.id)
+    if (existingIndex >= 0) {
+      // 如果消息已存在，更新它
+      messages[existingIndex] = {
+        ...message,
+        status,
+        timestamp: Date.now(),
+      }
     }
-    messages.push(messageWithStatus)
+    else {
+      // 添加新消息，设置状态和时间戳
+      const messageWithStatus: Message = {
+        ...message,
+        status,
+        timestamp: Date.now(),
+      }
+      messages.push(messageWithStatus)
+    }
 
-    // 🔥 只保留最近 20 条消息
-    const recentMessages = messages.slice(-20)
+    // 🔥 移除20条限制，保留所有消息以确保数据完整性
+    // 如果消息数量过多（超过100条），可以考虑清理旧消息，但当前先保留所有
+    // const recentMessages = messages.slice(-20) // ❌ 移除此限制
 
     // 写回缓存
-    await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(recentMessages))
-    console.log(`✅ [缓存] 追加消息: ${conversationId}, role: ${message.role}, status: ${status}`)
+    await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
+    console.log(`✅ [缓存] 追加消息: ${conversationId}, role: ${message.role}, status: ${status}, 总消息数: ${messages.length}`)
     return true
   }
   catch (error) {
@@ -124,6 +138,7 @@ export async function appendMessageToCache(
  * @param conversationId 对话ID
  * @param messageId 消息ID
  * @param status 新状态
+ * 🔥 优化：如果缓存不存在，尝试从数据库重新加载
  */
 export async function updateMessageStatusInCache(
   conversationId: string,
@@ -137,10 +152,28 @@ export async function updateMessageStatusInCache(
     }
 
     const key = getMessageCacheKey(conversationId)
-    const cached = await redis.get(key)
+    let cached = await redis.get(key)
+
+    // 🔥 如果缓存不存在，尝试从数据库重新加载
+    if (!cached) {
+      console.warn(`⚠️ [缓存] 未找到缓存: ${conversationId}，尝试从数据库重新加载`)
+      try {
+        const { getRecentMessages } = await import('../db/messageService')
+        const messages = await getRecentMessages(conversationId, 20)
+        if (messages && messages.length > 0) {
+          // 重新构建缓存
+          await setMessagesToCache(conversationId, messages)
+          cached = await redis.get(key)
+        }
+      }
+      catch (error) {
+        console.error('❌ [缓存] 从数据库重新加载失败:', error)
+        return false
+      }
+    }
 
     if (!cached) {
-      console.warn(`⚠️ [缓存] 未找到缓存: ${conversationId}`)
+      console.warn(`⚠️ [缓存] 重新加载后仍未找到缓存: ${conversationId}`)
       return false
     }
 
@@ -157,7 +190,31 @@ export async function updateMessageStatusInCache(
     }
 
     if (!found) {
-      console.warn(`⚠️ [缓存] 未找到消息: ${messageId}`)
+      console.warn(`⚠️ [缓存] 未找到消息: ${messageId}，尝试从数据库重新加载完整消息列表`)
+      // 🔥 如果消息不在缓存中，尝试从数据库重新加载所有消息
+      try {
+        const { getConversationMessages } = await import('../db/messageService')
+        const allMessages = await getConversationMessages(conversationId, undefined, { limit: 100, offset: 0 })
+        if (allMessages && allMessages.length > 0) {
+          // 重新构建缓存
+          await setMessagesToCache(conversationId, allMessages)
+          // 重新查找消息
+          const updatedCached = await redis.get(key)
+          if (updatedCached) {
+            const updatedMessages: Message[] = JSON.parse(updatedCached)
+            const foundIndex = updatedMessages.findIndex(msg => msg.id === messageId)
+            if (foundIndex >= 0) {
+              updatedMessages[foundIndex].status = status
+              await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(updatedMessages))
+              console.log(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
+              return true
+            }
+          }
+        }
+      }
+      catch (error) {
+        console.error('❌ [缓存] 从数据库重新加载失败:', error)
+      }
       return false
     }
 

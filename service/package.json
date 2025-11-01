@@ -24,7 +24,8 @@
     "common:cleanup": "rimraf node_modules && rimraf pnpm-lock.yaml",
     "test:db": "esno ./src/test-db.ts",
     "test:redis": "esno ./src/test-redis.ts",
-    "test:llm": "esno ./test-llm-request.ts"
+    "test:llm": "esno ./test-llm-request.ts",
+    "test:schema": "esno ./src/utils/schemaSync.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.3.8",

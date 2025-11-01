@@ -12,6 +12,11 @@ export interface Role {
   role_description?: string
   created_at: string
   updated_at: string
+  auth0_role_id?: string
+  level?: number
+  is_system?: boolean
+  metadata?: Record<string, any>
+  enabled?: boolean
 }
 
 export interface CreateRoleInput {

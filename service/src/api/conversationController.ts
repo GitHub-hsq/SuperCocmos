@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * 会话管理控制器
  * 处理用户会话的 CRUD 操作
@@ -396,6 +397,14 @@ export async function getConversationMessagesHandler(req: Request, res: Response
 
     // 🔥 传递 user_id 用于 Redis 缓存 LRU 管理
     const messages = await getConversationMessages(id, userId, { limit, offset })
+
+    // 📊 输出返回的消息条数
+    console.log(`📊 [API] 准备返回 ${messages.length} 条消息给前端`)
+    console.log(`📊 [API] 消息ID列表: ${messages.map(m => m.id.substring(0, 8)).join(', ')}`)
+    if (messages.length > 0) {
+      console.log(`📊 [API] 消息角色分布: user=${messages.filter(m => m.role === 'user').length}, assistant=${messages.filter(m => m.role === 'assistant').length}, system=${messages.filter(m => m.role === 'system').length}`)
+      console.log(`📊 [API] 消息状态分布: ${messages.filter(m => m.status === 'pending').length} pending, ${messages.filter(m => m.status === 'saved').length} saved, ${messages.filter(m => m.status === 'failed').length} failed, ${messages.filter(m => !m.status).length} 无状态`)
+    }
 
     res.json({
       status: 'Success',

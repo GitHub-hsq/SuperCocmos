@@ -24,7 +24,9 @@ export interface SupabaseUser {
   created_at: string
   updated_at: string
   last_login_at?: string
-  department_id?: number
+  department_id?: string // ✅ 修正：数据库中是 character varying，不是 number
+  subscription_status?: string // 订阅状态 (Free, Pro, Plus, Ultra, Beta, Admin)
+  subscription_expires_at?: string // 订阅过期时间
 }
 
 export interface CreateUserInput {
@@ -47,11 +49,13 @@ export interface UpdateUserInput {
   status?: number
   avatar_url?: string
   last_login_at?: string
-  department_id?: number
+  department_id?: string // ✅ 修正：数据库中是 character varying，不是 number
   clerk_id?: string // ⚠️ 已废弃，使用 auth0_id
   auth0_id?: string // Auth0 用户 ID (sub)
   provider?: string
   login_method?: string
+  subscription_status?: string // 订阅状态
+  subscription_expires_at?: string // 订阅过期时间
 }
 
 /**
@@ -253,6 +257,16 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
       updateData.last_login_at = input.last_login_at
     if (input.department_id !== undefined)
       updateData.department_id = input.department_id
+    if (input.auth0_id !== undefined)
+      updateData.auth0_id = input.auth0_id
+    if (input.provider !== undefined)
+      updateData.provider = input.provider
+    if (input.login_method !== undefined)
+      updateData.login_method = input.login_method
+    if (input.subscription_status !== undefined)
+      updateData.subscription_status = input.subscription_status
+    if (input.subscription_expires_at !== undefined)
+      updateData.subscription_expires_at = input.subscription_expires_at
 
     // 如果更新密码，先加密
     if (input.password)

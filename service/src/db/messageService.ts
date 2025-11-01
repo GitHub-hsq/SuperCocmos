@@ -31,6 +31,8 @@ export interface CreateMessageParams {
 
 /**
  * 🚀 创建新消息
+ * 🔥 注意：此函数不再清除缓存，因为现在使用两阶段写入方案
+ * 缓存会在消息状态更新时自动刷新
  */
 export async function createMessage(
   params: CreateMessageParams,
@@ -56,10 +58,9 @@ export async function createMessage(
       return null
     }
 
-    // 🔥 清除该会话的消息缓存（因为有新消息）
-    const cacheKey = CONVERSATION_KEYS.messages(params.conversation_id)
-    await deleteCached(cacheKey)
-    console.log(`🧹 [MessageCache] 已清除缓存: ${params.conversation_id}`)
+    // 🔥 不再清除缓存，因为现在使用两阶段写入方案
+    // 缓存会在消息状态更新时自动刷新（updateMessageStatusInCache）
+    // 清除缓存会导致状态更新时找不到缓存
 
     console.log(`✅ [Message] 创建消息成功: ${params.role} - ${params.content.substring(0, 50)}...`)
     return data as Message
@@ -72,6 +73,7 @@ export async function createMessage(
 
 /**
  * 📋 批量创建消息
+ * 🔥 注意：此函数不再清除缓存，因为现在使用两阶段写入方案
  */
 export async function createMessages(
   messages: CreateMessageParams[],
@@ -96,13 +98,8 @@ export async function createMessages(
       return []
     }
 
-    // 🔥 清除所有涉及会话的消息缓存
-    const conversationIds = new Set(messages.map(msg => msg.conversation_id))
-    for (const convId of conversationIds) {
-      const cacheKey = CONVERSATION_KEYS.messages(convId)
-      await deleteCached(cacheKey)
-      console.log(`🧹 [MessageCache] 已清除缓存: ${convId}`)
-    }
+    // 🔥 不再清除缓存，因为现在使用两阶段写入方案
+    // 缓存会在消息状态更新时自动刷新
 
     console.log(`✅ [Message] 批量创建 ${messages.length} 条消息成功`)
     return (data || []) as Message[]
@@ -174,8 +171,31 @@ export async function getConversationMessages(
       if (cached) {
         console.log(`✅ [MessageCache] 缓存命中! 返回 ${cached.length} 条消息，耗时: ${cacheTime}ms`)
         console.log(`📊 [MessageCache] 缓存的消息ID: ${cached.map(m => m.id.substring(0, 8)).join(', ')}`)
-        console.log(`⚠️  [MessageCache] 如果消息数量不对，请检查Redis缓存是否过期或清除失败`)
-        return cached
+        console.log(`📊 [MessageCache] 缓存消息状态分布: ${cached.filter(m => m.status === 'pending').length} pending, ${cached.filter(m => m.status === 'saved').length} saved, ${cached.filter(m => m.status === 'failed').length} failed, ${cached.filter(m => !m.status).length} 无状态`)
+
+        // 🔥 验证缓存完整性：如果缓存的消息数量明显少于预期，重新从数据库加载
+        // 检查数据库中的实际消息数量
+        const { count } = await client
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('conversation_id', conversationId)
+
+        if (count !== null && cached.length < count) {
+          console.warn(`⚠️ [MessageCache] 缓存消息数 (${cached.length}) 少于数据库消息数 (${count})，重新从数据库加载`)
+          // 清除缓存，强制从数据库重新加载
+          await deleteCached(cacheKey)
+        }
+        else {
+          // 过滤掉 failed 状态的消息（但保留 pending 和 saved）
+          const validMessages = cached.filter(msg => msg.status !== 'failed')
+          const failedCount = cached.length - validMessages.length
+          if (failedCount > 0) {
+            console.log(`📊 [MessageCache] 过滤掉 ${failedCount} 条 failed 状态的消息`)
+          }
+          console.log(`📊 [MessageCache] 过滤后返回 ${validMessages.length} 条有效消息`)
+          console.log(`📊 [MessageCache] 有效消息ID: ${validMessages.map(m => m.id.substring(0, 8)).join(', ')}`)
+          return validMessages
+        }
       }
       console.log(`❌ [MessageCache] 缓存未命中，查询数据库...`)
     }
@@ -199,16 +219,67 @@ export async function getConversationMessages(
 
     const messages = (data || []) as Message[]
     console.log(`✅ [MessageCache] 数据库查询完成，返回 ${messages.length} 条消息，耗时: ${dbTime}ms`)
+    console.log(`📊 [MessageCache] 数据库消息ID: ${messages.map(m => m.id.substring(0, 8)).join(', ')}`)
+
+    // 🔥 合并缓存中的 pending 消息（如果存在）
+    // 这样可以确保即使消息还在 pending 状态（未写入数据库），也能被返回
+    if (shouldCache) {
+      const cacheKey = CONVERSATION_KEYS.messages(conversationId)
+      const cached = await getCached<Message[]>(cacheKey)
+      if (cached && cached.length > 0) {
+        console.log(`📊 [MessageCache] 缓存中共有 ${cached.length} 条消息`)
+        console.log(`📊 [MessageCache] 缓存消息状态分布: ${cached.filter(m => m.status === 'pending').length} pending, ${cached.filter(m => m.status === 'saved').length} saved, ${cached.filter(m => m.status === 'failed').length} failed, ${cached.filter(m => !m.status).length} 无状态`)
+
+        // 获取 pending 状态的消息（这些消息可能还没写入数据库）
+        const pendingMessages = cached.filter(msg => msg.status === 'pending')
+        if (pendingMessages.length > 0) {
+          console.log(`📝 [MessageCache] 发现 ${pendingMessages.length} 条 pending 消息，合并到结果中`)
+          console.log(`📊 [MessageCache] pending 消息ID: ${pendingMessages.map(m => m.id.substring(0, 8)).join(', ')}`)
+
+          // 合并消息，按 created_at 排序，去重（优先保留数据库中的消息）
+          const messageMap = new Map<string, Message>()
+          // 先添加数据库消息
+          messages.forEach(msg => messageMap.set(msg.id, msg))
+          console.log(`📊 [MessageCache] 数据库消息添加到 Map，当前 Map 大小: ${messageMap.size}`)
+
+          // 再添加 pending 消息（如果不存在）
+          let addedPendingCount = 0
+          pendingMessages.forEach((msg) => {
+            if (!messageMap.has(msg.id)) {
+              messageMap.set(msg.id, msg)
+              addedPendingCount++
+            }
+            else {
+              console.log(`⚠️ [MessageCache] pending 消息 ${msg.id.substring(0, 8)} 已存在于数据库中，跳过合并`)
+            }
+          })
+          console.log(`📊 [MessageCache] 添加了 ${addedPendingCount} 条 pending 消息到 Map，当前 Map 大小: ${messageMap.size}`)
+
+          // 转换为数组并按时间排序
+          const mergedMessages = Array.from(messageMap.values()).sort((a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+          )
+          console.log(`✅ [MessageCache] 合并后共 ${mergedMessages.length} 条消息（数据库: ${messages.length} 条，新增 pending: ${addedPendingCount} 条）`)
+          console.log(`📊 [MessageCache] 合并后消息ID: ${mergedMessages.map(m => m.id.substring(0, 8)).join(', ')}`)
+
+          // 更新缓存为合并后的消息
+          await setCached(cacheKey, mergedMessages, CACHE_TTL.USER_SESSION)
+          return mergedMessages
+        }
+      }
+    }
 
     // 3. 保存到缓存并更新用户当前缓存的会话
     if (shouldCache && messages.length > 0 && userId) {
       const cacheKey = CONVERSATION_KEYS.messages(conversationId)
+      // 🔥 从数据库查询的消息没有 status 字段，直接缓存
       await setCached(cacheKey, messages, CACHE_TTL.USER_SESSION) // 24小时
 
       // 管理用户的缓存会话（替换旧的）
       await manageCachedConversations(userId, conversationId)
     }
 
+    console.log(`📊 [MessageCache] 最终返回 ${messages.length} 条消息`)
     return messages
   }
   catch (error) {

@@ -64,7 +64,7 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
     // 🔥 检测是否使用 MiniMax 模型（MiniMax API 格式与标准 OpenAI 不完全兼容）
     const isMiniMaxModel = model.toLowerCase().includes('minimax')
 
-    // 🔥 如果有历史消息或使用 MiniMax 模型，使用原生 fetch 调用（与 chatNative 相同的逻辑）
+    // 🔥 如果使用 MiniMax 模型，使用原生 fetch 调用（与 chatNative 相同的逻辑）
     if ((historyMessages && historyMessages.length > 0) || isMiniMaxModel) {
       const fullMessages = [
         ...(historyMessages || []),
@@ -220,7 +220,7 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
       })
     }
 
-    // 🔥 如果是 MiniMax 模型，强制使用原生 fetch 实现（即使没有历史消息）
+    // 🔥 如果是 MiniMax 模型，强制使用原生 fetch 实现
     if (isMiniMaxModel) {
       const fullMessages = systemMessage
         ? [{ role: 'system', content: systemMessage }, { role: 'user', content: message }]

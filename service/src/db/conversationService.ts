@@ -180,6 +180,11 @@ export async function getConversationByFrontendUuid(
   client: SupabaseClient = supabase,
 ): Promise<Conversation | null> {
   try {
+    console.warn(`🔍 [getConversationByFrontendUuid] 查询参数:`, {
+      frontendUuid,
+      userId: userId.substring(0, 8) + '...',
+    })
+
     const { data, error } = await client
       .from('conversations')
       .select('*')
@@ -190,11 +195,18 @@ export async function getConversationByFrontendUuid(
     if (error) {
       // 404 是正常的（会话不存在）
       if (error.code === 'PGRST116') {
+        console.warn(`❌ [getConversationByFrontendUuid] 会话不存在 (PGRST116)`)
         return null
       }
       console.error('❌ [Conversation] 根据 frontendUuid 获取对话失败:', error)
       return null
     }
+
+    console.warn(`✅ [getConversationByFrontendUuid] 找到会话:`, {
+      id: data.id,
+      frontend_uuid: data.frontend_uuid,
+      user_id: data.user_id?.substring(0, 8) + '...',
+    })
 
     return data as Conversation
   }

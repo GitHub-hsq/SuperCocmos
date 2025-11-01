@@ -254,30 +254,67 @@ export async function getModelAccessRoles(modelId: string): Promise<number[]> {
 }
 
 /**
- * 获取所有模型及其可访问角色（使用视图）
+ * 获取所有模型及其可访问角色（使用视图）+ Redis 缓存
  */
 export async function getAllModelsWithRoles(): Promise<ModelWithAccessRoles[]> {
   try {
+    // 🔥 1. 尝试从 Redis 缓存获取
+    const { getModelsWithRolesFromCache } = await import('../cache/modelCache')
+    const cached = await getModelsWithRolesFromCache()
+    if (cached) {
+      console.warn(`✅ [缓存] models_with_roles 缓存命中，返回 ${cached.length} 个模型`)
+      return cached
+    }
+
+    console.warn(`⚠️ [缓存] models_with_roles 缓存未命中，查询数据库...`)
+
+    // 🔥 2. 从数据库查询
     const { data, error } = await supabase
       .from('models_with_roles')
       .select('*')
       .order('created_at', { ascending: false })
-    console.warn('获取所有模型及其可访问角色3333333:')
+
     if (error) {
       console.error('获取模型和角色列表失败:', error)
       return []
     }
 
-    return (data || []).map((item: any) => ({
-      id: item.model_id,
-      model_id: item.model_identifier,
-      display_name: item.display_name,
-      enabled: item.enabled,
-      provider_id: item.provider_id,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      accessible_roles: item.accessible_roles || [],
-    }))
+    const result = (data || []).map((item: any) => {
+      // 🔥 解析 accessible_roles（可能是 JSON 字符串）
+      let accessibleRoles = item.accessible_roles || []
+      if (typeof accessibleRoles === 'string') {
+        try {
+          accessibleRoles = JSON.parse(accessibleRoles)
+        }
+        catch {
+          accessibleRoles = []
+        }
+      }
+
+      return {
+        id: item.model_id,
+        model_id: item.model_identifier,
+        display_name: item.display_name,
+        enabled: item.enabled,
+        provider_id: item.provider_id,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        accessible_roles: accessibleRoles,
+      }
+    })
+
+    // 🔥 3. 写入 Redis 缓存
+    if (result.length > 0) {
+      const { redis } = await import('../cache/redisClient.auto')
+      const MODELS_WITH_ROLES_KEY = 'models_with_roles:all'
+      const CACHE_TTL = 86400 // 24小时
+      if (redis) {
+        await redis.setex(MODELS_WITH_ROLES_KEY, CACHE_TTL, JSON.stringify(result))
+        console.warn(`💾 [缓存] 已缓存 models_with_roles: ${result.length} 个模型`)
+      }
+    }
+
+    return result
   }
   catch (error) {
     console.error('获取模型和角色列表异常:', error)

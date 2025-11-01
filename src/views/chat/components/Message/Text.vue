@@ -359,7 +359,7 @@ function calculateSingleLineThreshold() {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background-color: #3b82f6;
+      background-color: #161618;
       animation: thinking-pulse 1.5s ease-in-out infinite;
     }
   }
@@ -372,7 +372,7 @@ function calculateSingleLineThreshold() {
     background: rgba(255, 255, 255, 0.7);
     padding: 16px; // 🔥 增大内边距
     border-radius: 8px;
-    border-left: 3px solid #3b82f6;
+    border-left: 3px solid #161618;
     min-height: 60px; // 🔥 设置最小高度
     max-height: 400px; // 🔥 增大最大高度
     overflow-y: auto;
@@ -403,14 +403,14 @@ function calculateSingleLineThreshold() {
 
   .thinking-header {
     .thinking-dot {
-      background-color: #60a5fa;
+      background-color: #c9d1d9;
     }
   }
 
   .thinking-text {
     color: #94a3b8;
     background: rgba(0, 0, 0, 0.3);
-    border-left-color: #60a5fa;
+    border-left-color: #c9d1d9;
     font-size: 14px;
     padding: 16px;
     min-height: 60px;

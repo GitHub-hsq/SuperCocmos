@@ -1,3 +1,4 @@
+import { clearCachedConversations } from '@/store/modules/chat/helper'
 import { createLocalStorage } from '@/utils/storage'
 
 /**
@@ -15,9 +16,11 @@ export function clearAllUserData(): void {
     // 清除聊天偏好设置
     ss.remove('chatPreferences')
 
-    // 清除会话列表缓存
+    // 🔥 清除会话列表缓存（双重清除确保清除）
     ss.remove('conversations_cache')
     ss.remove('conversations_cache_timestamp')
+    // 同时调用 helper 函数清除（确保清除）
+    clearCachedConversations()
 
     // 清除当前模型ID
     ss.remove('current_model_id')
@@ -44,6 +47,7 @@ export function clearAllUserData(): void {
 
     if (import.meta.env.DEV) {
       console.warn('✅ [清除数据] 已清除所有用户相关的本地存储数据')
+      console.warn('✅ [清除数据] 已清除 conversations_cache 和 conversations_cache_timestamp')
     }
   }
   catch (error) {

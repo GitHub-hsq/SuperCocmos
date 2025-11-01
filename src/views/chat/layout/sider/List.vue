@@ -15,6 +15,9 @@ const dataSources = computed(() => chatStore.history)
 // 🔥 Loading状态：记录正在加载的会话UUID
 const loadingUuid = ref<string | null>(null)
 
+// 🔥 Deleting状态：记录正在删除的会话UUID
+const deletingUuid = ref<string | null>(null)
+
 async function handleSelect({ uuid }: Chat.History) {
   if (isActive(uuid))
     return
@@ -60,11 +63,27 @@ function handleEdit({ uuid }: Chat.History, isEdit: boolean, event?: MouseEvent)
   chatStore.updateHistory(uuid, { isEdit })
 }
 
-function handleDelete(index: number, event?: MouseEvent | TouchEvent) {
+async function handleDelete(index: number, event?: MouseEvent | TouchEvent) {
   event?.stopPropagation()
-  chatStore.deleteHistory(index)
-  if (isMobile.value)
-    appStore.setSiderCollapsed(true)
+
+  // 🔥 获取要删除的会话信息
+  const historyToDelete = chatStore.history[index]
+  if (!historyToDelete) {
+    return
+  }
+
+  // 🔥 设置删除 Loading 状态
+  deletingUuid.value = historyToDelete.uuid
+
+  try {
+    await chatStore.deleteHistory(index)
+    if (isMobile.value)
+      appStore.setSiderCollapsed(true)
+  }
+  finally {
+    // 🔥 无论成功失败，都清除删除 Loading 状态
+    deletingUuid.value = null
+  }
 }
 
 function handleEnter({ uuid }: Chat.History, isEdit: boolean, event: KeyboardEvent) {
@@ -141,6 +160,13 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
               <!-- 🔥 Loading状态：显示加载动画 -->
               <div v-else-if="loadingUuid === item.uuid" class="session-actions">
                 <div class="session-loading">
+                  <SvgIcon icon="ri:loader-4-line" class="animate-spin" />
+                </div>
+              </div>
+
+              <!-- 🔥 Deleting状态：显示删除加载动画（灰色） -->
+              <div v-else-if="deletingUuid === item.uuid" class="session-actions">
+                <div class="session-deleting">
                   <SvgIcon icon="ri:loader-4-line" class="animate-spin" />
                 </div>
               </div>
@@ -287,6 +313,21 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
 
 :deep(.dark) .session-loading {
   color: #999;
+}
+
+/* 🔥 Deleting 动画样式（灰色） */
+.session-deleting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  color: #999;
+}
+
+:deep(.dark) .session-deleting {
+  color: #666;
 }
 
 /* 旋转动画 */

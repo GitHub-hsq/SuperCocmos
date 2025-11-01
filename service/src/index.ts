@@ -1384,7 +1384,11 @@ async function initDatabase() {
         preloadRolesToRedis(),
       ])
 
-      logger.info('✅ [Redis缓存] 全局数据预加载完成（供应商、模型、角色）')
+      // 🔥 预加载 models_with_roles 视图（在模型和角色加载完成后）
+      const { preloadModelsWithRolesToRedis } = await import('./cache/modelCache')
+      await preloadModelsWithRolesToRedis()
+
+      logger.info('✅ [Redis缓存] 全局数据预加载完成（供应商、模型、角色、models_with_roles视图）')
     }
     catch (error) {
       console.error('⚠️ [启动] 预加载缓存失败，将使用数据库查询:', error)

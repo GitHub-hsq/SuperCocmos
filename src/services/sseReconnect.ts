@@ -9,12 +9,22 @@ import { setTokenCookie } from '@/api/services/authService'
 import { sseManager } from './sseService'
 
 /**
+ * 🔥 临时禁用标志：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
+ */
+const SSE_ENABLED = false
+
+/**
  * 设置 SSE 自动重连
  * 参考 setupAuthGuard 和 setupApiClient 的闭包模式
  *
  * @param auth0 Auth0 客户端实例（从 setup 中传入）
  */
 export function setupSSEReconnect(auth0: Auth0VueClient) {
+  // 🔥 临时禁用：如果 SSE 被禁用，直接返回
+  if (!SSE_ENABLED) {
+    console.warn('[SSE] ⚠️ SSE 重连已禁用（临时禁用，保留代码以便后续恢复）')
+    return
+  }
   // 🔥 页面加载后检查 SSE 连接（处理页面刷新）
   onMounted(() => {
     if (auth0.isAuthenticated.value) {

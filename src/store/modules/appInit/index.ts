@@ -268,24 +268,25 @@ export const useAppInitStore = defineStore('app-init', {
         await Promise.all([step1Promise, step2Promise, step3Promise, step4Promise])
 
         // ⚙️ 🔥 步骤 5: 启动 SSE 连接（跨设备实时同步，依赖步骤1的 token）
-        if (auth0.isAuthenticated.value) {
-          try {
-            const { sseManager } = await import('@/services/sseService')
+        // 🔥 临时禁用：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
+        // if (auth0.isAuthenticated.value) {
+        //   try {
+        //     const { sseManager } = await import('@/services/sseService')
 
-            // 检查是否已连接，避免重复连接
-            const status = sseManager.getStatus()
-            if (!status.connected) {
-              // 异步建立连接（不阻塞初始化）
-              sseManager.connect().catch((error) => {
-                console.error('❌ [AppInit] SSE 连接失败:', error)
-              })
-            }
-          }
-          catch (error) {
-            console.error('❌ [AppInit] SSE 初始化失败:', error)
-            // SSE 连接失败不阻止应用使用
-          }
-        }
+        //     // 检查是否已连接，避免重复连接
+        //     const status = sseManager.getStatus()
+        //     if (!status.connected) {
+        //       // 异步建立连接（不阻塞初始化）
+        //       sseManager.connect().catch((error) => {
+        //         console.error('❌ [AppInit] SSE 连接失败:', error)
+        //       })
+        //     }
+        //   }
+        //   catch (error) {
+        //     console.error('❌ [AppInit] SSE 初始化失败:', error)
+        //     // SSE 连接失败不阻止应用使用
+        //   }
+        // }
 
         this.isInitialized = true
 

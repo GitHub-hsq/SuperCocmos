@@ -167,13 +167,46 @@ export function requireModelAccess() {
  */
 export async function clearUserPermissionCache(userId: string) {
   try {
-    // 注意：这里需要遍历所有可能的模型ID，或者使用模式匹配
-    // 为了简化，我们只清除特定模型的缓存
-    // 实际应用中可能需要更复杂的缓存清理策略
-    console.warn(`🧹 [权限] 清除用户权限缓存: ${userId}`)
+    const { deletePattern } = await import('../cache/cacheService')
+    // 清除该用户的所有权限缓存
+    const pattern = `permission:${userId}:*`
+    const count = await deletePattern(pattern)
+    console.warn(`🧹 [权限] 清除用户权限缓存: ${userId}，删除了 ${count} 条缓存`)
   }
   catch (error) {
     console.error('❌ [权限] 清除权限缓存失败:', error)
+  }
+}
+
+/**
+ * 🔄 清除特定模型的权限缓存（当模型权限变更时调用）
+ */
+export async function clearModelPermissionCache(modelId: string) {
+  try {
+    const { deletePattern } = await import('../cache/cacheService')
+    // 清除所有用户对该模型的权限缓存
+    const pattern = `permission:*:${modelId}`
+    const count = await deletePattern(pattern)
+    console.warn(`🧹 [权限] 清除模型权限缓存: ${modelId}，删除了 ${count} 条缓存`)
+  }
+  catch (error) {
+    console.error('❌ [权限] 清除模型权限缓存失败:', error)
+  }
+}
+
+/**
+ * 🔄 清除所有权限缓存（紧急情况使用）
+ */
+export async function clearAllPermissionCache() {
+  try {
+    const { deletePattern } = await import('../cache/cacheService')
+    // 清除所有权限缓存
+    const pattern = 'permission:*'
+    const count = await deletePattern(pattern)
+    console.warn(`🧹 [权限] 清除所有权限缓存，删除了 ${count} 条缓存`)
+  }
+  catch (error) {
+    console.error('❌ [权限] 清除所有权限缓存失败:', error)
   }
 }
 
@@ -181,4 +214,6 @@ export default {
   requireModelAccess,
   checkModelAccess,
   clearUserPermissionCache,
+  clearModelPermissionCache,
+  clearAllPermissionCache,
 }

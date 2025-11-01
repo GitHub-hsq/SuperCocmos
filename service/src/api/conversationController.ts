@@ -72,22 +72,45 @@ async function getConversationByIdOrFrontendUuid(
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isBackendUuid = uuidRegex.test(id)
 
+  console.warn(`🔍 [getConversationByIdOrFrontendUuid] 开始查找会话:`, {
+    id,
+    userId: `${userId.substring(0, 8)}...`,
+    isBackendUuid,
+  })
+
   let conversation = null
   let backendId = id
 
   // 🔥 步骤1：如果是前端 UUID，先通过 frontend_uuid 查找
   if (!isBackendUuid) {
+    console.warn(`🔍 [getConversationByIdOrFrontendUuid] 尝试通过 frontend_uuid 查找: ${id}`)
     const { getConversationByFrontendUuid } = await import('../db/conversationService')
     conversation = await getConversationByFrontendUuid(id, userId)
     if (conversation) {
+      console.warn(`✅ [getConversationByIdOrFrontendUuid] 通过 frontend_uuid 找到会话: ${conversation.id}`)
       backendId = conversation.id
+    }
+    else {
+      console.warn(`❌ [getConversationByIdOrFrontendUuid] 通过 frontend_uuid 未找到会话`)
     }
   }
 
   // 🔥 步骤2：如果是后端 UUID 或前端 UUID 查找失败，使用后端 UUID 查找
   if (!conversation) {
+    console.warn(`🔍 [getConversationByIdOrFrontendUuid] 尝试通过后端 UUID 查找: ${backendId}`)
     const { getConversationByIdWithAuth } = await import('../db/conversationService')
     conversation = await getConversationByIdWithAuth(backendId, userId)
+    if (conversation) {
+      console.warn(`✅ [getConversationByIdOrFrontendUuid] 通过后端 UUID 找到会话: ${conversation.id}`)
+    }
+    else {
+      console.warn(`❌ [getConversationByIdOrFrontendUuid] 通过后端 UUID 也未找到会话`)
+      console.warn(`🔍 [getConversationByIdOrFrontendUuid] 可能的原因:`, {
+        会话不存在: true,
+        用户ID不匹配: true,
+        frontend_uuid未设置: !isBackendUuid,
+      })
+    }
   }
 
   if (!conversation) {

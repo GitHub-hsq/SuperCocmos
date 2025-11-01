@@ -8,7 +8,8 @@ import { Loading, NaiveProvider } from '@/components/common'
 import { useLanguage } from '@/hooks/useLanguage'
 import { useTheme } from '@/hooks/useTheme'
 import { setupAuthGuard, waitForRouterReady } from '@/router'
-import { setupSSEReconnect } from '@/services/sseReconnect'
+// 🔥 临时禁用：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
+// import { setupSSEReconnect } from '@/services/sseReconnect'
 
 // ✅ 初始化 Auth0 客户端实例（只能在 setup 中调用）
 const auth0Client = useAuth0()
@@ -86,7 +87,8 @@ watch(
 )
 
 // 🔥 页面刷新后自动重连 SSE(闭包自动捕获auth0)
-setupSSEReconnect(auth0Client)
+// 🔥 临时禁用：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
+// setupSSEReconnect(auth0Client)
 
 // 启动Loading状态
 const isAppLoading = ref(true)

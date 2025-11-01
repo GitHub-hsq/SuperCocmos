@@ -1,39 +1,12 @@
 <script setup lang="ts">
 import { useAuth0 } from '@auth0/auth0-vue'
 import { NDropdown, NTag } from 'naive-ui'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import { useAuthStore } from '@/store'
 import { clearAllUserData } from '@/utils/clearUserData'
 
-const router = useRouter()
 const { user, logout } = useAuth0()
 const authStore = useAuthStore()
-
-// 响应式的权限列表（用于触发菜单更新）
-const cachedPermissions = ref<string[]>([])
-
-// 从缓存加载权限并持续监听
-onMounted(() => {
-  // 立即加载
-  const w = window as any
-  cachedPermissions.value = w.__user_permissions_cache__ || []
-
-  // 监听缓存变化（静默更新）
-  const checkInterval = setInterval(() => {
-    const newPermissions = w.__user_permissions_cache__ || []
-    // 使用长度和内容双重检查
-    if (newPermissions.length !== cachedPermissions.value.length
-      || JSON.stringify(newPermissions) !== JSON.stringify(cachedPermissions.value)) {
-      cachedPermissions.value = [...newPermissions] // 创建新数组触发响应式更新
-    }
-  }, 500) // 500ms 检查一次
-
-  // 清理定时器
-  onBeforeUnmount(() => {
-    clearInterval(checkInterval)
-  })
-})
 
 // 获取用户角色（优先使用 roles 数组，兼容单个 role 字段）
 const userRoles = computed(() => {
@@ -50,48 +23,18 @@ const userRoles = computed(() => {
 
 // 下拉菜单选项
 const dropdownOptions = computed(() => {
-  const options: any[] = [
-    {
-      label: '个人资料',
-      key: 'profile',
-    },
-  ]
-
-  // 检查是否有管理员权限（使用响应式的权限列表）
-  const hasAdminPermission = cachedPermissions.value.includes('read:statics') || cachedPermissions.value.includes('read:admin')
-
-  if (hasAdminPermission) {
-    options.push({
-      label: '🔐 管理员面板',
-      key: 'admin',
-    })
-  }
-
-  options.push(
-    {
-      label: '切换账号',
-      key: 'switch',
-    },
-    {
-      type: 'divider',
-      key: 'd1',
-    },
+  // 🔥 只保留退出登录选项
+  return [
     {
       label: '退出登录',
       key: 'logout',
     },
-  )
-
-  return options
+  ]
 })
 
 // 处理下拉菜单点击
 function handleDropdownSelect(key: string) {
-  if (key === 'admin') {
-    // 跳转到管理员面板
-    router.push('/admin')
-  }
-  else if (key === 'logout') {
+  if (key === 'logout') {
     // 🔥 清除所有用户相关的本地存储数据
     clearAllUserData()
 
@@ -101,20 +44,6 @@ function handleDropdownSelect(key: string) {
         returnTo: window.location.origin,
       },
     })
-  }
-  else if (key === 'switch') {
-    // 🔥 清除所有用户相关的本地存储数据（切换账号也需要清除）
-    clearAllUserData()
-
-    // 切换账号：先退出，然后立即重新登录
-    logout({
-      logoutParams: {
-        returnTo: `${window.location.origin}?switchAccount=true`,
-      },
-    })
-  }
-  else if (key === 'profile') {
-    // TODO: 跳转到个人资料页面
   }
 }
 

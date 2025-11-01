@@ -4,6 +4,11 @@
  */
 
 /**
+ * 🔥 临时禁用标志：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
+ */
+const SSE_ENABLED = false
+
+/**
  * SSE 连接管理器类
  */
 class SSEConnectionManager {
@@ -18,6 +23,11 @@ class SSEConnectionManager {
    * 建立 SSE 连接
    */
   async connect(): Promise<void> {
+    // 🔥 临时禁用：如果 SSE 被禁用，直接返回
+    if (!SSE_ENABLED) {
+      console.warn('[SSE] ⚠️ SSE 连接已禁用（临时禁用，保留代码以便后续恢复）')
+      return
+    }
     // 检查网络状态
     if (!navigator.onLine) {
       console.warn('[SSE] ⚠️ 网络离线，跳过连接')
@@ -285,7 +295,8 @@ class SSEConnectionManager {
 export const sseManager = new SSEConnectionManager()
 
 // 监听网络状态变化
-if (typeof window !== 'undefined') {
+// 🔥 临时禁用：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
+if (typeof window !== 'undefined' && SSE_ENABLED) {
   window.addEventListener('online', () => {
     console.warn('[SSE] 🌐 网络恢复，尝试重连')
     sseManager.reconnect()

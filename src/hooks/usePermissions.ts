@@ -4,7 +4,7 @@
  */
 
 import { computed } from 'vue'
-import { useAppInitStore } from '@/store'
+// import { useAppInitStore } from '@/store'
 
 export interface RoleLevelMap {
   Admin: number
@@ -30,7 +30,7 @@ export const ROLE_LEVELS: RoleLevelMap = {
  * useRoles Hook（简化版 - 只基于角色）
  */
 export function useRoles() {
-  const appInitStore = useAppInitStore()
+  // const appInitStore = useAppInitStore()
 
   // 获取用户角色列表（从 appInitStore 获取）
   // TODO: 需要在 AppInitStore 中添加 userRoles 字段

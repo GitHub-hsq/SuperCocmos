@@ -1,6 +1,6 @@
 import type { Auth0VueClient } from '@auth0/auth0-vue'
 import { defineStore } from 'pinia'
-import { getUserPermissions, getUserPermissionsFromToken } from '@/utils/permissions'
+import { getUserPermissionsFromToken } from '@/utils/permissions'
 
 interface AppInitState {
   // 初始化标记
@@ -394,10 +394,14 @@ export const useAppInitStore = defineStore('app-init', {
 
               console.log('✅ [AppInit] SSE 连接请求已发送')
             }
+            const step5End = performance.now()
+            console.log(`⏱️ [AppInit] 步骤5（SSE连接）耗时: ${Math.round(step5End - step5Start)}ms`)
           }
           catch (error) {
             console.error('❌ [AppInit] SSE 初始化失败:', error)
             // SSE 连接失败不阻止应用使用
+            const step5End = performance.now()
+            console.log(`⏱️ [AppInit] 步骤5（SSE连接失败）耗时: ${Math.round(step5End - step5Start)}ms`)
           }
         }
 

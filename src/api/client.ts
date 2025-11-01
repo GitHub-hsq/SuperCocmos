@@ -135,7 +135,9 @@ export function setupApiClient(auth0: Auth0VueClient) {
           if (newToken) {
             console.log('✅ [API Client] Token 刷新成功，重试请求')
             // 更新请求头
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`
+            }
             // 重试原始请求
             return apiClient(originalRequest)
           }

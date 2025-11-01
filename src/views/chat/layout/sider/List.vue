@@ -4,7 +4,6 @@ import { computed, ref } from 'vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAppStore, useChatStore } from '@/store'
-import { debounce } from '@/utils/functions/debounce'
 
 const { isMobile } = useBasicLayout()
 
@@ -68,8 +67,6 @@ function handleDelete(index: number, event?: MouseEvent | TouchEvent) {
   if (isMobile.value)
     appStore.setSiderCollapsed(true)
 }
-
-const handleDeleteDebounce = debounce(handleDelete, 600)
 
 function handleEnter({ uuid }: Chat.History, isEdit: boolean, event: KeyboardEvent) {
   event?.stopPropagation()

@@ -4,7 +4,7 @@
  */
 
 import type { Directive } from 'vue'
-import { useAppInitStore } from '@/store'
+// import { useAppInitStore } from '@/store'
 
 const ROLE_LEVELS: Record<string, number> = {
   Admin: 100,
@@ -25,7 +25,7 @@ const ROLE_LEVELS: Record<string, number> = {
  */
 export const roleDirective: Directive = {
   mounted(el, binding) {
-    const appInitStore = useAppInitStore()
+    // const appInitStore = useAppInitStore()
     const requiredRoles = Array.isArray(binding.value)
       ? binding.value
       : [binding.value]
@@ -53,7 +53,7 @@ export const roleDirective: Directive = {
  */
 export const minLevelDirective: Directive = {
   mounted(el, binding) {
-    const appInitStore = useAppInitStore()
+    // const appInitStore = useAppInitStore()
     const requiredLevel = Number(binding.value)
 
     // TODO: 从 AppInitStore 获取用户角色
@@ -75,7 +75,7 @@ export const minLevelDirective: Directive = {
  */
 export const paidDirective: Directive = {
   mounted(el, binding) {
-    const appInitStore = useAppInitStore()
+    // const appInitStore = useAppInitStore()
 
     // TODO: 从 AppInitStore 获取用户角色
     const userRoles: string[] = [] // appInitStore.userRoles

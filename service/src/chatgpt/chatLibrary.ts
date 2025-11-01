@@ -85,14 +85,25 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
         messagesCount: fullMessages.length,
       })
 
-      const fetchResponse = await fetch(apiUrl, {
+      // 🔥 配置代理和 TLS 选项
+      const fetchOptions: any = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(requestBody),
-      })
+        timeout: 120000, // 120 秒超时
+      }
+
+      // 🔥 设置代理（如果配置了）
+      setupProxy(fetchOptions)
+
+      // 🔥 如果配置了自定义 fetch，使用它
+      const fetchFn = fetchOptions.fetch || fetch
+      delete fetchOptions.fetch // 移除自定义 fetch，避免传递给 node-fetch
+
+      const fetchResponse = await fetchFn(apiUrl, fetchOptions)
 
       if (!fetchResponse.ok) {
         throw new Error(`API 调用失败: ${fetchResponse.statusText}`)

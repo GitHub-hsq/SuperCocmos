@@ -29,7 +29,7 @@ export function defaultSetting(): AppState {
     siderCollapsed: false,
     rightSiderCollapsed: true, // 默认收起
     rightSiderWidth: 30, // 默认30%
-    theme: 'dark',
+    theme: 'light', // 🔥 默认主题改为 light
     language,
     showSettingsPage: false, // 默认不显示设置页面
     activeSettingTab: 'General', // 默认显示通用设置

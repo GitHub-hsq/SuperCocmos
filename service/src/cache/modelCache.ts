@@ -5,7 +5,7 @@
 
 import type { ModelWithProvider } from '../db/providerService'
 import { getAllProvidersWithModels } from '../db/providerService'
-import { redis } from './redisClient'
+import { redis } from './redisClient.auto'
 
 const CACHE_PREFIX = 'model_cache:'
 const PROVIDER_CACHE_PREFIX = 'provider_cache:'

@@ -3,9 +3,9 @@
  * 使用流式 API 调用，支持历史消息
  */
 
-import type { ChatContext } from '../types'
 import fetch from 'node-fetch'
 import { sendResponse } from '../utils'
+import { setupProxy } from './utils'
 
 interface NativeChatOptions {
   message: string
@@ -58,20 +58,31 @@ export async function chatReplyProcessNative(options: NativeChatOptions) {
       stream: true,
     }
 
-    console.log('[原生实现] 发送请求:', {
+    console.warn('[原生实现] 发送请求:', {
       url: apiUrl,
       model,
       messagesCount: fullMessages.length,
     })
 
-    const fetchResponse = await fetch(apiUrl, {
+    // 🔥 配置代理和 TLS 选项
+    const fetchOptions: any = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
-    })
+      timeout: 120000, // 120 秒超时
+    }
+
+    // 🔥 设置代理（如果配置了）
+    setupProxy(fetchOptions)
+
+    // 🔥 如果配置了自定义 fetch，使用它
+    const fetchFn = fetchOptions.fetch || fetch
+    delete fetchOptions.fetch // 移除自定义 fetch，避免传递给 node-fetch
+
+    const fetchResponse = await fetchFn(apiUrl, fetchOptions)
 
     if (!fetchResponse.ok) {
       throw new Error(`API 调用失败: ${fetchResponse.statusText}`)
@@ -141,7 +152,7 @@ export async function chatReplyProcessNative(options: NativeChatOptions) {
     }
 
     const responseTime = Date.now() - startTime
-    console.log('📊 [原生实现] 响应信息:', {
+    console.warn('📊 [原生实现] 响应信息:', {
       time: `${responseTime}ms`,
       id: response.id,
       model,

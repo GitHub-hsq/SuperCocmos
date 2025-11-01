@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { fetchChatConfig, fetchUserConfig, fetchUserSettings, fetchWorkflowConfig, updateChatConfig, updateUserSettings, updateWorkflowConfig } from '@/api/services/configService'
+import { useAppStore } from '../app'
 
 interface ConfigState {
   // 用户设置
@@ -67,6 +68,17 @@ export const useConfigStore = defineStore('config', {
           // 处理 workflow_config -> workflowConfig
           this.workflowConfig = data.workflowConfig || data.workflow_config || null
 
+          // 🔥 同步用户设置到 appStore（主题、语言等）
+          if (this.userSettings) {
+            const appStore = useAppStore()
+            if (this.userSettings.theme) {
+              appStore.setTheme(this.userSettings.theme as 'light' | 'dark' | 'auto')
+            }
+            if (this.userSettings.language) {
+              appStore.setLanguage(this.userSettings.language as 'en-US' | 'zh-CN')
+            }
+          }
+
           this.loaded = true
 
           // ✅ 日志已统一到 AppInitStore，此处不再重复输出
@@ -94,8 +106,18 @@ export const useConfigStore = defineStore('config', {
       try {
         const response = await fetchUserSettings<Config.UserSettings>()
 
-        if (response.status === 'Success' && response.data)
+        if (response.status === 'Success' && response.data) {
           this.userSettings = response.data
+
+          // 🔥 同步用户设置到 appStore（主题、语言等）
+          const appStore = useAppStore()
+          if (response.data.theme) {
+            appStore.setTheme(response.data.theme as 'light' | 'dark' | 'auto')
+          }
+          if (response.data.language) {
+            appStore.setLanguage(response.data.language as 'en-US' | 'zh-CN')
+          }
+        }
       }
       catch (error) {
         console.error('[ConfigStore] 加载用户设置失败:', error)
@@ -145,6 +167,15 @@ export const useConfigStore = defineStore('config', {
             ...this.userSettings,
             ...response.data,
           } as Config.UserSettings
+
+          // 🔥 同步用户设置到 appStore（主题、语言等）
+          const appStore = useAppStore()
+          if (response.data.theme) {
+            appStore.setTheme(response.data.theme as 'light' | 'dark' | 'auto')
+          }
+          if (response.data.language) {
+            appStore.setLanguage(response.data.language as 'en-US' | 'zh-CN')
+          }
         }
 
         return response

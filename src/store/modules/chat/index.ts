@@ -3,15 +3,61 @@ import { defineStore } from 'pinia'
 import { t } from '@/locales'
 import { router } from '@/router'
 import { debounce } from '@/utils/debounce'
-import { clearCachedConversations, defaultState, getCachedConversations, getLocalState, setCachedConversations, setLocalState } from './helper'
+import { clearCachedConversations, defaultPreferences, defaultState, getCachedConversations, getLocalPreferences, getLocalState, setCachedConversations, setLocalPreferences } from './helper'
 
-// 创建防抖的recordState函数
-const debouncedRecordState = debounce((state: Chat.ChatState) => {
-  setLocalState(state)
+// 创建防抖的recordPreferences函数（只保存偏好设置）
+const debouncedRecordPreferences = debounce((preferences: { active: string | null, usingContext: boolean, chatMode: 'normal' | 'noteToQuestion' | 'noteToStory' }) => {
+  setLocalPreferences(preferences)
 }, 300)
 
+/**
+ * 🔥 从 conversations_cache 恢复会话列表到 state
+ */
+function restoreConversationsFromCache(state: Chat.ChatState): Chat.ChatState {
+  const cachedConversations = getCachedConversations()
+  if (cachedConversations && cachedConversations.length > 0) {
+    // 转换为前端格式
+    const history: Chat.History[] = []
+    const chat: Array<{ uuid: string, data: Chat.Chat[] }> = []
+
+    for (const conv of cachedConversations) {
+      const frontendUuid = conv.frontend_uuid || conv.id
+
+      history.push({
+        uuid: frontendUuid,
+        backendConversationId: conv.id,
+        title: conv.title,
+        isEdit: false,
+        mode: 'normal',
+      })
+
+      chat.push({
+        uuid: frontendUuid,
+        data: [], // 消息不缓存，按需加载
+      })
+    }
+
+    state.history = history
+    state.chat = chat
+
+    // 如果 active 存在且在列表中，保持；否则设置为第一个
+    if (state.active && history.find(h => h.uuid === state.active)) {
+      // active 有效，保持不变
+    }
+    else if (history.length > 0) {
+      state.active = history[0].uuid
+    }
+  }
+
+  return state
+}
+
 export const useChatStore = defineStore('chat-store', {
-  state: (): Chat.ChatState => getLocalState(),
+  state: (): Chat.ChatState => {
+    const state = getLocalState()
+    // 🔥 从 conversations_cache 恢复会话列表
+    return restoreConversationsFromCache(state)
+  },
 
   getters: {
     getChatHistoryByCurrentActive(state: Chat.ChatState) {
@@ -39,12 +85,20 @@ export const useChatStore = defineStore('chat-store', {
   actions: {
     setUsingContext(context: boolean) {
       this.usingContext = context
-      debouncedRecordState(this.$state)
+      debouncedRecordPreferences({
+        active: this.active,
+        usingContext: context,
+        chatMode: this.chatMode,
+      })
     },
 
     setChatMode(mode: 'normal' | 'noteToQuestion' | 'noteToStory') {
       this.chatMode = mode
-      debouncedRecordState(this.$state)
+      debouncedRecordPreferences({
+        active: this.active,
+        usingContext: this.usingContext,
+        chatMode: mode,
+      })
     },
 
     addHistory(history: Chat.History, chatData: Chat.Chat[] = []) {
@@ -62,8 +116,6 @@ export const useChatStore = defineStore('chat-store', {
       const index = this.history.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.history[index] = { ...this.history[index], ...edit }
-        debouncedRecordState(this.$state)
-
         // 🔥 清除会话列表缓存（因为会话信息已更新）
         clearCachedConversations()
       }
@@ -76,7 +128,7 @@ export const useChatStore = defineStore('chat-store', {
       const index = this.history.findIndex(item => item.uuid === nanoidUuid)
       if (index !== -1) {
         this.history[index].backendConversationId = backendUuid
-        debouncedRecordState(this.$state)
+        // 🔥 不需要保存到 localStorage，因为 history 现在只从 conversations_cache 恢复
         if (import.meta.env.DEV) {
           console.log('🔗 [映射] 建立会话映射:', {
             前端nanoid: nanoidUuid,
@@ -130,8 +182,12 @@ export const useChatStore = defineStore('chat-store', {
         this.workflowStates.splice(workflowIndex, 1)
       }
 
-      // 🔥 立即保存状态，确保映射关系被清除
-      this.recordStateImmediate()
+      // 🔥 更新偏好设置（active 可能已改变）
+      debouncedRecordPreferences({
+        active: this.active,
+        usingContext: this.usingContext,
+        chatMode: this.chatMode,
+      })
 
       // 🔥 清除会话列表缓存（因为删除了会话）
       clearCachedConversations()
@@ -170,6 +226,13 @@ export const useChatStore = defineStore('chat-store', {
       const history = this.history.find(item => item.uuid === uuid)
       if (history)
         this.chatMode = history.mode
+
+      // 🔥 保存偏好设置
+      debouncedRecordPreferences({
+        active: uuid,
+        usingContext: this.usingContext,
+        chatMode: this.chatMode,
+      })
 
       // 🔥 检查是否需要从数据库加载消息
       const chatData = this.chat.find(item => item.uuid === uuid)
@@ -213,13 +276,18 @@ export const useChatStore = defineStore('chat-store', {
           this.chat.push({ uuid, data: [chat] })
           this.active = uuid
           this.chatMode = 'normal'
-          debouncedRecordState(this.$state)
+          // 🔥 保存偏好设置（active 和 chatMode 改变了）
+          debouncedRecordPreferences({
+            active: uuid,
+            usingContext: this.usingContext,
+            chatMode: 'normal',
+          })
         }
         else {
           this.chat[0].data.push(chat)
           if (this.history[0].title === t('chat.newChatTitle'))
             this.history[0].title = chat.text
-          debouncedRecordState(this.$state)
+          // 🔥 消息不缓存，不需要保存
         }
       }
 
@@ -228,7 +296,7 @@ export const useChatStore = defineStore('chat-store', {
         this.chat[index].data.push(chat)
         if (this.history[index].title === t('chat.newChatTitle'))
           this.history[index].title = chat.text
-        debouncedRecordState(this.$state)
+        // 🔥 消息不缓存，不需要保存
       }
     },
 
@@ -236,7 +304,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data[index] = chat
-          debouncedRecordState(this.$state)
+          // 🔥 消息不缓存，不需要保存
         }
         return
       }
@@ -244,7 +312,7 @@ export const useChatStore = defineStore('chat-store', {
       const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
       if (chatIndex !== -1) {
         this.chat[chatIndex].data[index] = chat
-        debouncedRecordState(this.$state)
+        // 🔥 消息不缓存，不需要保存
       }
     },
 
@@ -252,7 +320,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data[index] = { ...this.chat[0].data[index], ...chat }
-          debouncedRecordState(this.$state)
+          // 🔥 消息不缓存，不需要保存
         }
         return
       }
@@ -260,7 +328,7 @@ export const useChatStore = defineStore('chat-store', {
       const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
       if (chatIndex !== -1) {
         this.chat[chatIndex].data[index] = { ...this.chat[chatIndex].data[index], ...chat }
-        debouncedRecordState(this.$state)
+        // 🔥 消息不缓存，不需要保存
       }
     },
 
@@ -268,7 +336,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data.splice(index, 1)
-          debouncedRecordState(this.$state)
+          // 🔥 消息不缓存，不需要保存
         }
         return
       }
@@ -276,7 +344,7 @@ export const useChatStore = defineStore('chat-store', {
       const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
       if (chatIndex !== -1) {
         this.chat[chatIndex].data.splice(index, 1)
-        debouncedRecordState(this.$state)
+        // 🔥 消息不缓存，不需要保存
       }
     },
 
@@ -284,7 +352,7 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid) {
         if (this.chat.length) {
           this.chat[0].data = []
-          debouncedRecordState(this.$state)
+          // 🔥 消息不缓存，不需要保存
         }
         return
       }
@@ -292,7 +360,7 @@ export const useChatStore = defineStore('chat-store', {
       const index = this.chat.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.chat[index].data = []
-        debouncedRecordState(this.$state)
+        // 🔥 消息不缓存，不需要保存
       }
     },
 
@@ -320,32 +388,34 @@ export const useChatStore = defineStore('chat-store', {
 
       // 🔥 立即清空本地数据
       this.$state = { ...defaultState() }
-      debouncedRecordState(this.$state)
+      // 🔥 清除偏好设置和会话缓存
+      setLocalPreferences(defaultPreferences())
+      clearCachedConversations()
     },
 
     async reloadRoute(uuid?: string) {
-      debouncedRecordState(this.$state)
+      // 🔥 路由切换不需要保存状态
       await router.push({ name: 'Chat', params: { uuid } })
     },
 
+    // 🔥 已废弃：不再需要保存整个 state
     recordState() {
-      setLocalState(this.$state)
+      // 保持兼容性，但不执行任何操作
     },
 
-    // 立即保存状态（用于重要操作）
+    // 🔥 已废弃：不再需要保存整个 state
     recordStateImmediate() {
-      setLocalState(this.$state)
+      // 保持兼容性，但不执行任何操作
     },
 
-    // 工作流状态管理
+    // 工作流状态管理（不持久化，只在内存中）
     setWorkflowState(uuid: string, state: Chat.WorkflowState) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1)
         this.workflowStates[index].state = state
       else
         this.workflowStates.push({ uuid, state })
-
-      debouncedRecordState(this.$state)
+      // 🔥 工作流状态不持久化
     },
 
     updateWorkflowStateSome(uuid: string, state: Partial<Chat.WorkflowState>) {
@@ -365,15 +435,15 @@ export const useChatStore = defineStore('chat-store', {
           },
         })
       }
-      debouncedRecordState(this.$state)
+      // 🔥 工作流状态不持久化
     },
 
     clearWorkflowState(uuid: string) {
       const index = this.workflowStates.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.workflowStates.splice(index, 1)
-        debouncedRecordState(this.$state)
       }
+      // 🔥 工作流状态不持久化
     },
 
     // ============================================
@@ -415,13 +485,21 @@ export const useChatStore = defineStore('chat-store', {
             })
           }
 
-          // 设置第一个会话为激活状态
+          // 🔥 优先使用偏好设置中的 active，否则设置为第一个会话
           if (this.history.length > 0) {
-            this.active = this.history[0].uuid
+            const preferences = getLocalPreferences()
+            const preferredActive = preferences.active && this.history.find(h => h.uuid === preferences.active)
+              ? preferences.active
+              : this.history[0].uuid
+            this.active = preferredActive
           }
 
-          // 保存到 localStorage
-          this.recordStateImmediate()
+          // 🔥 保存偏好设置
+          debouncedRecordPreferences({
+            active: this.active,
+            usingContext: this.usingContext,
+            chatMode: this.chatMode,
+          })
 
           const totalTime = performance.now() - startTime
           // 只在慢速时输出警告
@@ -487,8 +565,12 @@ export const useChatStore = defineStore('chat-store', {
             this.active = this.history[0].uuid
           }
 
-          // 保存到 localStorage
-          this.recordStateImmediate()
+          // 🔥 保存偏好设置
+          debouncedRecordPreferences({
+            active: this.active,
+            usingContext: this.usingContext,
+            chatMode: this.chatMode,
+          })
 
           // 🔥 缓存会话列表（原始数据）
           setCachedConversations(conversations)
@@ -591,7 +673,6 @@ export const useChatStore = defineStore('chat-store', {
           }>
 
           // 转换为前端格式
-          const convertStart = performance.now()
           const chatData: Chat.Chat[] = []
           let userMessage: Chat.Chat | null = null
 
@@ -752,7 +833,8 @@ export const useChatStore = defineStore('chat-store', {
         data: [],
       })
 
-      debouncedRecordState(this.$state)
+      // 🔥 清除会话列表缓存（因为新增了会话）
+      clearCachedConversations()
     },
 
     /**
@@ -772,7 +854,8 @@ export const useChatStore = defineStore('chat-store', {
           this.history[index].title = updates.title
         }
 
-        debouncedRecordState(this.$state)
+        // 🔥 清除会话列表缓存（因为会话信息已更新）
+        clearCachedConversations()
       }
     },
 
@@ -817,7 +900,13 @@ export const useChatStore = defineStore('chat-store', {
           }
         }
 
-        debouncedRecordState(this.$state)
+        // 🔥 更新偏好设置并清除会话列表缓存
+        debouncedRecordPreferences({
+          active: this.active,
+          usingContext: this.usingContext,
+          chatMode: this.chatMode,
+        })
+        clearCachedConversations()
       }
     },
 

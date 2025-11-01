@@ -2,7 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CONVERSATION_KEYS } from '../cache/cacheKeys'
 import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
-import { redis } from '../cache/redisClient'
+import { redis } from '../cache/redisClient.auto'
 import { supabase } from './supabaseClient'
 
 // 🔥 消息状态类型

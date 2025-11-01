@@ -24,8 +24,7 @@ import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConf
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { useAppInitStore, useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore } from '@/store'
-// 🔥 导入消息缓存工具
-import { appendMessageToLocalCache } from '@/utils/messageCache'
+// 🔥 消息缓存已禁用，不再导入
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
 import HeaderComponent from './components/Header/index.vue'
 import { useChat } from './hooks/useChat'
@@ -494,22 +493,7 @@ async function onConversation() {
 
     await fetchChatAPIOnce()
 
-    // 🔥 步骤4：保存消息到 localStorage（响应完成后）
-    if (currentConversationId.value && lastText) {
-      appendMessageToLocalCache(currentConversationId.value, {
-        role: 'user',
-        content: message,
-      })
-
-      appendMessageToLocalCache(currentConversationId.value, {
-        role: 'assistant',
-        content: lastText,
-      })
-
-      if (import.meta.env.DEV) {
-        console.log('✅ [缓存] 消息已保存到 localStorage')
-      }
-    }
+    // 🔥 消息不再缓存到前端 localStorage（已禁用前端消息缓存）
   }
   catch (error: any) {
     const errorMessage = error?.message ?? t('common.wrong')
@@ -714,14 +698,7 @@ async function onRegenerate(index: number) {
     }
     await fetchChatAPIOnce()
 
-    // 🔥 保存重新生成的消息到 localStorage
-    if (currentConversationId.value && lastText) {
-      appendMessageToLocalCache(currentConversationId.value, {
-        role: 'assistant',
-        content: lastText,
-      })
-      console.log('✅ [缓存] 重新生成的消息已保存')
-    }
+    // 🔥 消息不再缓存到前端 localStorage（已禁用前端消息缓存）
   }
   catch (error: any) {
     if (error.message === 'canceled') {

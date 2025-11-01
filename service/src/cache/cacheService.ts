@@ -3,7 +3,7 @@
  * 提供统一的缓存操作接口
  */
 
-import { redis } from './redisClient'
+import { redis } from './redisClient.auto'
 
 /**
  * 缓存配置（TTL单位：秒）

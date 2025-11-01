@@ -75,21 +75,33 @@ function handleReset() {
   window.location.reload()
 }
 
-function exportData(): void {
+async function exportData(): Promise<void> {
   const date = getCurrentDate()
-  const data: string = localStorage.getItem('chatStorage') || '{}'
-  const jsonString: string = JSON.stringify(JSON.parse(data), null, 2)
+  const { createLocalStorage } = await import('@/utils/storage')
+  const ss = createLocalStorage()
+  
+  // 🔥 导出会话列表缓存
+  const conversationsCache = ss.get('conversations_cache') || []
+  const chatPreferences = ss.get('chatPreferences') || {}
+  
+  const exportData = {
+    conversations: conversationsCache,
+    preferences: chatPreferences,
+    exportDate: date,
+  }
+  
+  const jsonString: string = JSON.stringify(exportData, null, 2)
   const blob: Blob = new Blob([jsonString], { type: 'application/json' })
   const url: string = URL.createObjectURL(blob)
   const link: HTMLAnchorElement = document.createElement('a')
   link.href = url
-  link.download = `chat-store_${date}.json`
+  link.download = `conversations_${date}.json`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
 }
 
-function importData(event: Event): void {
+async function importData(event: Event): Promise<void> {
   const target = event.target as HTMLInputElement
   if (!target || !target.files)
     return
@@ -99,10 +111,42 @@ function importData(event: Event): void {
     return
 
   const reader: FileReader = new FileReader()
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
+      const { createLocalStorage } = await import('@/utils/storage')
+      const ss = createLocalStorage()
+      
       const data = JSON.parse(reader.result as string)
-      localStorage.setItem('chatStorage', JSON.stringify(data))
+      
+      // 🔥 兼容旧格式（chatStorage）和新格式（conversations + preferences）
+      if (data.conversations) {
+        // 新格式
+        ss.set('conversations_cache', data.conversations)
+        if (data.preferences) {
+          ss.set('chatPreferences', data.preferences)
+        }
+        ss.set('conversations_cache_timestamp', Date.now())
+      } else if (data.history) {
+        // 旧格式（chatStorage），转换为新格式
+        const conversations = data.history.map((h: any) => ({
+          id: h.backendConversationId || h.uuid,
+          frontend_uuid: h.uuid,
+          title: h.title,
+        }))
+        ss.set('conversations_cache', conversations)
+        ss.set('conversations_cache_timestamp', Date.now())
+        
+        if (data.active || data.usingContext !== undefined || data.chatMode) {
+          ss.set('chatPreferences', {
+            active: data.active || null,
+            usingContext: data.usingContext ?? true,
+            chatMode: data.chatMode || 'normal',
+          })
+        }
+      } else {
+        throw new Error('Invalid file format')
+      }
+      
       ms.success(t('common.success'))
       location.reload()
     }
@@ -113,8 +157,19 @@ function importData(event: Event): void {
   reader.readAsText(file)
 }
 
-function clearData(): void {
-  localStorage.removeItem('chatStorage')
+async function clearData(): Promise<void> {
+  const { createLocalStorage } = await import('@/utils/storage')
+  const { clearAllMessageCaches } = await import('@/utils/messageCache')
+  const ss = createLocalStorage()
+  
+  // 🔥 清除会话列表缓存和偏好设置
+  ss.remove('conversations_cache')
+  ss.remove('conversations_cache_timestamp')
+  ss.remove('chatPreferences')
+  
+  // 🔥 清除所有旧的消息缓存（msg_cache_*）
+  clearAllMessageCaches()
+  
   location.reload()
 }
 

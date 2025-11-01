@@ -309,15 +309,18 @@ export const useAppInitStore = defineStore('app-init', {
               if (result.success && result.count && result.count > 0) {
                 console.log(`✅ [AppInit] 已从数据库同步 ${result.count} 个会话`)
 
-                // 🔥 自动加载最新会话的消息（第一个会话）
-                const firstConversation = chatStore.history[0]
-                if (firstConversation?.backendConversationId) {
-                  console.log('🔄 [AppInit] 加载最新会话的消息...')
+                // 🔥 加载当前激活会话的消息（如果存在）
+                const activeConversation = chatStore.history.find(
+                  h => h.uuid === chatStore.active,
+                ) || chatStore.history[0] // 如果没有激活的会话，使用第一个
+
+                if (activeConversation?.backendConversationId) {
+                  console.log('🔄 [AppInit] 加载当前会话的消息...')
                   const msgResult = await chatStore.loadConversationMessages(
-                    firstConversation.backendConversationId,
+                    activeConversation.backendConversationId,
                   )
                   if (msgResult.success && import.meta.env.DEV) {
-                    console.log(`✅ [AppInit] 最新会话消息加载完成: ${msgResult.count} 条`)
+                    console.log(`✅ [AppInit] 当前会话消息加载完成: ${msgResult.count} 条`)
                   }
                 }
               }

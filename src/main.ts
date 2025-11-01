@@ -7,6 +7,16 @@ import { setupRouter } from './router'
 import { setupStore } from './store'
 
 async function bootstrap() {
+  // 🔥 清理旧的消息缓存（msg_cache_*）
+  try {
+    const { clearAllMessageCaches } = await import('@/utils/messageCache')
+    clearAllMessageCaches()
+  }
+  catch (error) {
+    // 静默处理，不影响应用启动
+    console.warn('⚠️ [Bootstrap] 清理旧缓存失败:', error)
+  }
+
   const app = createApp(App)
 
   setupAssets()

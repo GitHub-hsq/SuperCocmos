@@ -8,7 +8,7 @@
 
 import type { Message, MessageStatus } from '../db/messageService'
 import { CONVERSATION_KEYS } from './cacheKeys'
-import { redis } from './redisClient'
+import { redis } from './redisClient.auto'
 
 const MESSAGE_CACHE_TTL = 3600 // 1小时过期
 

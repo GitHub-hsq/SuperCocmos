@@ -2,7 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CONVERSATION_KEYS } from '../cache/cacheKeys'
 import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
-import { redis as redisClient } from '../cache/redisClient'
+import { redis as redisClient } from '../cache/redisClient.auto'
 import { supabase } from './supabaseClient'
 
 // 🔥 对话会话类型定义

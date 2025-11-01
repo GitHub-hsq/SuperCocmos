@@ -4,6 +4,7 @@ import { NDropdown, NTag } from 'naive-ui'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store'
+import { clearAllUserData } from '@/utils/clearUserData'
 
 const router = useRouter()
 const { user, logout } = useAuth0()
@@ -91,10 +92,8 @@ function handleDropdownSelect(key: string) {
     router.push('/admin')
   }
   else if (key === 'logout') {
-    // 清除所有缓存标记
-    const w = window as any
-    w.__permission_notification_shown__ = false
-    w.__user_permissions_cache__ = null
+    // 🔥 清除所有用户相关的本地存储数据
+    clearAllUserData()
 
     // 退出登录
     logout({
@@ -104,10 +103,8 @@ function handleDropdownSelect(key: string) {
     })
   }
   else if (key === 'switch') {
-    // 清除所有缓存标记
-    const w = window as any
-    w.__permission_notification_shown__ = false
-    w.__user_permissions_cache__ = null
+    // 🔥 清除所有用户相关的本地存储数据（切换账号也需要清除）
+    clearAllUserData()
 
     // 切换账号：先退出，然后立即重新登录
     logout({

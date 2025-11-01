@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { t } from '@/locales'
 import { router } from '@/router'
 import { debounce } from '@/utils/debounce'
-import { clearCachedConversations, defaultPreferences, defaultState, getCachedConversations, getLocalPreferences, getLocalState, setCachedConversations, setLocalPreferences } from './helper'
+import { clearCachedConversations, defaultPreferences, defaultState, getCachedConversations, getLocalPreferences, getLocalState, setCachedConversations, setLocalPreferences, updateCachedConversations } from './helper'
 
 // 创建防抖的recordPreferences函数（只保存偏好设置）
 const debouncedRecordPreferences = debounce((preferences: { active: string | null, usingContext: boolean, chatMode: 'normal' | 'noteToQuestion' | 'noteToStory' }) => {
@@ -40,10 +40,28 @@ function restoreConversationsFromCache(state: Chat.ChatState): Chat.ChatState {
     state.history = history
     state.chat = chat
 
-    // 如果 active 存在且在列表中，保持；否则设置为第一个
-    if (state.active && history.find(h => h.uuid === state.active)) {
+    // 🔥 优先使用路由中的 uuid 来设置 active（刷新页面时保持当前会话）
+    let routeUuid: string | null = null
+    try {
+      const currentRoute = router.currentRoute.value
+      if (currentRoute.name === 'Chat' && currentRoute.params.uuid) {
+        const uuidParam = currentRoute.params.uuid
+        routeUuid = Array.isArray(uuidParam) ? uuidParam[0] : uuidParam
+      }
+    }
+    catch {
+      // 路由可能还未初始化，忽略错误
+    }
+
+    // 如果路由中有 uuid 且在列表中，优先使用它
+    if (routeUuid && history.find(h => h.uuid === routeUuid)) {
+      state.active = routeUuid
+    }
+    // 如果 active 存在且在列表中，保持
+    else if (state.active && history.find(h => h.uuid === state.active)) {
       // active 有效，保持不变
     }
+    // 否则设置为第一个会话
     else if (history.length > 0) {
       state.active = history[0].uuid
     }
@@ -108,16 +126,16 @@ export const useChatStore = defineStore('chat-store', {
       this.chatMode = history.mode
       this.reloadRoute(history.uuid)
 
-      // 🔥 清除会话列表缓存（因为新增了会话）
-      clearCachedConversations()
+      // 🔥 更新会话列表缓存（新增了会话）
+      updateCachedConversations(this.history)
     },
 
     updateHistory(uuid: string, edit: Partial<Chat.History>) {
       const index = this.history.findIndex(item => item.uuid === uuid)
       if (index !== -1) {
         this.history[index] = { ...this.history[index], ...edit }
-        // 🔥 清除会话列表缓存（因为会话信息已更新）
-        clearCachedConversations()
+        // 🔥 更新会话列表缓存（会话信息已更新）
+        updateCachedConversations(this.history)
       }
     },
 
@@ -189,8 +207,8 @@ export const useChatStore = defineStore('chat-store', {
         chatMode: this.chatMode,
       })
 
-      // 🔥 清除会话列表缓存（因为删除了会话）
-      clearCachedConversations()
+      // 🔥 更新会话列表缓存（删除了会话）
+      updateCachedConversations(this.history)
 
       if (this.history.length === 0) {
         this.active = null
@@ -220,7 +238,7 @@ export const useChatStore = defineStore('chat-store', {
       }
     },
 
-    async setActive(uuid: string) {
+    async setActive(uuid: string, skipRouteReload = false) {
       this.active = uuid
       // 根据对话的模式设置聊天模式
       const history = this.history.find(item => item.uuid === uuid)
@@ -238,22 +256,36 @@ export const useChatStore = defineStore('chat-store', {
       const chatData = this.chat.find(item => item.uuid === uuid)
       const backendUuid = history?.backendConversationId
 
-      if (backendUuid && chatData && chatData.data.length === 0) {
+      // 🔥 如果会话有后端 UUID，且消息为空或不存在，则从数据库加载
+      // 刷新页面时，chatData 可能不存在（会话列表从缓存恢复，但消息不缓存）
+      if (backendUuid && (!chatData || chatData.data.length === 0)) {
         if (import.meta.env.DEV) {
-          console.log('🔄 [对话] 切换到会话:', {
+          console.warn('🔄 [对话] 切换到会话:', {
             前端nanoid: uuid,
             后端UUID: backendUuid,
+            消息状态: chatData ? `存在但为空(${chatData.data.length}条)` : '不存在',
           })
+        }
+
+        // 🔥 如果 chatData 不存在，先创建它
+        if (!chatData) {
+          const chatIndex = this.chat.findIndex(item => item.uuid === uuid)
+          if (chatIndex === -1) {
+            this.chat.push({ uuid, data: [] })
+          }
         }
 
         // 🔥 等待消息加载完成，确保消息显示
         const result = await this.loadConversationMessages(backendUuid)
         if (result.success && import.meta.env.DEV) {
-          console.log(`✅ [对话] 消息加载成功: ${result.count} 条`)
+          console.warn(`✅ [对话] 消息加载成功: ${result.count} 条`)
         }
       }
 
-      return await this.reloadRoute(uuid)
+      // 🔥 如果路由已经匹配（例如刷新页面时），跳过路由重新加载，避免页面闪烁
+      if (!skipRouteReload) {
+        return await this.reloadRoute(uuid)
+      }
     },
 
     getChatByUuidAndIndex(uuid: string, index: number) {
@@ -833,8 +865,8 @@ export const useChatStore = defineStore('chat-store', {
         data: [],
       })
 
-      // 🔥 清除会话列表缓存（因为新增了会话）
-      clearCachedConversations()
+      // 🔥 更新会话列表缓存（新增了会话）
+      updateCachedConversations(this.history)
     },
 
     /**
@@ -854,8 +886,8 @@ export const useChatStore = defineStore('chat-store', {
           this.history[index].title = updates.title
         }
 
-        // 🔥 清除会话列表缓存（因为会话信息已更新）
-        clearCachedConversations()
+        // 🔥 更新会话列表缓存（会话信息已更新）
+        updateCachedConversations(this.history)
       }
     },
 
@@ -900,13 +932,13 @@ export const useChatStore = defineStore('chat-store', {
           }
         }
 
-        // 🔥 更新偏好设置并清除会话列表缓存
+        // 🔥 更新偏好设置和会话列表缓存
         debouncedRecordPreferences({
           active: this.active,
           usingContext: this.usingContext,
           chatMode: this.chatMode,
         })
-        clearCachedConversations()
+        updateCachedConversations(this.history)
       }
     },
 

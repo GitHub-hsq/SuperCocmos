@@ -1,5 +1,3 @@
-import { nanoid } from 'nanoid'
-import { t } from '@/locales'
 import { createLocalStorage } from '@/utils/storage'
 
 // 🔥 会话列表缓存（保留）
@@ -137,7 +135,34 @@ export function setCachedConversations(conversations: any[]): void {
 }
 
 /**
+ * 🔥 更新会话列表缓存（将当前的 history 同步到缓存）
+ * @param history 会话历史列表
+ */
+export function updateCachedConversations(history: Array<{ uuid: string, backendConversationId?: string, title: string, mode: 'normal' | 'noteToQuestion' | 'noteToStory' }>): void {
+  try {
+    // 转换为缓存格式
+    const conversations = history.map(h => ({
+      id: h.backendConversationId || h.uuid,
+      frontend_uuid: h.uuid,
+      title: h.title,
+      mode: h.mode,
+      // 其他字段根据需要添加
+    }))
+
+    ss.set(CONVERSATIONS_CACHE_KEY, conversations)
+    ss.set(CONVERSATIONS_CACHE_TIMESTAMP_KEY, Date.now())
+    if (import.meta.env.DEV) {
+      console.log(`💾 [ConversationCache] 已更新缓存 ${conversations.length} 个会话`)
+    }
+  }
+  catch (error) {
+    console.error('❌ [ConversationCache] 更新缓存失败:', error)
+  }
+}
+
+/**
  * 🔥 清除会话列表缓存
+ * ⚠️ 只在必要时清除：登出、重置状态、登录时强制刷新
  */
 export function clearCachedConversations(): void {
   try {

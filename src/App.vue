@@ -152,13 +152,38 @@ onMounted(async () => {
 
       console.log('✅ [App.vue] 应用初始化完成')
       console.log(`⏱️ [App.vue] 应用初始化耗时: ${Math.round(initEndTime - initStartTime)}ms`)
+
+      // 🔥 关闭启动 Loading（所有初始化完成后才显示页面）
+      isAppLoading.value = false
     }
     else {
       console.log('ℹ️ [App.vue] 用户未登录，跳过应用初始化')
-    }
 
-    // 🔥 关闭启动 Loading（所有初始化完成后才显示页面）
-    isAppLoading.value = false
+      // 🔥 检查当前路由是否需要认证
+      const currentRoute = router.currentRoute.value
+      const requiresAuth = currentRoute.meta.requiresAuth !== false
+      const isPublic = currentRoute.meta.public === true
+
+      // 如果访问的是受保护路由，且用户未认证，路由守卫会触发 loginWithRedirect
+      // 在这种情况下，保持 Loading 直到页面跳转（loginWithRedirect 会触发页面跳转）
+      if (requiresAuth && !isPublic) {
+        console.log('⏳ [App.vue] 检测到访问受保护路由，等待路由守卫处理...')
+        // 给路由守卫一些时间来完成 loginWithRedirect
+        // 如果 2 秒后还在当前页面，说明可能有问题，关闭 Loading
+        setTimeout(() => {
+          // 检查是否还在当前页面（loginWithRedirect 应该已经跳转了）
+          if (window.location.href === currentRoute.fullPath || router.currentRoute.value.path === currentRoute.path) {
+            console.warn('⚠️ [App.vue] 登录重定向可能失败，关闭 Loading')
+            isAppLoading.value = false
+          }
+        }, 2000)
+        // 注意：如果 loginWithRedirect 成功，页面会跳转到 Auth0，这个 setTimeout 不会执行
+      }
+      else {
+        // 公开路由或不需要认证的路由，可以立即关闭 Loading
+        isAppLoading.value = false
+      }
+    }
 
     // 🔥 性能计时：计算总耗时
     const endTime = performance.now()

@@ -102,7 +102,7 @@ dataSources.value.forEach((item, index) => {
 // - 根据新的 uuid 加载对应会话数据
 watch(
   () => route.params.uuid,
-  (newUuid) => {
+  async (newUuid) => {
     // 处理 uuid 可能是数组的情况（TypeScript 类型）
     const uuidStr = Array.isArray(newUuid) ? newUuid[0] : newUuid
 
@@ -116,6 +116,31 @@ watch(
           前端nanoid: uuidStr,
           后端UUID: backendUuid || '（无映射，新会话）',
         })
+      }
+
+      // 🔥 刷新页面时，确保调用 setActive 加载当前会话的消息
+      // 检查当前 active 是否与路由 uuid 一致，不一致则调用 setActive
+      if (chatStore.active !== uuidStr) {
+        if (import.meta.env.DEV) {
+          console.log('🔄 [对话] 刷新页面，加载当前会话消息:', uuidStr)
+        }
+        try {
+          // 🔥 跳过路由重新加载，因为当前路由已经是正确的了
+          // 这样可以避免页面闪烁（先显示第一个会话，然后跳转到正确的会话）
+          await chatStore.setActive(uuidStr, true)
+
+          // 🔥 消息加载完成后，等待 DOM 更新并滚动到底部
+          await nextTick()
+          // 使用双重 requestAnimationFrame 确保浏览器完成绘制和布局
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              scrollToBottom()
+            })
+          })
+        }
+        catch (error) {
+          console.error('❌ [对话] 加载会话消息失败:', error)
+        }
       }
     }
     else {
@@ -194,23 +219,29 @@ watch(showSettingsPage, (newValue, oldValue) => {
 watch(() => chatStore.active, async (newActive, oldActive) => {
   // 当切换到不同的会话时触发（排除初始化情况）
   if (newActive && oldActive && newActive !== oldActive) {
+    // 🔥 等待消息加载完成（如果有消息需要加载）
+    // 注意：这里不等待 setActive 完成，因为 setActive 可能在路由 watch 中已经调用
+    // 我们等待 DOM 更新和消息渲染完成
+
     // 🔥 使用 nextTick 等待 Vue 更新 DOM（消息数据已渲染到模板）
     await nextTick()
 
-    // 🔥 使用双重 requestAnimationFrame 确保浏览器完成绘制
+    // 🔥 额外等待，确保消息内容完全渲染（特别是长消息）
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    // 🔥 使用双重 requestAnimationFrame 确保浏览器完成绘制和布局
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (scrollRef.value) {
-          // 正确的滚动到底部方式：scrollTop = scrollHeight - clientHeight
-          const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
-          scrollRef.value.scrollTop = maxScrollTop
+        scrollToBottom()
 
-          if (import.meta.env.DEV) {
-            console.log('✅ [滚动] 切换会话后滚动到底部', {
-              会话: newActive,
-              scrollTop: maxScrollTop,
-            })
-          }
+        if (import.meta.env.DEV && scrollRef.value) {
+          const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
+          console.warn('✅ [滚动] 切换会话后滚动到底部', {
+            会话: newActive,
+            scrollTop: maxScrollTop,
+            scrollHeight: scrollRef.value.scrollHeight,
+            clientHeight: scrollRef.value.clientHeight,
+          })
         }
       })
     })
@@ -231,6 +262,38 @@ watch(dataSources, (newSources, oldSources) => {
     isFooterElevated.value = true
   }
 }, { immediate: true })
+
+// 🔥 监听当前会话的消息数据变化，当消息加载完成后滚动到底部
+// 主要用于切换会话时，等待消息从后端加载完成后滚动
+watch(
+  () => [chatStore.active, dataSources.value.length] as const,
+  async ([newActive, newLength], [oldActive]) => {
+    // 当切换到新会话且消息数量增加时（说明消息正在加载）
+    if (newActive && newActive !== oldActive && newLength > 0) {
+      // 🔥 等待消息完全渲染（特别是长消息需要时间）
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      // 🔥 使用双重 requestAnimationFrame 确保浏览器完成绘制和布局
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToBottom()
+
+          if (import.meta.env.DEV && scrollRef.value) {
+            const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
+            console.warn('✅ [滚动] 消息加载完成后滚动到底部', {
+              会话: newActive,
+              消息数: newLength,
+              scrollTop: maxScrollTop,
+              scrollHeight: scrollRef.value.scrollHeight,
+              clientHeight: scrollRef.value.clientHeight,
+            })
+          }
+        })
+      })
+    }
+  },
+)
 
 function handleSubmit() {
   onConversation()

@@ -6,37 +6,54 @@
 
 import { USER_CONFIG_KEYS } from '../cache/cacheKeys'
 import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
+import { logger } from '../utils/logger'
 import { supabase } from './supabaseClient'
 
 /**
  * 获取用户完整配置（带缓存）
  */
 export async function getUserConfig(userId: string) {
+  const startTime = performance.now()
+
   // 尝试从缓存获取
   const cacheKey = USER_CONFIG_KEYS.full(userId)
   const cached = await getCached(cacheKey)
+  const cacheTime = performance.now() - startTime
+
   if (cached) {
+    if (cacheTime > 100) {
+      logger.warn(`⚠️ [ConfigService] 缓存读取耗时: ${cacheTime.toFixed(0)}ms (userId: ${userId.substring(0, 8)}...)`)
+    }
     return cached
   }
 
   // 缓存未命中，从数据库查询
+  const dbStartTime = performance.now()
   const { data, error } = await supabase
     .from('user_configs')
     .select('*')
     .eq('user_id', userId)
     .single()
 
+  const dbTime = performance.now() - dbStartTime
+
+  if (dbTime > 500) {
+    logger.warn(`⚠️ [ConfigService] 数据库查询耗时: ${dbTime.toFixed(0)}ms (userId: ${userId.substring(0, 8)}...)`)
+  }
+
   if (error) {
     // 如果用户配置不存在，创建默认配置
     if (error.code === 'PGRST116') {
-      console.warn(`ℹ️  [ConfigService] 用户 ${userId} 配置不存在，创建默认配置`)
+      logger.debug(`ℹ️  [ConfigService] 用户 ${userId.substring(0, 8)}... 配置不存在，创建默认配置`)
       return await createUserConfig(userId)
     }
     throw error
   }
 
-  // 保存到缓存
-  await setCached(cacheKey, data, CACHE_TTL.USER_CONFIG)
+  // 保存到缓存（异步，不阻塞响应）
+  setCached(cacheKey, data, CACHE_TTL.USER_CONFIG).catch((err) => {
+    logger.error(`❌ [ConfigService] 缓存写入失败:`, err)
+  })
 
   return data
 }

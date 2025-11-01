@@ -14,6 +14,7 @@ import {
   updateProvider,
 } from '../db/providerService'
 import { addPerfCheckpoint } from '../middleware/performanceLogger'
+import { logger } from '../utils/logger'
 
 // ============================================
 // Provider Controllers
@@ -23,6 +24,8 @@ import { addPerfCheckpoint } from '../middleware/performanceLogger'
  * 获取所有供应商及其模型（带缓存）
  */
 export async function getProviders(req: Request, res: Response) {
+  const totalStartTime = performance.now()
+
   try {
     const cacheKey = PROVIDER_KEYS.list()
 
@@ -32,6 +35,10 @@ export async function getProviders(req: Request, res: Response) {
     const duration1 = performance.now() - start1
     addPerfCheckpoint(req, `Cache Check: ${duration1.toFixed(0)}ms`)
 
+    if (duration1 > 200) {
+      logger.warn(`⚠️ [ProviderController] 缓存读取耗时: ${duration1.toFixed(0)}ms`)
+    }
+
     if (!providers) {
       // 缓存未命中，从数据库查询
       const start2 = performance.now()
@@ -39,11 +46,26 @@ export async function getProviders(req: Request, res: Response) {
       const duration2 = performance.now() - start2
       addPerfCheckpoint(req, `DB Query: ${duration2.toFixed(0)}ms`)
 
-      // 保存到缓存
+      if (duration2 > 1000) {
+        logger.warn(`⚠️ [ProviderController] 数据库查询耗时: ${duration2.toFixed(0)}ms`)
+      }
+
+      // 保存到缓存（异步，不阻塞响应）
       const start3 = performance.now()
-      await setCached(cacheKey, providers, CACHE_TTL.PROVIDER_LIST)
-      const duration3 = performance.now() - start3
-      addPerfCheckpoint(req, `Cache Set: ${duration3.toFixed(0)}ms`)
+      setCached(cacheKey, providers, CACHE_TTL.PROVIDER_LIST).then(() => {
+        const duration3 = performance.now() - start3
+        addPerfCheckpoint(req, `Cache Set: ${duration3.toFixed(0)}ms`)
+        if (duration3 > 200) {
+          logger.warn(`⚠️ [ProviderController] 缓存写入耗时: ${duration3.toFixed(0)}ms`)
+        }
+      }).catch((err) => {
+        logger.error(`❌ [ProviderController] 缓存写入失败:`, err)
+      })
+    }
+
+    const totalTime = performance.now() - totalStartTime
+    if (totalTime > 500) {
+      logger.warn(`⚠️ [ProviderController] 总耗时: ${totalTime.toFixed(0)}ms`)
     }
 
     res.json({
@@ -53,7 +75,7 @@ export async function getProviders(req: Request, res: Response) {
     })
   }
   catch (error: any) {
-    console.error('获取供应商列表失败:', error)
+    logger.error('❌ [ProviderController] 获取供应商列表失败:', error)
     res.status(500).json({
       status: 'Fail',
       message: error.message || '获取供应商列表失败',

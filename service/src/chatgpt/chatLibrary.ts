@@ -61,12 +61,20 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
       ? baseURL
       : `${baseURL}/v1`
 
-    // 🔥 如果有历史消息，使用原生 fetch 调用（与 chatNative 相同的逻辑）
-    if (historyMessages && historyMessages.length > 0) {
+    // 🔥 检测是否使用 MiniMax 模型（MiniMax API 格式与标准 OpenAI 不完全兼容）
+    const isMiniMaxModel = model.toLowerCase().includes('minimax')
+
+    // 🔥 如果有历史消息或使用 MiniMax 模型，使用原生 fetch 调用（与 chatNative 相同的逻辑）
+    if ((historyMessages && historyMessages.length > 0) || isMiniMaxModel) {
       const fullMessages = [
-        ...historyMessages,
+        ...(historyMessages || []),
         { role: 'user', content: message },
       ]
+
+      // 🔥 如果有系统消息，添加到消息列表开头
+      if (systemMessage) {
+        fullMessages.unshift({ role: 'system', content: systemMessage })
+      }
 
       const apiUrl = `${apiBaseUrl}/chat/completions`
 
@@ -129,7 +137,33 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
             try {
               const jsonStr = line.substring(6)
               const data = JSON.parse(jsonStr)
-              const delta = data.choices?.[0]?.delta?.content || ''
+
+              // 🔥 兼容 MiniMax 和其他 API 格式
+              // MiniMax 可能使用不同的字段结构，需要更灵活的解析
+              let delta = ''
+
+              // 标准 OpenAI 格式
+              if (data.choices?.[0]?.delta?.content) {
+                delta = data.choices[0].delta.content
+              }
+              // MiniMax 可能的格式
+              else if (data.choices?.[0]?.delta) {
+                // 如果没有 content，可能是其他字段，尝试读取文本字段
+                delta = data.choices[0].delta.text || data.choices[0].delta.content || ''
+              }
+              // 直接 content 字段（某些 API 变体）
+              else if (data.content) {
+                delta = data.content
+              }
+              // 完整的 text 字段（某些 API 返回完整累积文本）
+              else if (data.text && !accumulatedText) {
+                // 首次接收完整文本
+                delta = data.text
+              }
+              else if (data.text && accumulatedText && data.text.length > accumulatedText.length) {
+                // 后续接收，提取增量
+                delta = data.text.substring(accumulatedText.length)
+              }
 
               if (delta) {
                 accumulatedText += delta
@@ -144,8 +178,11 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
                 }
               }
             }
-            catch {
-              // 忽略解析错误
+            catch (error) {
+              // 🔥 记录解析错误以便调试，但不中断流程
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('⚠️ [SSE解析] 解析失败:', error, '原始数据:', line.substring(0, 200))
+              }
             }
           }
         }
@@ -160,6 +197,151 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
       const responseTime = Date.now() - startTime
 
       console.warn('📊 [ChatGPT库-流式] 响应信息:', {
+        time: `${responseTime}ms`,
+        id: messageId,
+        model,
+        textLength: accumulatedText.length,
+      })
+
+      return sendResponse({
+        type: 'Success',
+        data: {
+          id: messageId,
+          text: accumulatedText,
+          role: 'assistant',
+          detail: {
+            model,
+            usage: {
+              total_tokens: 0,
+              estimated: true,
+            },
+          },
+        },
+      })
+    }
+
+    // 🔥 如果是 MiniMax 模型，强制使用原生 fetch 实现（即使没有历史消息）
+    if (isMiniMaxModel) {
+      const fullMessages = systemMessage
+        ? [{ role: 'system', content: systemMessage }, { role: 'user', content: message }]
+        : [{ role: 'user', content: message }]
+
+      const apiUrl = `${apiBaseUrl}/chat/completions`
+
+      const requestBody = {
+        model,
+        messages: fullMessages,
+        temperature: temperature || 0.7,
+        top_p: top_p || 1,
+        max_tokens: maxTokens || 4096,
+        stream: true,
+      }
+
+      console.warn('[ChatGPT库-MiniMax] 使用原生实现发送请求:', {
+        url: apiUrl,
+        model,
+        messagesCount: fullMessages.length,
+      })
+
+      // 🔥 配置代理和 TLS 选项
+      const fetchOptions: any = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        timeout: 120000, // 120 秒超时
+      }
+
+      // 🔥 设置代理（如果配置了）
+      setupProxy(fetchOptions)
+
+      // 🔥 如果配置了自定义 fetch，使用它
+      const fetchFn = fetchOptions.fetch || fetch
+      delete fetchOptions.fetch // 移除自定义 fetch，避免传递给 node-fetch
+
+      const fetchResponse = await fetchFn(apiUrl, fetchOptions)
+
+      if (!fetchResponse.ok) {
+        throw new Error(`API 调用失败: ${fetchResponse.statusText}`)
+      }
+
+      // 使用 Node.js 流处理
+      const body = fetchResponse.body as any
+      let buffer = ''
+      const messageId = `msg_${Date.now()}`
+      let accumulatedText = ''
+
+      // 监听流数据
+      body.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf-8')
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim() || line === 'data: [DONE]')
+            continue
+
+          if (line.startsWith('data: ')) {
+            try {
+              const jsonStr = line.substring(6)
+              const data = JSON.parse(jsonStr)
+
+              // 🔥 兼容 MiniMax 和其他 API 格式
+              let delta = ''
+
+              // 标准 OpenAI 格式
+              if (data.choices?.[0]?.delta?.content) {
+                delta = data.choices[0].delta.content
+              }
+              // MiniMax 可能的格式
+              else if (data.choices?.[0]?.delta) {
+                delta = data.choices[0].delta.text || data.choices[0].delta.content || ''
+              }
+              // 直接 content 字段
+              else if (data.content) {
+                delta = data.content
+              }
+              // 完整的 text 字段
+              else if (data.text && !accumulatedText) {
+                delta = data.text
+              }
+              else if (data.text && accumulatedText && data.text.length > accumulatedText.length) {
+                delta = data.text.substring(accumulatedText.length)
+              }
+
+              if (delta) {
+                accumulatedText += delta
+
+                if (processCallback) {
+                  processCallback({
+                    id: messageId,
+                    text: accumulatedText,
+                    role: 'assistant',
+                    detail: data,
+                  } as any)
+                }
+              }
+            }
+            catch (error) {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('⚠️ [SSE解析] 解析失败:', error, '原始数据:', line.substring(0, 200))
+              }
+            }
+          }
+        }
+      })
+
+      // 等待流结束
+      await new Promise((resolve, reject) => {
+        body.on('end', resolve)
+        body.on('error', reject)
+      })
+
+      const responseTime = Date.now() - startTime
+
+      console.warn('📊 [ChatGPT库-MiniMax] 响应信息:', {
         time: `${responseTime}ms`,
         id: messageId,
         model,

@@ -17,6 +17,7 @@ import {
 } from '../db/configService'
 import { findUserByAuth0Id } from '../db/supabaseUserService'
 import { addPerfCheckpoint } from '../middleware/performanceLogger'
+import { logger } from '../utils/logger'
 
 /**
  * 获取当前用户的数据库 user_id
@@ -175,6 +176,8 @@ export async function patchUserSettings(req: Request, res: Response) {
  * GET /api/config/chat
  */
 export async function getChatConfigHandler(req: Request, res: Response) {
+  const totalStartTime = performance.now()
+
   try {
     const userId = await getUserIdFromRequest(req)
     if (!userId) {
@@ -187,6 +190,11 @@ export async function getChatConfigHandler(req: Request, res: Response) {
 
     const config = await getChatConfig(userId)
 
+    const totalTime = performance.now() - totalStartTime
+    if (totalTime > 500) {
+      logger.warn(`⚠️ [ConfigController] 获取聊天配置总耗时: ${totalTime.toFixed(0)}ms`)
+    }
+
     res.json({
       status: 'Success',
       message: '获取聊天配置成功',
@@ -194,7 +202,7 @@ export async function getChatConfigHandler(req: Request, res: Response) {
     })
   }
   catch (error: any) {
-    console.error('❌ [ConfigController] 获取聊天配置失败:', error.message)
+    logger.error('❌ [ConfigController] 获取聊天配置失败:', error.message)
     res.status(500).json({
       status: 'Fail',
       message: `获取聊天配置失败: ${error.message}`,

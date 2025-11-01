@@ -62,13 +62,19 @@ app.set('etag', false)
 
 // 全局 CORS 配置：支持 Auth0 认证和 SSE
 app.all('*', (req: Request, res: Response, next: NextFunction) => {
-  // 允许的来源（开发环境）
+  // 允许的来源（开发环境 + 生产环境）
   const allowedOrigins = [
+    // 开发环境
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3002',
-    'http://localhost:1002', // 🔥 前端实际端口
-    'http://127.0.0.1:1002', // 🔥 前端实际端口（127.0.0.1）
+    'http://localhost:1002',
+    'http://127.0.0.1:1002',
+    // 生产环境
+    'https://supercocmos.me',
+    'https://www.supercocmos.me',
+    // Vercel 预览部署
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
   ]
   const origin = req.headers.origin
 

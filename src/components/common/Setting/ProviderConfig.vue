@@ -2,7 +2,7 @@
 import type { DataTableColumns } from 'naive-ui'
 import type { Role } from '@/api/services/roleService'
 import { NButton, NCheckbox, NCheckboxGroup, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, testModelConnection, updateModel, updateProvider } from '@/api'
 import { getAllModelsWithRoles, getAllRoles } from '@/api/services/roleService'
 import { SvgIcon } from '@/components/common'
@@ -134,7 +134,7 @@ async function loadAllRoles() {
     loadingRoles.value = true
     const response = await getAllRoles()
     allRoles.value = response.data?.roles || []
-    
+
     // 🔥 默认选择 Free 角色（role_id = 5）
     // 在首次加载时，如果 addModelSelectedRoleIds 为空，则默认选择 Free
     if (allRoles.value.length > 0 && addModelSelectedRoleIds.value.length === 0) {
@@ -524,7 +524,7 @@ function openAddModel(providerId: string) {
     providerId,
   }
   oldModelId.value = ''
-  
+
   // 🔥 默认选择 Free 角色（role_id = 5）
   const freeRole = allRoles.value.find(r => r.role_name === 'Free' || r.role_id === 5)
   if (freeRole) {
@@ -533,7 +533,7 @@ function openAddModel(providerId: string) {
   else {
     addModelSelectedRoleIds.value = []
   }
-  
+
   showAddModel.value = true
   // display_name 会通过 watch 自动生成为 "供应商名_模型ID" 格式
 }

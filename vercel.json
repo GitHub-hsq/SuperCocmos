@@ -10,13 +10,6 @@
       "destination": "/service/build/index.mjs"
     }
   ],
-  "functions": {
-    "service/build/index.mjs": {
-      "runtime": "nodejs@20",
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
   "env": {
     "NODE_ENV": "production"
   }

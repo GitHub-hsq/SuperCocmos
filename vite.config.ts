@@ -52,13 +52,8 @@ export default defineConfig((env) => {
           manualChunks: (id) => {
             // 将 node_modules 中的大型依赖拆分到单独的 chunk
             if (id.includes('node_modules')) {
-              // LangChain 相关（大型 AI 库）
-              if (id.includes('@langchain') || id.includes('langchain')) {
-                return 'langchain'
-              }
-
-              // Naive UI（UI 组件库）
-              if (id.includes('naive-ui')) {
+              // Naive UI（UI 组件库）- 最大的依赖之一
+              if (id.includes('naive-ui') || id.includes('vueuc') || id.includes('seemly')) {
                 return 'naive-ui'
               }
 
@@ -72,8 +67,8 @@ export default defineConfig((env) => {
               if (id.includes('vue-i18n')) {
                 return 'vue-i18n'
               }
-              if (id.includes('vue') || id.includes('@vue')) {
-                return 'vue-vendor'
+              if (id.includes('vue') && !id.includes('vue-router') && !id.includes('vue-i18n')) {
+                return 'vue'
               }
 
               // Markdown 相关
@@ -91,7 +86,7 @@ export default defineConfig((env) => {
                 return 'katex'
               }
 
-              // HTML 转图片（按需加载）
+              // HTML 转图片
               if (id.includes('html-to-image')) {
                 return 'html-to-image'
               }
@@ -107,20 +102,6 @@ export default defineConfig((env) => {
               }
               if (id.includes('@vueuse')) {
                 return 'vueuse'
-              }
-
-              // 后端依赖（不应该在前端打包，但作为安全措施）
-              if (
-                id.includes('mysql2')
-                || id.includes('pdf-parse')
-                || id.includes('mammoth')
-                || id.includes('resend')
-                || id.includes('ioredis')
-                || id.includes('@upstash')
-              ) {
-                // 这些应该是后端依赖，前端不应该包含
-                // 如果出现在这里，可能是误导入，保留在 vendor 中但可以单独标记
-                return 'backend-deps'
               }
 
               // 其他小型依赖合并到 vendor

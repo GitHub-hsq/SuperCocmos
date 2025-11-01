@@ -386,18 +386,18 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
       .select('role_id')
       .eq('user_id', userId)
 
-    const currentRoleIds = currentUserRoles?.map(ur => ur.role_id) || []
+    const currentRoleIds = currentUserRoles?.map((ur: any) => ur.role_id) || []
 
     // 3. 添加新角色
     const roleIdsToAdd = dbRoles
-      .filter(role => !currentRoleIds.includes(role.role_id))
-      .map(role => role.role_id)
+      .filter((role: any) => !currentRoleIds.includes(role.role_id))
+      .map((role: any) => role.role_id)
 
     if (roleIdsToAdd.length > 0) {
       const { error: insertError } = await supabase
         .from('user_roles')
         .insert(
-          roleIdsToAdd.map(roleId => ({
+          roleIdsToAdd.map((roleId: string) => ({
             user_id: userId,
             role_id: roleId,
           })),
@@ -408,8 +408,8 @@ async function syncUserRolesToDatabase(userId: string, auth0Roles: string[]): Pr
     }
 
     // 4. 删除不再拥有的角色
-    const targetRoleIds = dbRoles.map(r => r.role_id)
-    const roleIdsToRemove = currentRoleIds.filter(roleId => !targetRoleIds.includes(roleId))
+    const targetRoleIds = dbRoles.map((r: any) => r.role_id)
+    const roleIdsToRemove = currentRoleIds.filter((roleId: string) => !targetRoleIds.includes(roleId))
 
     if (roleIdsToRemove.length > 0) {
       const { error: deleteError } = await supabase

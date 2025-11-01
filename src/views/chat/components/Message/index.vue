@@ -1,9 +1,7 @@
 <script setup lang='ts'>
-import { NDropdown, useMessage } from 'naive-ui'
-import { computed, ref } from 'vue'
+import { NTooltip, useMessage } from 'naive-ui'
+import { ref } from 'vue'
 import { SvgIcon } from '@/components/common'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useIconRender } from '@/hooks/useIconRender'
 import { t } from '@/locales'
 import { copyToClip } from '@/utils/copy'
 import TextComponent from './Text.vue'
@@ -24,10 +22,6 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<Emit>()
 
-const { isMobile } = useBasicLayout()
-
-const { iconRender } = useIconRender()
-
 const message = useMessage()
 
 const textRef = ref<HTMLElement>()
@@ -35,43 +29,10 @@ const textRef = ref<HTMLElement>()
 const asRawText = ref(props.inversion)
 
 const messageRef = ref<HTMLElement>()
+const isHovered = ref(false)
 
-const options = computed(() => {
-  const common = [
-    {
-      label: t('chat.copy'),
-      key: 'copyText',
-      icon: iconRender({ icon: 'ri:file-copy-2-line' }),
-    },
-    {
-      label: t('common.delete'),
-      key: 'delete',
-      icon: iconRender({ icon: 'ri:delete-bin-line' }),
-    },
-  ]
-
-  if (!props.inversion) {
-    common.unshift({
-      label: asRawText.value ? t('chat.preview') : t('chat.showRawText'),
-      key: 'toggleRenderType',
-      icon: iconRender({ icon: asRawText.value ? 'ic:outline-code-off' : 'ic:outline-code' }),
-    })
-  }
-
-  return common
-})
-
-function handleSelect(key: 'copyText' | 'delete' | 'toggleRenderType') {
-  switch (key) {
-    case 'copyText':
-      handleCopy()
-      return
-    case 'toggleRenderType':
-      asRawText.value = !asRawText.value
-      return
-    case 'delete':
-      emit('delete')
-  }
+function handleToggleRenderType() {
+  asRawText.value = !asRawText.value
 }
 
 function handleRegenerate() {
@@ -93,13 +54,14 @@ async function handleCopy() {
 <template>
   <div
     ref="messageRef"
-    class="flex w-full overflow-hidden"
+    class="message-wrapper w-full"
     style="margin-bottom: 3.5rem;"
-    :class="[{ 'flex-row-reverse': inversion }]"
+    @mouseenter="isHovered = true"
+    @mouseleave="isHovered = false"
   >
-    <div class="overflow-hidden text-sm w-full" :class="[inversion ? 'items-end' : 'items-start']">
+    <div class="text-sm w-full" :class="[inversion ? 'items-end' : 'items-start']">
       <div
-        class="flex items-end gap-1"
+        class="flex"
         :class="[inversion ? 'flex-row-reverse' : 'flex-row']"
       >
         <TextComponent
@@ -110,25 +72,90 @@ async function handleCopy() {
           :loading="loading"
           :as-raw-text="asRawText"
         />
-        <div class="flex flex-col">
-          <button
-            v-if="!inversion"
-            class="mb-2 transition text-neutral-300 hover:text-neutral-800 dark:hover:text-neutral-300"
-            @click="handleRegenerate"
-          >
-            <SvgIcon icon="ri:restart-line" />
-          </button>
-          <NDropdown
-            :trigger="isMobile ? 'click' : 'hover'"
-            :placement="!inversion ? 'right' : 'left'"
-            :options="options"
-            @select="handleSelect"
-          >
-            <button class="transition text-neutral-300 hover:text-neutral-800 dark:hover:text-neutral-200">
-              <SvgIcon icon="ri:more-2-fill" />
-            </button>
-          </NDropdown>
-        </div>
+      </div>
+      <!-- 操作按钮区域 -->
+      <!-- LLM消息：只有在消息完成后（!loading && !error）才显示操作按钮 -->
+      <!-- 用户消息：总是显示（用户消息不会 loading） -->
+      <div
+        v-if="inversion || (!loading && !error)"
+        class="flex gap-2 mt-2 transition-opacity"
+        :class="[
+          inversion ? 'justify-end' : 'justify-start',
+          (inversion && !isHovered) ? 'opacity-0' : 'opacity-100',
+        ]"
+      >
+        <!-- LLM消息：重新生成、显示原文、复制、删除 -->
+        <template v-if="!inversion">
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button
+                class="transition text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="handleRegenerate"
+              >
+                <SvgIcon icon="ri:restart-line" class="w-4 h-4" />
+              </button>
+            </template>
+            {{ t('chat.regenerate') }}
+          </NTooltip>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button
+                class="transition text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="handleToggleRenderType"
+              >
+                <SvgIcon :icon="asRawText ? 'ic:outline-code-off' : 'ic:outline-code'" class="w-4 h-4" />
+              </button>
+            </template>
+            {{ asRawText ? t('chat.preview') : t('chat.showRawText') }}
+          </NTooltip>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button
+                class="transition text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="handleCopy"
+              >
+                <SvgIcon icon="ri:file-copy-2-line" class="w-4 h-4" />
+              </button>
+            </template>
+            {{ t('chat.copy') }}
+          </NTooltip>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button
+                class="transition text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="emit('delete')"
+              >
+                <SvgIcon icon="ri:delete-bin-line" class="w-4 h-4" />
+              </button>
+            </template>
+            {{ t('common.delete') }}
+          </NTooltip>
+        </template>
+        <!-- 用户消息：复制和删除 -->
+        <template v-else>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button
+                class="transition text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="handleCopy"
+              >
+                <SvgIcon icon="ri:file-copy-2-line" class="w-4 h-4" />
+              </button>
+            </template>
+            {{ t('chat.copy') }}
+          </NTooltip>
+          <NTooltip placement="bottom">
+            <template #trigger>
+              <button
+                class="transition text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="emit('delete')"
+              >
+                <SvgIcon icon="ri:delete-bin-line" class="w-4 h-4" />
+              </button>
+            </template>
+            {{ t('common.delete') }}
+          </NTooltip>
+        </template>
       </div>
     </div>
   </div>

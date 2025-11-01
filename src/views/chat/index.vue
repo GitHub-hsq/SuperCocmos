@@ -1611,14 +1611,6 @@ function handleSelectModel(model: ModelItem) {
                             @regenerate="onRegenerate(index)"
                             @delete="handleDelete(index)"
                           />
-                          <div class="sticky bottom-0 left-0 flex justify-center">
-                            <NButton v-if="loading" type="warning" @click="handleStop">
-                              <template #icon>
-                                <SvgIcon icon="ri:stop-circle-line" />
-                              </template>
-                              {{ t('common.stopResponding') }}
-                            </NButton>
-                          </div>
                         </div>
                       </template>
                     </div>
@@ -1652,9 +1644,18 @@ function handleSelectModel(model: ModelItem) {
                         <SvgIcon icon="ri:attachment-2" />
                       </button>
 
-                      <!-- 右侧语音/发送按钮 -->
+                      <!-- 右侧语音/发送/停止按钮 -->
+                      <!-- 响应期间显示停止按钮 -->
                       <button
-                        v-if="!prompt || prompt.trim() === ''"
+                        v-if="loading"
+                        class="chat-icon-btn voice-btn pointer-events-auto"
+                        @click="handleStop"
+                      >
+                        <SvgIcon icon="ic:round-square" class="w-[14px] h-[14px]" />
+                      </button>
+                      <!-- 非响应期间：输入框为空显示语音按钮，有内容显示发送按钮 -->
+                      <button
+                        v-else-if="!prompt || prompt.trim() === ''"
                         class="chat-icon-btn voice-btn pointer-events-auto"
                       >
                         <SvgIcon icon="ri:mic-line" />
@@ -1694,9 +1695,18 @@ function handleSelectModel(model: ModelItem) {
                         />
                       </div>
 
-                      <!-- 右侧语音/发送按钮 -->
+                      <!-- 右侧语音/发送/停止按钮 -->
+                      <!-- 响应期间显示停止按钮 -->
                       <button
-                        v-if="!prompt || prompt.trim() === ''"
+                        v-if="loading"
+                        class="chat-icon-btn voice-btn flex-shrink-0"
+                        @click="handleStop"
+                      >
+                        <SvgIcon icon="ic:round-square" class="w-[14px] h-[14px]" />
+                      </button>
+                      <!-- 非响应期间：输入框为空显示语音按钮，有内容显示发送按钮 -->
+                      <button
+                        v-else-if="!prompt || prompt.trim() === ''"
                         class="chat-icon-btn voice-btn flex-shrink-0"
                       >
                         <SvgIcon icon="ri:mic-line" />

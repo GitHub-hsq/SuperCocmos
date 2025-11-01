@@ -5,6 +5,7 @@ export default {
     edit: 'Edit',
     editSuccess: 'Edit Success',
     delete: 'Delete',
+    more: 'More',
     deleteSuccess: 'Delete Success',
     save: 'Save',
     saveSuccess: 'Save Success',
@@ -123,6 +124,7 @@ export default {
     preview: 'Preview',
     showRawText: 'Show as raw text',
     thinking: 'Thinking...',
+    regenerate: 'Regenerate',
   },
   setting: {
     setting: 'Setting',

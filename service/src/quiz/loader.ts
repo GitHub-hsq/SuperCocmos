@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { WorkflowState } from './types'
 import { existsSync, readFileSync } from 'node:fs'
 import { extname } from 'node:path'
@@ -7,7 +6,7 @@ export async function loadFile(state: WorkflowState): Promise<WorkflowState> {
   const filePath = state.file_path
   const ext = extname(filePath).toLowerCase()
 
-  console.log('📄 [加载] 开始加载文件:', { filePath, ext })
+  console.warn('📄 [加载] 开始加载文件:', { filePath, ext })
 
   if (!existsSync(filePath)) {
     console.error('❌ [加载] 文件不存在:', filePath)
@@ -45,7 +44,7 @@ export async function loadFile(state: WorkflowState): Promise<WorkflowState> {
   if (ext === '.md' || ext === '.txt') {
     try {
       state.text = readFileSync(filePath, 'utf-8')
-      console.log('✅ [加载] 文本文件加载成功，内容长度:', state.text.length)
+      console.warn('✅ [加载] 文本文件加载成功，内容长度:', state.text.length)
       return state
     }
     catch (error: any) {

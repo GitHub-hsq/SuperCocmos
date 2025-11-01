@@ -12,6 +12,9 @@ const chatStore = useChatStore()
 
 const dataSources = computed(() => chatStore.history)
 
+// 🔥 Loading状态：记录正在加载的会话UUID
+const loadingUuid = ref<string | null>(null)
+
 async function handleSelect({ uuid }: Chat.History) {
   if (isActive(uuid))
     return
@@ -30,12 +33,8 @@ async function handleSelect({ uuid }: Chat.History) {
           if (isEmpty) {
             const prevIndex = chatStore.history.findIndex(item => item.uuid === previousUuid)
             if (prevIndex !== -1) {
-              console.log('🗑️ [自动删除] 会话为空，已删除:', previousUuid)
               chatStore.deleteHistory(prevIndex)
             }
-          }
-          else {
-            console.log('ℹ️ [自动删除] 会话在数据库中有消息，保留:', previousUuid)
           }
         })
       }
@@ -83,9 +82,6 @@ const hoveredUuid = ref<string | null>(null)
 
 // Popover打开状态（关键：即使鼠标移出会话，只要Popover打开就保持三个点显示）
 const popoverOpenUuid = ref<string | null>(null)
-
-// 🔥 Loading状态：记录正在加载的会话UUID
-const loadingUuid = ref<string | null>(null)
 
 // 处理Popover显示状态变化
 function handlePopoverUpdateShow(show: boolean, uuid: string) {

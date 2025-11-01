@@ -54,23 +54,11 @@ export function setupApiClient(auth0: Auth0VueClient) {
 
             if (token) {
               config.headers.Authorization = `Bearer ${token}`
-
-              // 开发环境下输出调试信息
-              if (import.meta.env.DEV && config.url?.includes('/config'))
-                console.log(`🔐 [API Client] 附加 token 到请求: ${config.url}`)
-            }
-            else if (import.meta.env.DEV) {
-              console.log(`⚠️ [API Client] 无法获取 token: ${config.url}`)
             }
           }
-          catch (tokenError: any) {
+          catch {
             // 静默处理 token 获取失败（可能是 Consent required）
-            if (import.meta.env.DEV && !tokenError.message?.includes('Consent required'))
-              console.log('⚠️ [API Client] 获取 Auth0 token 失败:', tokenError.message, 'URL:', config.url)
           }
-        }
-        else if (import.meta.env.DEV && config.url?.includes('/config')) {
-          console.log('⚠️ [API Client] Auth0 未认证或未初始化:', config.url)
         }
       }
       catch {
@@ -79,9 +67,6 @@ export function setupApiClient(auth0: Auth0VueClient) {
         const token = authStore.token || localStorage.getItem('token')
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
-        }
-        else if (import.meta.env.DEV) {
-          console.log('⚠️ [API Client] 无可用 token (备用方案也失败):', config.url)
         }
       }
 
@@ -122,8 +107,6 @@ export function setupApiClient(auth0: Auth0VueClient) {
         originalRequest._retry = true
 
         try {
-          console.log('🔄 [API Client] 检测到 401，尝试刷新 token...')
-
           // 强制刷新 token（绕过缓存）
           const newToken = await auth0.getAccessTokenSilently({
             authorizationParams: {
@@ -133,7 +116,6 @@ export function setupApiClient(auth0: Auth0VueClient) {
           })
 
           if (newToken) {
-            console.log('✅ [API Client] Token 刷新成功，重试请求')
             // 更新请求头
             if (originalRequest.headers) {
               originalRequest.headers.Authorization = `Bearer ${newToken}`
@@ -145,7 +127,6 @@ export function setupApiClient(auth0: Auth0VueClient) {
         catch (refreshError: any) {
           console.error('❌ [API Client] Token 刷新失败:', refreshError.message)
           // Token 刷新失败，可能是 refresh token 也过期了，需要重新登录
-          console.log('🔄 [API Client] Refresh token 过期，重定向到登录页...')
           await auth0.loginWithRedirect({
             authorizationParams: {
               redirect_uri: window.location.origin,

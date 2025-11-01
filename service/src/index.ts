@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /* eslint-disable perfectionist/sort-imports */
 // 🔥 必须在所有导入之前加载环境变量
 import 'dotenv/config'
@@ -16,6 +15,7 @@ import cookieParser from 'cookie-parser'
 
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
+import type { Request } from 'express'
 
 import multer from 'multer'
 
@@ -34,12 +34,17 @@ import { initUserTable, testConnection } from './utils/db' // 数据库连接
 import { isNotEmptyString } from './utils/is' // 工具函数：判断非空字符串
 import { createUser, deleteUser, findUserByEmail, findUserById, findUserByUsername, getAllUsers, updateUser, validateUserPassword } from './utils/userService'
 
+// 扩展 Request 类型以包含 userId
+interface AuthRequest extends Request {
+  userId?: string
+}
+
 const envPath = join(process.cwd(), '.env')
-console.log('🔍 [Dotenv Debug] 当前工作目录:', process.cwd())
-console.log('🔍 [Dotenv Debug] .env 文件路径:', envPath)
-console.log('🔍 [Dotenv Debug] .env 文件是否存在:', existsSync(envPath))
-console.log('🔍 [Dotenv Debug] AUTH0_DOMAIN:', process.env.AUTH0_DOMAIN)
-console.log('🔍 [Dotenv Debug] SUPABASE_URL:', process.env.SUPABASE_URL?.substring(0, 30)) // 用户服务
+console.warn('🔍 [Dotenv Debug] 当前工作目录:', process.cwd())
+console.warn('🔍 [Dotenv Debug] .env 文件路径:', envPath)
+console.warn('🔍 [Dotenv Debug] .env 文件是否存在:', existsSync(envPath))
+console.warn('🔍 [Dotenv Debug] AUTH0_DOMAIN:', process.env.AUTH0_DOMAIN)
+console.warn('🔍 [Dotenv Debug] SUPABASE_URL:', process.env.SUPABASE_URL?.substring(0, 30)) // 用户服务
 
 const app = express()
 const router = express.Router()
@@ -125,7 +130,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
     prompt = userPrompt
 
     // console.warn('⏱️ [后端-性能] 请求到达时间:', new Date().toISOString())
-    console.log('📝 [后端] 接收请求:', {
+    console.warn('📝 [后端] 接收请求:', {
       model,
       providerId,
       conversationId: clientConversationId,
@@ -159,7 +164,8 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
     }
 
     // 🚀 步骤2：快速获取用户 ID
-    const auth0UserId = req.userId
+    const authReq = req as AuthRequest
+    const auth0UserId = authReq.userId
     if (!auth0UserId) {
       res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '认证失败' } }))
       return res.end()
@@ -189,7 +195,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
         const { getConversationByFrontendUuid } = await import('./db/conversationService')
         conversation = await getConversationByFrontendUuid(frontendUuid, user.user_id)
         if (conversation) {
-          console.log('✅ [Conversation] 通过 frontendUuid 找到现有对话:', {
+          console.warn('✅ [Conversation] 通过 frontendUuid 找到现有对话:', {
             frontendUuid,
             backendUuid: conversation.id,
           })
@@ -208,7 +214,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
         const { getConversationById } = await import('./db/conversationService')
         conversation = await getConversationById(clientConversationId!)
         if (conversation) {
-          console.log('✅ [Conversation] 通过后端 UUID 找到现有对话:', clientConversationId)
+          console.warn('✅ [Conversation] 通过后端 UUID 找到现有对话:', clientConversationId)
           isNewConversation = false
         }
       }
@@ -234,7 +240,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
         max_tokens: maxTokens ?? 2048,
         system_prompt: systemMessage,
       })
-      console.log('🆕 [Conversation] 创建新会话:', {
+      console.warn('🆕 [Conversation] 创建新会话:', {
         backendUUID: conversation?.id,
         frontendUUID: frontendUuid || '（未提供）',
       })
@@ -247,7 +253,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
 
     // 🔥 赋值给外层变量（而非声明新的局部变量）
     conversationId = conversation.id
-    console.log('📝 [对话] 使用对话ID:', conversationId)
+    console.warn('📝 [对话] 使用对话ID:', conversationId)
 
     // 🔥 加载历史消息（仅在已有会话时加载）
     let historyMessages: Array<{ role: string, content: string }> = []
@@ -257,7 +263,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
       if (systemMessage) {
         historyMessages = [{ role: 'system', content: systemMessage }]
       }
-      console.log('🆕 [上下文] 新会话，不加载历史消息')
+      console.warn('🆕 [上下文] 新会话，不加载历史消息')
     }
     else {
       // 🔥 已有会话：加载历史消息
@@ -265,7 +271,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
       if (contextMessages && Array.isArray(contextMessages) && contextMessages.length > 0) {
         historyMessages = contextMessages
         if (process.env.NODE_ENV === 'development') {
-          console.log(`📚 [上下文] 使用前端缓存: ${contextMessages.length} 条`)
+          console.warn(`📚 [上下文] 使用前端缓存: ${contextMessages.length} 条`)
         }
       }
       else {
@@ -387,7 +393,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
           },
         )
 
-        console.log('✅ [保存] 消息已写入 Redis（pending），异步保存到数据库')
+        console.warn('✅ [保存] 消息已写入 Redis（pending），异步保存到数据库')
       }
       catch (error) {
         console.error('❌ [保存] 保存消息失败:', error)
@@ -430,7 +436,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
             },
           )
 
-          console.log('✅ [保存] 错误消息已写入 Redis（pending），异步保存到数据库')
+          console.warn('✅ [保存] 错误消息已写入 Redis（pending），异步保存到数据库')
         }
       }
       catch (saveError) {
@@ -484,7 +490,7 @@ const upload = multer({
 
 // Upload endpoint: returns saved filePath and starts classification
 router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (req, res) => {
-  console.log('📤 [上传] 接收到文件上传请求')
+  console.warn('📤 [上传] 接收到文件上传请求')
 
   if (!req.file) {
     console.error('❌ [上传] 没有文件')
@@ -494,7 +500,7 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
   const filePath = req.file.path
   const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8') // 正确处理中文文件名
 
-  console.log('📁 [上传] 文件信息:', {
+  console.warn('📁 [上传] 文件信息:', {
     原始文件名: originalName,
     服务器文件名: req.file.filename,
     文件路径: filePath,
@@ -503,7 +509,7 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
 
   try {
     // ✅ 文件分类功能暂时禁用，未来将从用户配置的模型中选择
-    console.log('📁 [上传] 文件上传成功（分类功能待实现）')
+    console.warn('📁 [上传] 文件上传成功（分类功能待实现）')
 
     return res.send({
       status: 'Success',
@@ -646,12 +652,12 @@ router.post('/quiz/save', unifiedAuth, requireAuth, limiter, async (req, res) =>
 // Test LLM connection: simple test to verify API key and model
 router.post('/quiz/test-llm', async (req, res) => {
   try {
-    console.log('🧪 [API] 收到 LLM 测试请求')
+    console.warn('🧪 [API] 收到 LLM 测试请求')
     const { testLLMConnection } = await import('./quiz/workflow')
     const result = await testLLMConnection()
 
     if (result.success) {
-      console.log('✅ [API] LLM 测试成功')
+      console.warn('✅ [API] LLM 测试成功')
       res.send({
         status: 'Success',
         message: result.message,
@@ -702,7 +708,8 @@ router.get('/conversations', unifiedAuth, requireAuth, async (req, res) => {
     const { findUserByAuth0Id } = await import('./db/supabaseUserService')
     const { getUserConversations } = await import('./db/conversationService')
 
-    const user = await findUserByAuth0Id(req.userId!)
+    const authReq = req as AuthRequest
+    const user = await findUserByAuth0Id(authReq.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -741,11 +748,12 @@ router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
     const { getUserAccessibleProvidersWithModels } = await import('./db/modelRoleAccessService')
     const { userHasRole } = await import('./db/userRoleService')
     const { findUserByAuth0Id } = await import('./db/supabaseUserService')
-    const { getCached, setCached } = await import('./cache/cacheService')
-    const { CACHE_TTL, PROVIDER_KEYS } = await import('./cache/cacheKeys')
+    const { getCached, setCached, CACHE_TTL } = await import('./cache/cacheService')
+    const { PROVIDER_KEYS } = await import('./cache/cacheKeys')
 
     // 获取当前用户
-    const user = await findUserByAuth0Id(req.userId!)
+    const authReq = req as AuthRequest
+    const user = await findUserByAuth0Id(authReq.userId!)
 
     if (!user) {
       return res.status(404).send({
@@ -759,23 +767,23 @@ router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
 
     if (isAdmin) {
       // 管理员：返回所有模型的完整信息（包括 API Key 和 Base URL）
-      console.log('✅ [Models] 管理员请求，返回完整配置（所有模型）')
+      console.warn('✅ [Models] 管理员请求，返回完整配置（所有模型）')
 
       // 🔥 尝试从 Redis 缓存获取
       const cacheKey = PROVIDER_KEYS.list()
       let providersWithModels = await getCached(cacheKey)
 
       if (providersWithModels) {
-        console.log('✅ [ModelsCache] 缓存命中（管理员）')
+        console.warn('✅ [ModelsCache] 缓存命中（管理员）')
       }
       else {
         // 缓存未命中，查询数据库
-        console.log('ℹ️ [ModelsCache] 缓存未命中（管理员），从数据库加载')
+        console.warn('ℹ️ [ModelsCache] 缓存未命中（管理员），从数据库加载')
         providersWithModels = await getAllProvidersWithModels()
 
         // 保存到缓存（30分钟）
         await setCached(cacheKey, providersWithModels, CACHE_TTL.PROVIDER_LIST)
-        console.log('💾 [ModelsCache] 已缓存管理员模型列表')
+        console.warn('💾 [ModelsCache] 已缓存管理员模型列表')
       }
 
       // 🔥 管理员返回完整信息（用于配置页面）
@@ -787,18 +795,18 @@ router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
     }
     else {
       // 普通用户：只返回有权限访问的模型，隐藏敏感信息
-      console.log(`✅ [Models] 普通用户请求，基于角色过滤模型: ${user.user_id}`)
+      console.warn(`✅ [Models] 普通用户请求，基于角色过滤模型: ${user.user_id}`)
 
       // 🔥 尝试从 Redis 缓存获取用户可访问的模型
       const userCacheKey = `${PROVIDER_KEYS.list()}:user:${user.user_id}`
       let sanitizedData = await getCached(userCacheKey)
 
       if (sanitizedData) {
-        console.log(`✅ [ModelsCache] 缓存命中（用户: ${user.user_id.substring(0, 8)}...）`)
+        console.warn(`✅ [ModelsCache] 缓存命中（用户: ${user.user_id.substring(0, 8)}...）`)
       }
       else {
         // 缓存未命中，查询数据库
-        console.log(`ℹ️ [ModelsCache] 缓存未命中（用户: ${user.user_id.substring(0, 8)}...），从数据库加载`)
+        console.warn(`ℹ️ [ModelsCache] 缓存未命中（用户: ${user.user_id.substring(0, 8)}...），从数据库加载`)
         const accessibleProviders = await getUserAccessibleProvidersWithModels(user.user_id)
 
         // 🔥 精简数据：只返回前端需要的字段
@@ -817,7 +825,7 @@ router.get('/models', unifiedAuth, requireAuth, async (req, res) => {
 
         // 保存到缓存（30分钟）
         await setCached(userCacheKey, sanitizedData, CACHE_TTL.PROVIDER_LIST)
-        console.log(`💾 [ModelsCache] 已缓存用户模型列表: ${user.user_id.substring(0, 8)}...`)
+        console.warn(`💾 [ModelsCache] 已缓存用户模型列表: ${user.user_id.substring(0, 8)}...`)
       }
 
       res.send({
@@ -992,17 +1000,16 @@ router.post('/auth/register', async (req, res) => {
     // 创建新用户（密码会在 createUser 中自动加密）
     const newUser = await createUser(email, password, name)
 
-    console.log(`✅ [注册] 新用户注册成功: ${email}`)
+    console.warn(`✅ [注册] 新用户注册成功: ${email}`)
 
     res.send({
       status: 'Success',
       message: '注册成功',
       data: {
         user: {
-          id: newUser.id,
+          id: newUser.user_id,
           email: newUser.email,
           username: newUser.username,
-          nickname: newUser.nickname,
           createdAt: newUser.created_at,
         },
       },
@@ -1041,23 +1048,21 @@ router.post('/auth/login', async (req, res) => {
       })
     }
 
-    // 生成 token
-    const token = generateToken(user.id)
+    // 注意：Auth0 已处理认证，这里不再生成 token
+    // token 由 Auth0 提供，前端通过 Auth0 SDK 获取
 
-    console.log(`✅ [登录] 用户登录成功: ${email}`)
+    console.warn(`✅ [登录] 用户登录成功: ${email}`)
 
     res.send({
       status: 'Success',
       message: '登录成功',
       data: {
         user: {
-          id: user.id,
+          id: user.user_id,
           email: user.email,
           username: user.username,
-          nickname: user.nickname,
           createdAt: user.created_at,
         },
-        token,
       },
     })
   }
@@ -1075,8 +1080,17 @@ router.post('/auth/login', async (req, res) => {
 router.get('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
+    const userId = Number.parseInt(id, 10)
 
-    const user = await findUserById(id)
+    if (Number.isNaN(userId)) {
+      return res.status(400).send({
+        status: 'Fail',
+        message: '无效的用户ID',
+        data: null,
+      })
+    }
+
+    const user = await findUserById(userId)
     if (!user) {
       return res.status(404).send({
         status: 'Fail',
@@ -1090,10 +1104,9 @@ router.get('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
       message: '获取用户信息成功',
       data: {
         user: {
-          id: user.id,
+          id: user.user_id,
           email: user.email,
           username: user.username,
-          nickname: user.nickname,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
         },
@@ -1114,15 +1127,24 @@ router.get('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
 router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
-    const { username, nickname, email, password } = req.body as {
+    const userId = Number.parseInt(id, 10)
+
+    if (Number.isNaN(userId)) {
+      return res.status(400).send({
+        status: 'Fail',
+        message: '无效的用户ID',
+        data: null,
+      })
+    }
+
+    const { username, email, password } = req.body as {
       username?: string
-      nickname?: string
       email?: string
       password?: string
     }
 
     // 检查用户是否存在
-    const existingUser = await findUserById(id)
+    const existingUser = await findUserById(userId)
     if (!existingUser) {
       return res.status(404).send({
         status: 'Fail',
@@ -1134,7 +1156,7 @@ router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
     // 如果更新邮箱，检查邮箱是否已被其他用户使用
     if (email && email !== existingUser.email) {
       const emailUser = await findUserByEmail(email)
-      if (emailUser && emailUser.id !== id) {
+      if (emailUser && emailUser.user_id !== userId) {
         return res.status(400).send({
           status: 'Fail',
           message: '该邮箱已被其他用户使用',
@@ -1146,7 +1168,7 @@ router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
     // 如果更新用户名，检查用户名是否已被其他用户使用
     if (username && username !== existingUser.username) {
       const usernameUser = await findUserByUsername(username)
-      if (usernameUser && usernameUser.id !== id) {
+      if (usernameUser && usernameUser.user_id !== userId) {
         return res.status(400).send({
           status: 'Fail',
           message: '该用户名已被其他用户使用',
@@ -1155,9 +1177,8 @@ router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
       }
     }
 
-    const updatedUser = await updateUser(id, {
+    const updatedUser = await updateUser(userId, {
       username,
-      nickname,
       email,
       password,
     })
@@ -1170,17 +1191,16 @@ router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
       })
     }
 
-    console.log(`✅ [用户] 用户信息更新成功: ${id}`)
+    console.warn(`✅ [用户] 用户信息更新成功: ${userId}`)
 
     res.send({
       status: 'Success',
       message: '用户信息更新成功',
       data: {
         user: {
-          id: updatedUser.id,
+          id: updatedUser.user_id,
           email: updatedUser.email,
           username: updatedUser.username,
-          nickname: updatedUser.nickname,
           createdAt: updatedUser.created_at,
           updatedAt: updatedUser.updated_at,
         },
@@ -1201,9 +1221,18 @@ router.put('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
 router.delete('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
   try {
     const { id } = req.params
+    const userId = Number.parseInt(id, 10)
+
+    if (Number.isNaN(userId)) {
+      return res.status(400).send({
+        status: 'Fail',
+        message: '无效的用户ID',
+        data: null,
+      })
+    }
 
     // 检查用户是否存在
-    const existingUser = await findUserById(id)
+    const existingUser = await findUserById(userId)
     if (!existingUser) {
       return res.status(404).send({
         status: 'Fail',
@@ -1212,7 +1241,7 @@ router.delete('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
       })
     }
 
-    const deleted = await deleteUser(id)
+    const deleted = await deleteUser(userId)
     if (!deleted) {
       return res.status(500).send({
         status: 'Fail',
@@ -1221,7 +1250,7 @@ router.delete('/user/:id', unifiedAuth, requireAuth, async (req, res) => {
       })
     }
 
-    console.log(`✅ [用户] 用户删除成功: ${id}`)
+    console.warn(`✅ [用户] 用户删除成功: ${id}`)
 
     res.send({
       status: 'Success',
@@ -1249,10 +1278,9 @@ router.get('/users', unifiedAuth, requireAuth, async (req, res) => {
       message: '获取用户列表成功',
       data: {
         users: users.map(user => ({
-          id: user.id,
+          id: user.user_id,
           email: user.email,
           username: user.username,
-          nickname: user.nickname,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
         })),
@@ -1280,7 +1308,7 @@ app.set('trust proxy', 1)
 // 确保在所有 API 路由之后添加
 const distPath = join(process.cwd(), 'dist')
 if (existsSync(distPath)) {
-  console.log('✅ [启动] 检测到 dist 目录，启用静态文件服务')
+  console.warn('✅ [启动] 检测到 dist 目录，启用静态文件服务')
   app.use(express.static(distPath))
 
   // Catch-all 路由：所有非 API 路由都返回 index.html（支持 History 模式）
@@ -1293,7 +1321,7 @@ if (existsSync(distPath)) {
   })
 }
 else {
-  console.log('⚠️  [启动] 未检测到 dist 目录，请先运行 pnpm build 构建前端')
+  console.warn('⚠️  [启动] 未检测到 dist 目录，请先运行 pnpm build 构建前端')
 }
 
 // 初始化数据库
@@ -1327,7 +1355,7 @@ async function initDatabase() {
       console.error('⚠️ [启动] 预加载缓存失败，将使用数据库查询:', error)
     }
 
-    console.log('✅ [启动] 数据库初始化完成')
+    console.warn('✅ [启动] 数据库初始化完成')
   }
   catch (error: any) {
     console.error('❌ [启动] 数据库初始化失败:', error.message)
@@ -1357,7 +1385,7 @@ async function startServer() {
   await initDatabase()
 
   app.listen(3002, () => {
-    globalThis.console.log('Server is running on port 3002')
+    globalThis.console.warn('Server is running on port 3002')
   })
 }
 

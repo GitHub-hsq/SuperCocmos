@@ -71,7 +71,7 @@ async function checkAuth0Connection() {
     return
   try {
     await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
-    console.log(`✅ [Auth0 Health] 连接正常: ${AUTH0_DOMAIN}`)
+    console.warn(`✅ [Auth0 Health] 连接正常: ${AUTH0_DOMAIN}`)
   }
   catch (err: any) {
     console.warn(`⚠️ [Auth0 Health] 连接异常: ${err.message}`)
@@ -86,7 +86,7 @@ async function preloadJWKSKeys() {
     return
   try {
     const keys = await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
-    console.log(`✅ [Auth0 JWKS] 预加载成功 (${keys.keys?.length || 0} 个密钥)`)
+    console.warn(`✅ [Auth0 JWKS] 预加载成功 (${keys.keys?.length || 0} 个密钥)`)
   }
   catch (err: any) {
     console.warn(`⚠️ [Auth0 JWKS] 预加载失败: ${err.message}`)
@@ -133,6 +133,7 @@ export async function auth0UserExtractor(req: Request, _res: Response, next: Nex
   const dur = performance.now() - start
 
   // 🔥 添加性能检查点
+  // eslint-disable-next-line ts/no-require-imports
   const { addPerfCheckpoint } = require('./performanceLogger')
   addPerfCheckpoint(req, `User Extraction: ${dur.toFixed(1)}ms`)
 
@@ -153,6 +154,7 @@ function jwtPerformanceWrapper(req: Request, res: Response, next: NextFunction) 
     const duration = performance.now() - start
 
     // 🔥 添加性能检查点
+    // eslint-disable-next-line ts/no-require-imports
     const { addPerfCheckpoint } = require('./performanceLogger')
     addPerfCheckpoint(req, `JWT Verification: ${duration.toFixed(0)}ms`)
 

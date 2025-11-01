@@ -1,11 +1,10 @@
-/* eslint-disable no-console */
 /**
  * 🔥 优化的消息保存服务
  * 实现：先写 Redis（pending）→ 异步写数据库 → 更新 Redis 状态（saved/failed）
  * 保证 Redis 和数据库最终一致性
  */
 
-import type { Message, MessageStatus } from '../db/messageService'
+import type { Message } from '../db/messageService'
 import { nanoid } from 'nanoid'
 import { appendMessageToCache, updateMessageStatusInCache } from '../cache/messageCache'
 import { incrementConversationStats } from '../db/conversationService'
@@ -87,7 +86,7 @@ export async function saveUserMessage(
       if (savedMessage) {
         // ✅ 数据库写入成功，更新 Redis 状态为 saved
         await updateMessageStatusInCache(conversationId, messageId, 'saved')
-        console.log(`✅ [保存] 用户消息已保存: ${messageId}`)
+        console.warn(`✅ [保存] 用户消息已保存: ${messageId}`)
       }
       else {
         // ❌ 数据库写入失败，更新 Redis 状态为 failed
@@ -148,7 +147,7 @@ export async function saveAssistantMessage(
           console.error('❌ [保存] 更新对话统计失败:', err),
         )
 
-        console.log(`✅ [保存] 助手消息已保存: ${messageId}`)
+        console.warn(`✅ [保存] 助手消息已保存: ${messageId}`)
       }
       else {
         // ❌ 数据库写入失败，更新 Redis 状态为 failed
@@ -246,7 +245,7 @@ export async function saveMessagePair(
       }
 
       if (userMsg && assistantMsg) {
-        console.log(`✅ [保存] 消息对已保存: ${userMessageId} + ${assistantMessageId}`)
+        console.warn(`✅ [保存] 消息对已保存: ${userMessageId} + ${assistantMessageId}`)
       }
       else {
         console.warn(`⚠️ [保存] 消息对部分保存失败: user=${!!userMsg}, assistant=${!!assistantMsg}`)

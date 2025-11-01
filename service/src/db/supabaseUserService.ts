@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Supabase 用户管理 Service
  * 提供用户的 CRUD 操作（基于 Supabase）
@@ -85,7 +84,7 @@ export async function createUser(input: CreateUserInput): Promise<SupabaseUser> 
     if (error)
       throw error
 
-    console.log(`✅ [SupabaseUserService] 用户创建成功: ${input.email}`)
+    console.warn(`✅ [SupabaseUserService] 用户创建成功: ${input.email}`)
     return data
   }
   catch (error: any) {
@@ -285,7 +284,7 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
       throw error
     }
 
-    console.log(`✅ [SupabaseUserService] 用户更新成功: ${userId}`)
+    console.warn(`✅ [SupabaseUserService] 用户更新成功: ${userId}`)
     return data
   }
   catch (error: any) {
@@ -308,7 +307,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
     if (error)
       throw error
 
-    console.log(`✅ [SupabaseUserService] 用户删除成功: ${userId}`)
+    console.warn(`✅ [SupabaseUserService] 用户删除成功: ${userId}`)
     return true
   }
   catch (error: any) {

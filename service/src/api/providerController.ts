@@ -521,7 +521,7 @@ export async function testModel(req: Request, res: Response) {
       ? `${provider.api_key.substring(0, 8)}...${provider.api_key.substring(provider.api_key.length - 4)}`
       : '未设置'
 
-    console.log('[模型测试] 发送请求:', {
+    console.warn('[模型测试] 发送请求:', {
       url: requestUrl,
       method: 'POST',
       apiKey: maskedApiKey,
@@ -544,7 +544,7 @@ export async function testModel(req: Request, res: Response) {
     // 计算响应时间
     const responseTime = Date.now() - startTime
 
-    console.log(`[模型测试] 响应状态: ${testResponse.status} ${testResponse.statusText} (${responseTime}ms)`)
+    console.warn(`[模型测试] 响应状态: ${testResponse.status} ${testResponse.statusText} (${responseTime}ms)`)
 
     if (!testResponse.ok) {
       const errorData = await testResponse.json().catch(() => ({ error: { message: '未知错误' } }))
@@ -565,7 +565,7 @@ export async function testModel(req: Request, res: Response) {
     let data
     try {
       data = await testResponse.json()
-      console.log('[模型测试] 成功解析响应:', {
+      console.warn('[模型测试] 成功解析响应:', {
         id: data.id,
         model: data.model,
         hasChoices: !!data.choices?.length,

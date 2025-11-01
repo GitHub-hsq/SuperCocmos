@@ -53,9 +53,6 @@ export function useTheme() {
   watch(
     () => isDark.value,
     (dark) => {
-      if (import.meta.env.DEV) {
-        console.log('[useTheme] 当前主题设置:', appStore.theme)
-      }
       if (dark)
         document.documentElement.classList.add('dark')
       else

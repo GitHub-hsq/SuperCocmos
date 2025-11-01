@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 🔐 模型访问权限验证中间件
  * 优化：支持缓存、快速失败、管理员绕过
@@ -105,7 +104,7 @@ export function requireModelAccess() {
       // 4. 检查是否为管理员（管理员绕过所有权限检查）
       const isAdmin = await userHasRole(user.user_id, 'Admin') || await userHasRole(user.user_id, 'admin')
       if (isAdmin) {
-        console.log(`✅ [权限] 管理员绕过权限检查: ${user.user_id}`)
+        console.warn(`✅ [权限] 管理员绕过权限检查: ${user.user_id}`)
         return next()
       }
 
@@ -145,7 +144,7 @@ export function requireModelAccess() {
         return res.end()
       }
 
-      console.log(`✅ [权限] 用户 ${user.user_id} 权限验证通过，模型: ${modelId}`)
+      console.warn(`✅ [权限] 用户 ${user.user_id} 权限验证通过，模型: ${modelId}`)
       return next()
     }
     catch (error: any) {
@@ -171,7 +170,7 @@ export async function clearUserPermissionCache(userId: string) {
     // 注意：这里需要遍历所有可能的模型ID，或者使用模式匹配
     // 为了简化，我们只清除特定模型的缓存
     // 实际应用中可能需要更复杂的缓存清理策略
-    console.log(`🧹 [权限] 清除用户权限缓存: ${userId}`)
+    console.warn(`🧹 [权限] 清除用户权限缓存: ${userId}`)
   }
   catch (error) {
     console.error('❌ [权限] 清除权限缓存失败:', error)

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 🔍 数据库 Schema 对比和同步工具
  *
@@ -126,23 +125,23 @@ async function getTableColumns(tableName: string): Promise<TableColumn[]> {
  * 📥 从远程数据库获取 schema（简化版本）
  */
 async function getRemoteSchema(): Promise<Map<string, TableColumn[]>> {
-  console.log('📡 [Schema] 正在从远程数据库获取 schema...')
+  console.warn('📡 [Schema] 正在从远程数据库获取 schema...')
 
   const schema = new Map<string, TableColumn[]>()
 
   try {
     const tables = await getTableList()
-    console.log(`📋 [Schema] 找到 ${tables.length} 个表`)
+    console.warn(`📋 [Schema] 找到 ${tables.length} 个表`)
 
     for (const tableName of tables) {
-      console.log(`  🔍 分析表: ${tableName}`)
+      console.warn(`  🔍 分析表: ${tableName}`)
       const columns = await getTableColumns(tableName)
       if (columns.length > 0) {
         schema.set(tableName, columns)
       }
     }
 
-    console.log(`✅ [Schema] 成功获取 ${schema.size} 个表的结构`)
+    console.warn(`✅ [Schema] 成功获取 ${schema.size} 个表的结构`)
     return schema
   }
   catch (error: any) {
@@ -299,14 +298,14 @@ function generateReport(
  */
 async function main() {
   try {
-    console.log('🔍 [Schema] 开始数据库 Schema 对比和同步...\n')
+    console.warn('🔍 [Schema] 开始数据库 Schema 对比和同步...\n')
 
     // 1. 测试数据库连接
     const { error: testError } = await supabase.from('users').select('count').limit(1)
     if (testError) {
       throw new Error(`数据库连接失败: ${testError.message}`)
     }
-    console.log('✅ [Schema] 数据库连接成功\n')
+    console.warn('✅ [Schema] 数据库连接成功\n')
 
     // 2. 获取远程 schema
     const remoteSchema = await getRemoteSchema()
@@ -322,23 +321,23 @@ async function main() {
 
     // 4. 生成并输出报告
     const report = generateReport(remoteSchema, comparison)
-    console.log(`\n${report}`)
+    console.warn(`\n${report}`)
 
     // 5. 保存报告到文件
     const reportPath = join(process.cwd(), 'supabse', 'SchemaComparisonReport.txt')
     writeFileSync(reportPath, report, 'utf-8')
-    console.log(`📄 [Schema] 报告已保存到: ${reportPath}`)
+    console.warn(`📄 [Schema] 报告已保存到: ${reportPath}`)
 
     // 6. 输出总结
     if (comparison.differences.length === 0) {
-      console.log('✅ [Schema] 本地和远程 schema 完全一致！')
+      console.warn('✅ [Schema] 本地和远程 schema 完全一致！')
     }
     else {
-      console.log(`⚠️ [Schema] 发现 ${comparison.differences.length} 处差异`)
-      console.log('💡 [Schema] 请查看报告文件了解详细信息')
+      console.warn(`⚠️ [Schema] 发现 ${comparison.differences.length} 处差异`)
+      console.warn('💡 [Schema] 请查看报告文件了解详细信息')
     }
 
-    console.log('\n✅ [Schema] 完成！')
+    console.warn('\n✅ [Schema] 完成！')
   }
   catch (error: any) {
     console.error('\n❌ [Schema] 执行失败:', error.message)

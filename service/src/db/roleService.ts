@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 角色管理 Service
  * 提供角色的 CRUD 操作
@@ -117,7 +116,7 @@ export async function createRole(input: CreateRoleInput): Promise<Role> {
     if (error)
       throw error
 
-    console.log(`✅ [RoleService] 角色创建成功: ${input.role_name}`)
+    console.warn(`✅ [RoleService] 角色创建成功: ${input.role_name}`)
     return data
   }
   catch (error: any) {
@@ -148,7 +147,7 @@ export async function updateRole(roleId: number, input: UpdateRoleInput): Promis
       throw error
     }
 
-    console.log(`✅ [RoleService] 角色更新成功: ${roleId}`)
+    console.warn(`✅ [RoleService] 角色更新成功: ${roleId}`)
     return data
   }
   catch (error: any) {
@@ -170,7 +169,7 @@ export async function deleteRole(roleId: number): Promise<boolean> {
     if (error)
       throw error
 
-    console.log(`✅ [RoleService] 角色删除成功: ${roleId}`)
+    console.warn(`✅ [RoleService] 角色删除成功: ${roleId}`)
     return true
   }
   catch (error: any) {

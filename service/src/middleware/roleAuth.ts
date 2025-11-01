@@ -76,7 +76,7 @@ export function requireRole(requiredRole: string) {
       const roles = getUserRoles(req)
 
       if (roles.includes(requiredRole)) {
-        console.log(`✅ [Role] 角色验证通过: ${requiredRole}`)
+        console.warn(`✅ [Role] 角色验证通过: ${requiredRole}`)
         return next()
       }
 
@@ -120,7 +120,7 @@ export function requireMinLevel(minLevel: number) {
       const userLevel = getUserLevel(roles)
 
       if (userLevel >= minLevel) {
-        console.log(`✅ [Level] 等级验证通过: ${userLevel} >= ${minLevel}`)
+        console.warn(`✅ [Level] 等级验证通过: ${userLevel} >= ${minLevel}`)
         return next()
       }
 
@@ -172,7 +172,7 @@ export function requireAnyRole(requiredRoles: string[]) {
       const hasAnyRole = requiredRoles.some(r => roles.includes(r))
 
       if (hasAnyRole) {
-        console.log(`✅ [Role] 角色验证通过（任一）`)
+        console.warn(`✅ [Role] 角色验证通过（任一）`)
         return next()
       }
 

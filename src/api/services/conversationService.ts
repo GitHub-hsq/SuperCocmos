@@ -46,16 +46,10 @@ export async function fetchUserConversations<T = Conversation[]>(options?: {
   limit?: number
   offset?: number
 }) {
-  const startTime = performance.now()
-  console.log('🚀 [前端API] 开始请求会话列表...')
-
   const result = await get<T>({
     url: '/conversations',
     data: options,
   })
-
-  const endTime = performance.now()
-  console.log(`✅ [前端API] 会话列表请求完成，耗时: ${Math.round(endTime - startTime)}ms`)
 
   return result
 }
@@ -148,14 +142,10 @@ export async function fetchConversationMessages<T = Message[]>(
     offset?: number
   },
 ) {
-  const startTime = performance.now()
   const result = await get<T>({
     url: `/conversations/${conversationId}/messages`,
     data: options,
   })
-
-  const endTime = performance.now()
-  console.log(`✅ [前端========] 请求完成，总耗时: ${Math.round(endTime - startTime)}ms`)
 
   return result
 }

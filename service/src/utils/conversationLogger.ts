@@ -51,7 +51,7 @@ export function saveConversationLog(conversationData: ConversationLog): void {
     writeFileSync(filepath, logContent, 'utf-8')
 
     // 输出绝对路径方便用户查找
-    console.log(`💾 [对话日志] 已保存到: ${filepath}`)
+    console.warn(`💾 [对话日志] 已保存到: ${filepath}`)
   }
   catch (error) {
     console.error('❌ [对话日志] 保存失败:', error)

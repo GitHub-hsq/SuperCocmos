@@ -83,7 +83,7 @@ export async function cacheJWTVerification(
     // 只有在 TTL > 0 时才缓存
     if (ttl > 0) {
       await redis.setex(cacheKey, ttl, JSON.stringify(result))
-      console.log(`✅ [JWT缓存] 已缓存 (TTL: ${ttl}s, userId: ${result.userId})`)
+      console.warn(`✅ [JWT缓存] 已缓存 (TTL: ${ttl}s, userId: ${result.userId})`)
     }
   }
   catch (error) {
@@ -100,7 +100,7 @@ export async function clearJWTCache(token: string): Promise<void> {
     const hash = hashToken(token)
     const cacheKey = `${CACHE_PREFIX}${hash}`
     await redis.del(cacheKey)
-    console.log(`🗑️ [JWT缓存] 已清除`)
+    console.warn(`🗑️ [JWT缓存] 已清除`)
   }
   catch (error) {
     console.error('❌ [JWT缓存] 清除失败:', error)
@@ -115,7 +115,7 @@ export async function clearAllJWTCache(): Promise<void> {
     const keys = await redis.keys(`${CACHE_PREFIX}*`)
     if (keys.length > 0) {
       await redis.del(...keys)
-      console.log(`🗑️ [JWT缓存] 已清除 ${keys.length} 个缓存`)
+      console.warn(`🗑️ [JWT缓存] 已清除 ${keys.length} 个缓存`)
     }
   }
   catch (error) {

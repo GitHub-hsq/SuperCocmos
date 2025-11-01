@@ -94,7 +94,7 @@ function handleLanguageChange(value: 'zh-CN' | 'en-US') {
 }
 
 // 异步保存单个设置
-async function saveSingleSetting(key: 'theme' | 'language', value: string) {
+async function saveSingleSetting(key: 'theme' | 'language', _value: string) {
   try {
     await (configStore as any).updateUserSettings({
       avatar: formData.avatar,
@@ -102,9 +102,6 @@ async function saveSingleSetting(key: 'theme' | 'language', value: string) {
       theme: formData.theme as 'auto' | 'light' | 'dark',
       language: formData.language as 'zh-CN' | 'en-US',
     })
-    if (import.meta.env.DEV) {
-      console.log(`✅ [UserSettings] ${key} 已同步到后端:`, value)
-    }
   }
   catch (error: any) {
     console.error(`❌ [UserSettings] ${key} 同步失败:`, error)
@@ -132,14 +129,6 @@ async function handleSave() {
 
     loadingBar.finish()
     ms.success('用户设置已保存')
-
-    // ✅ 保存成功的日志（只在开发环境输出）
-    if (import.meta.env.DEV) {
-      console.log('✅ [UserSettings] 保存成功:', {
-        theme: formData.theme,
-        language: formData.language,
-      })
-    }
   }
   catch (error: any) {
     loadingBar.error()

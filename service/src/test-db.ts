@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import dotenv from 'dotenv'
 /**
  * 数据库连接测试脚本
@@ -10,35 +9,35 @@ import { createUser, findUserByEmail, getAllUsers } from './utils/userService'
 dotenv.config()
 
 async function main() {
-  console.log('🔍 [测试] 开始测试 Supabase 数据库连接...\n')
+  console.warn('🔍 [测试] 开始测试 Supabase 数据库连接...\n')
 
   try {
     // 1. 测试连接
-    console.log('1️⃣ 测试 Supabase 连接...')
+    console.warn('1️⃣ 测试 Supabase 连接...')
     await testConnection()
-    console.log('✅ [测试] Supabase 连接成功\n')
+    console.warn('✅ [测试] Supabase 连接成功\n')
 
     // 测试创建用户
-    console.log('   - 创建测试用户...')
+    console.warn('   - 创建测试用户...')
     const testUser = await createUser(
       'test@example.com',
       'password123',
       'testuser',
       'email',
     )
-    console.log('   ✅ 创建用户成功:', testUser.user_id)
+    console.warn('   ✅ 创建用户成功:', testUser.user_id)
 
     // 测试查找用户
-    console.log('   - 查找用户...')
+    console.warn('   - 查找用户...')
     const foundUser = await findUserByEmail('test@example.com')
-    console.log('   ✅ 查找用户成功:', foundUser?.username)
+    console.warn('   ✅ 查找用户成功:', foundUser?.username)
 
     // 测试获取所有用户
-    console.log('   - 获取所有用户...')
+    console.warn('   - 获取所有用户...')
     const allUsers = await getAllUsers()
-    console.log('   ✅ 获取用户列表成功，共', allUsers.length, '个用户')
+    console.warn('   ✅ 获取用户列表成功，共', allUsers.length, '个用户')
 
-    console.log('\n🎉 [测试] 所有测试通过！')
+    console.warn('\n🎉 [测试] 所有测试通过！')
     process.exit(0)
   }
   catch (error: any) {

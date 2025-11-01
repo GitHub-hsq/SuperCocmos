@@ -77,15 +77,10 @@ export const useAppInitStore = defineStore('app-init', {
     async initializeApp(auth0: Auth0VueClient) {
       // 防止重复初始化
       if (this.isInitialized || this.isInitializing) {
-        if (import.meta.env.DEV) {
-          console.log('⏭️ [AppInit] 应用已初始化，跳过')
-        }
         return { success: true }
       }
 
       this.isInitializing = true
-      const startTime = performance.now()
-      console.log('🚀 [AppInit] 开始应用初始化...')
 
       try {
         // 动态导入 store（避免循环依赖）
@@ -98,7 +93,6 @@ export const useAppInitStore = defineStore('app-init', {
         const authStore = useAuthStore()
 
         // 🔥 并行加载优化：将独立的步骤并行执行
-        const parallelStart = performance.now()
 
         // 🔐 步骤 1: 设置用户信息、同步用户到数据库、加载权限（如果已登录）
         const step1Promise = (async () => {
@@ -106,7 +100,6 @@ export const useAppInitStore = defineStore('app-init', {
             this.permissionsLoaded = true
             return
           }
-          const step1Start = performance.now()
           const user = auth0.user.value
 
           // 提取角色信息（支持两种命名空间）
@@ -124,46 +117,24 @@ export const useAppInitStore = defineStore('app-init', {
             role: roles[0] || 'Free', // 主要角色
           })
 
-          if (import.meta.env.DEV) {
-            console.log('✅ [AppInit] 用户信息已设置:', {
-              email: user.email,
-              sub: user.sub,
-              roles,
-            })
-          }
-
           // 🔥 并行执行：用户同步 + 获取 token（互不依赖）
-          const parallelStart = performance.now()
-
           const syncPromise = (async () => {
-            const syncStart = performance.now()
             try {
               const { syncAuth0UserToSupabase } = await import('@/api/services/auth0Service')
-              const syncResult = await syncAuth0UserToSupabase(user)
-              if (syncResult.success) {
-                if (import.meta.env.DEV)
-                  console.log('✅ [AppInit] 用户已同步到数据库:', syncResult.data?.username)
-              }
+              await syncAuth0UserToSupabase(user)
             }
-            catch (error: any) {
+            catch {
               // 用户同步失败，可能是网络问题或用户已存在
-              if (import.meta.env.DEV)
-                console.log('⚠️ [AppInit] 用户同步失败（可能已存在）:', error.message)
             }
-            const syncEnd = performance.now()
-            console.log(`⏱️ [AppInit] 步骤1.1（用户同步）耗时: ${Math.round(syncEnd - syncStart)}ms`)
           })()
 
           const tokenPromise = (async () => {
-            const tokenGetStart = performance.now()
             try {
               const token = await auth0.getAccessTokenSilently({
                 authorizationParams: {
                   audience: import.meta.env.VITE_AUTH0_AUDIENCE,
                 },
               })
-              const tokenGetEnd = performance.now()
-              console.log(`⏱️ [AppInit] 步骤1.2（获取 Token）耗时: ${Math.round(tokenGetEnd - tokenGetStart)}ms`)
               return token
             }
             catch (error: any) {
@@ -174,32 +145,21 @@ export const useAppInitStore = defineStore('app-init', {
 
           // 等待用户同步和 token 获取完成
           const [_, token] = await Promise.all([syncPromise, tokenPromise])
-          const parallelEnd = performance.now()
-          console.log(`⏱️ [AppInit] 步骤1.1+1.2 并行耗时: ${Math.round(parallelEnd - parallelStart)}ms`)
 
           // 🔥 并行执行：设置 Cookie + 权限解码（都需要 token，但互不依赖）
-          const parallel2Start = performance.now()
-
           const cookiePromise = (async () => {
-            const cookieStart = performance.now()
             if (token) {
               try {
                 const { setTokenCookie } = await import('@/api/services/authService')
                 await setTokenCookie(token)
-
-                if (import.meta.env.DEV)
-                  console.log('✅ [AppInit] Token 已通过后端设置到 HttpOnly Cookie')
               }
               catch (error: any) {
                 console.error('⚠️ [AppInit] 设置 token 到 Cookie 失败:', error)
               }
             }
-            const cookieEnd = performance.now()
-            console.log(`⏱️ [AppInit] 步骤1.3（设置 Cookie）耗时: ${Math.round(cookieEnd - cookieStart)}ms`)
           })()
 
           const permPromise = (async () => {
-            const permStart = performance.now()
             try {
               if (token) {
                 this.userPermissions = getUserPermissionsFromToken(token)
@@ -208,44 +168,22 @@ export const useAppInitStore = defineStore('app-init', {
                 this.userPermissions = []
               }
               this.permissionsLoaded = true
-              if (import.meta.env.DEV)
-                console.log('✅ [AppInit] 权限加载完成:', this.userPermissions)
             }
             catch (error: any) {
               console.error('⚠️ [AppInit] 权限加载失败:', error)
               this.permissionsLoaded = true
             }
-            const permEnd = performance.now()
-            console.log(`⏱️ [AppInit] 步骤1.4（权限解码）耗时: ${Math.round(permEnd - permStart)}ms`)
           })()
 
           await Promise.all([cookiePromise, permPromise])
-          const parallel2End = performance.now()
-          console.log(`⏱️ [AppInit] 步骤1.3+1.4 并行耗时: ${Math.round(parallel2End - parallel2Start)}ms`)
-
-          const step1End = performance.now()
-          console.log(`⏱️ [AppInit] 步骤1（用户信息+权限）总耗时: ${Math.round(step1End - step1Start)}ms`)
         })()
 
         // 📦 步骤 2: 加载模型列表
         const step2Promise = (async () => {
-          const step2Start = performance.now()
-          console.log(`🔄 [AppInit] 检查模型列表加载状态: isProvidersLoaded=${modelStore.isProvidersLoaded}`)
-
           if (!modelStore.isProvidersLoaded) {
             try {
-              console.log('🔄 [AppInit] 开始加载模型列表...')
               const success = await modelStore.loadModelsFromBackend()
               this.modelsLoaded = success
-              if (success && import.meta.env.DEV) {
-                console.log('✅ [AppInit] 模型列表加载完成:', {
-                  供应商数量: modelStore.providers.length,
-                  启用的模型: modelStore.enabledModels.length,
-                })
-              }
-              else {
-                console.error('❌ [AppInit] 模型列表加载返回失败')
-              }
             }
             catch (error) {
               console.error('❌ [AppInit] 模型列表加载失败:', error)
@@ -256,59 +194,40 @@ export const useAppInitStore = defineStore('app-init', {
           }
           else {
             this.modelsLoaded = true
-            if (import.meta.env.DEV) {
-              console.log('✅ [AppInit] 模型列表已从内存加载（跳过 API 请求）')
-            }
           }
-          const step2End = performance.now()
-          console.log(`⏱️ [AppInit] 步骤2（模型列表）耗时: ${Math.round(step2End - step2Start)}ms`)
         })()
 
         // ⚙️ 步骤 3: 加载用户配置（仅在已登录时）
         const step3Promise = (async () => {
-          const step3Start = performance.now()
           if (auth0.isAuthenticated.value && !configStore.loaded) {
             try {
               const loadConfig = (configStore as any).loadAllConfig
               if (typeof loadConfig === 'function') {
                 await loadConfig()
-                if (import.meta.env.DEV)
-                  console.log('✅ [AppInit] 用户配置加载完成')
               }
               this.configLoaded = true
             }
-            catch (error: any) {
+            catch {
             // 配置加载失败不阻止应用
-              if (import.meta.env.DEV)
-                console.error('❌ [AppInit] 用户配置加载失败:', error.message)
               this.configLoaded = true // 标记但不阻止
             }
           }
           else {
             this.configLoaded = true
-            if (import.meta.env.DEV && !auth0.isAuthenticated.value)
-              console.log('ℹ️ [AppInit] 未登录，跳过配置加载')
           }
-          const step3End = performance.now()
-          console.log(`⏱️ [AppInit] 步骤3（用户配置）耗时: ${Math.round(step3End - step3Start)}ms`)
         })()
 
         // ⚙️ 步骤 4: 用户登录时从数据库同步会话
         const step4Promise = (async () => {
-          const step4Start = performance.now()
           if (auth0.isAuthenticated.value) {
             try {
               const { useChatStore } = await import('../chat')
               const chatStore = useChatStore()
 
               // 🔥 优化：始终从数据库同步会话列表，确保跨设备数据一致性
-              console.log('🔄 [AppInit] 从数据库同步会话列表...')
-
               const result = await chatStore.loadConversationsFromBackend()
 
               if (result.success && result.count && result.count > 0) {
-                console.log(`✅ [AppInit] 已从数据库同步 ${result.count} 个会话`)
-
                 // 🔥 只有当 active 不为 null 时才加载消息（首次登录时 active 为 null，不加载）
                 if (chatStore.active) {
                   const activeConversation = chatStore.history.find(
@@ -316,99 +235,59 @@ export const useAppInitStore = defineStore('app-init', {
                   )
 
                   if (activeConversation?.backendConversationId) {
-                    console.log('🔄 [AppInit] 加载当前会话的消息...')
-                    const msgResult = await chatStore.loadConversationMessages(
+                    await chatStore.loadConversationMessages(
                       activeConversation.backendConversationId,
                     )
-                    if (msgResult.success && import.meta.env.DEV) {
-                      console.log(`✅ [AppInit] 当前会话消息加载完成: ${msgResult.count} 条`)
-                    }
                   }
-                }
-                else {
-                  console.log('ℹ️ [AppInit] 首次登录，显示新建会话页面，不加载任何会话消息')
                 }
               }
               else if (result.success && result.count === 0) {
               // 数据库无会话，使用本地缓存作为降级
                 const localHasData = chatStore.history.length > 0
                 if (localHasData) {
-                  console.log('ℹ️ [AppInit] 数据库无会话，使用本地缓存')
-
                   // 加载本地第一个会话的消息（如果没有）
                   const firstConversation = chatStore.history[0]
                   if (firstConversation) {
                     const chatData = chatStore.chat.find(c => c.uuid === firstConversation.uuid)
                     if (chatData && chatData.data.length === 0 && firstConversation.backendConversationId) {
-                      console.log('🔄 [AppInit] 本地会话无消息，从数据库加载...')
                       chatStore.loadConversationMessages(firstConversation.backendConversationId)
-                        .then((msgResult) => {
-                          if (msgResult.success && import.meta.env.DEV) {
-                            console.log(`✅ [AppInit] 会话消息加载完成: ${msgResult.count} 条`)
-                          }
-                        })
                         .catch(err => console.error('❌ [AppInit] 会话消息加载失败:', err))
                     }
                   }
                 }
-                else {
-                  console.log('ℹ️ [AppInit] 无会话数据，等待用户创建')
-                }
-              }
-              else {
-              // 同步失败，使用本地缓存作为降级
-                console.log('⚠️ [AppInit] 会话同步失败，使用本地缓存')
               }
             }
             catch (error) {
               console.error('❌ [AppInit] 会话同步失败:', error)
               // 同步失败不阻止应用使用，继续使用本地缓存
-              console.log('ℹ️ [AppInit] 降级到本地缓存模式')
             }
           }
-          const step4End = performance.now()
-          console.log(`⏱️ [AppInit] 步骤4（会话同步）耗时: ${Math.round(step4End - step4Start)}ms`)
         })()
 
         // 🔥 等待所有并行任务完成
         await Promise.all([step1Promise, step2Promise, step3Promise, step4Promise])
-        const parallelEnd = performance.now()
-        console.log(`⏱️ [AppInit] 🚀 并行加载总耗时: ${Math.round(parallelEnd - parallelStart)}ms`)
 
         // ⚙️ 🔥 步骤 5: 启动 SSE 连接（跨设备实时同步，依赖步骤1的 token）
-        const step5Start = performance.now()
         if (auth0.isAuthenticated.value) {
           try {
             const { sseManager } = await import('@/services/sseService')
 
             // 检查是否已连接，避免重复连接
             const status = sseManager.getStatus()
-            if (status.connected) {
-              console.log('✅ [AppInit] SSE 已连接，跳过')
-            }
-            else {
+            if (!status.connected) {
               // 异步建立连接（不阻塞初始化）
               sseManager.connect().catch((error) => {
                 console.error('❌ [AppInit] SSE 连接失败:', error)
               })
-
-              console.log('✅ [AppInit] SSE 连接请求已发送')
             }
-            const step5End = performance.now()
-            console.log(`⏱️ [AppInit] 步骤5（SSE连接）耗时: ${Math.round(step5End - step5Start)}ms`)
           }
           catch (error) {
             console.error('❌ [AppInit] SSE 初始化失败:', error)
             // SSE 连接失败不阻止应用使用
-            const step5End = performance.now()
-            console.log(`⏱️ [AppInit] 步骤5（SSE连接失败）耗时: ${Math.round(step5End - step5Start)}ms`)
           }
         }
 
         this.isInitialized = true
-        const totalTime = performance.now() - startTime
-        console.log('✅ [AppInit] 应用初始化完成')
-        console.log(`⏱️ [AppInit] 📊 总耗时: ${Math.round(totalTime)}ms (${(totalTime / 1000).toFixed(2)}s)`)
 
         return { success: true }
       }
@@ -426,7 +305,7 @@ export const useAppInitStore = defineStore('app-init', {
      * 显示权限通知（只显示一次）
      * 🔥 已禁用：用户不需要弹窗
      */
-    showPermissionNotification(notificationApi: any, userName?: string) {
+    showPermissionNotification(_notificationApi: any, _userName?: string) {
       // 🔥 不显示弹窗
 
     },
@@ -436,9 +315,6 @@ export const useAppInitStore = defineStore('app-init', {
      */
     resetInitialization() {
       this.$reset()
-      if (import.meta.env.DEV) {
-        console.log('🔄 [AppInit] 初始化状态已重置')
-      }
     },
   },
 })

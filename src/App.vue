@@ -93,22 +93,13 @@ const isAppLoading = ref(true)
 
 // 应用启动时的初始化
 onMounted(async () => {
-  // 🔥 性能计时：记录启动时间
-  const startTime = performance.now()
-  console.log('🚀 [App.vue] 组件挂载，开始初始化...')
-
   try {
     // 🔥 等待 Auth0 初始化完成（使用 watch 响应式监听 + 超时保护）
-    if (auth0Client.isLoading.value) {
-      console.log('⏳ [App.vue] 等待 Auth0 初始化...')
-    }
-
     // 使用 Promise.race 实现带超时的等待
     await Promise.race([
       // Auth0 初始化完成的 Promise
       new Promise<void>((resolve) => {
         if (!auth0Client.isLoading.value) {
-          console.log('✅ [App.vue] Auth0 已就绪')
           resolve()
         }
         else {
@@ -116,7 +107,6 @@ onMounted(async () => {
             () => auth0Client.isLoading.value,
             (isLoading) => {
               if (!isLoading) {
-                console.log('✅ [App.vue] Auth0 初始化完成')
                 unwatch()
                 resolve()
               }
@@ -127,10 +117,6 @@ onMounted(async () => {
       // 超时保护（10秒）
       new Promise<void>((resolve) => {
         setTimeout(() => {
-          // 超时触发，但如果 Auth0 已完成则不影响流程
-          if (auth0Client.isLoading.value) {
-            console.log('⚠️ [App.vue] Auth0 初始化超时，强制继续（10秒）')
-          }
           resolve()
         }, 10000)
       }),
@@ -138,27 +124,16 @@ onMounted(async () => {
 
     // 🔥 执行应用初始化（仅在已登录时）
     if (auth0Client.isAuthenticated.value) {
-      const auth0Time = performance.now()
-      console.log(`⏱️ [App.vue] Auth0 初始化耗时: ${Math.round(auth0Time - startTime)}ms`)
-      console.log('🔐 [App.vue] 用户已登录，执行应用初始化...')
-
       const { useAppInitStore } = await import('@/store/modules/appInit')
       const appInitStore = useAppInitStore()
 
       // 执行应用初始化（会加载模型列表、配置等）
-      const initStartTime = performance.now()
       await appInitStore.initializeApp(auth0Client)
-      const initEndTime = performance.now()
-
-      console.log('✅ [App.vue] 应用初始化完成')
-      console.log(`⏱️ [App.vue] 应用初始化耗时: ${Math.round(initEndTime - initStartTime)}ms`)
 
       // 🔥 关闭启动 Loading（所有初始化完成后才显示页面）
       isAppLoading.value = false
     }
     else {
-      console.log('ℹ️ [App.vue] 用户未登录，跳过应用初始化')
-
       // 🔥 检查当前路由是否需要认证
       const currentRoute = router.currentRoute.value
       const requiresAuth = currentRoute.meta.requiresAuth !== false
@@ -167,7 +142,6 @@ onMounted(async () => {
       // 如果访问的是受保护路由，且用户未认证，路由守卫会触发 loginWithRedirect
       // 在这种情况下，保持 Loading 直到页面跳转（loginWithRedirect 会触发页面跳转）
       if (requiresAuth && !isPublic) {
-        console.log('⏳ [App.vue] 检测到访问受保护路由，等待路由守卫处理...')
         // 给路由守卫一些时间来完成 loginWithRedirect
         // 如果 2 秒后还在当前页面，说明可能有问题，关闭 Loading
         setTimeout(() => {
@@ -184,11 +158,6 @@ onMounted(async () => {
         isAppLoading.value = false
       }
     }
-
-    // 🔥 性能计时：计算总耗时
-    const endTime = performance.now()
-    const totalTime = Math.round(endTime - startTime)
-    console.log(`⏱️ [App.vue] 📊 页面加载完成，总耗时: ${totalTime}ms (${(totalTime / 1000).toFixed(2)}s)`)
   }
   catch (error) {
     console.error('❌ [App] 初始化失败:', error)

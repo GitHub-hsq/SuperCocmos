@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 配置检查工具
  * 运行: cd service && pnpm esno check-config.ts
@@ -9,11 +8,11 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-console.log('🔍 [检查] 开始检查配置...\n')
-console.log('='.repeat(60))
+console.warn('🔍 [检查] 开始检查配置...\n')
+console.warn('='.repeat(60))
 
 // 1. 检查环境变量
-console.log('\n📝 [步骤 1/3] 检查环境变量...\n')
+console.warn('\n📝 [步骤 1/3] 检查环境变量...\n')
 
 const envChecks = [
   {
@@ -40,30 +39,30 @@ let envOk = true
 
 for (const check of envChecks) {
   if (!check.value) {
-    console.log(`❌ ${check.name}: 未配置`)
-    console.log(`   期望: ${check.expected}\n`)
+    console.warn(`❌ ${check.name}: 未配置`)
+    console.warn(`   期望: ${check.expected}\n`)
     envOk = false
   }
   else if (!check.validator(check.value)) {
-    console.log(`⚠️  ${check.name}: 配置格式可能有误`)
-    console.log(`   当前值: ${check.value.substring(0, 20)}...`)
-    console.log(`   期望: ${check.expected}\n`)
+    console.warn(`⚠️  ${check.name}: 配置格式可能有误`)
+    console.warn(`   当前值: ${check.value.substring(0, 20)}...`)
+    console.warn(`   期望: ${check.expected}\n`)
     envOk = false
   }
   else {
     const masked = `${check.value.substring(0, 15)}...`
-    console.log(`✅ ${check.name}: ${masked}`)
+    console.warn(`✅ ${check.name}: ${masked}`)
   }
 }
 
 if (!envOk) {
-  console.log('\n⚠️  请检查 service/.env 文件配置')
+  console.warn('\n⚠️  请检查 service/.env 文件配置')
   process.exit(1)
 }
 
 // 2. 测试 Supabase 连接
-console.log('\n='.repeat(60))
-console.log('\n📝 [步骤 2/3] 测试 Supabase 连接...\n')
+console.warn('\n='.repeat(60))
+console.warn('\n📝 [步骤 2/3] 测试 Supabase 连接...\n')
 
 async function testSupabase() {
   try {
@@ -79,40 +78,40 @@ async function testSupabase() {
       .limit(1)
 
     if (userError) {
-      console.log(`❌ 连接失败: ${userError.message}`)
+      console.warn(`❌ 连接失败: ${userError.message}`)
       return false
     }
 
-    console.log('✅ Supabase 连接成功')
+    console.warn('✅ Supabase 连接成功')
 
     // 检查表是否存在
-    console.log('\n检查必需的表:')
+    console.warn('\n检查必需的表:')
 
     const tables = ['users', 'roles', 'user_roles']
     for (const table of tables) {
       const { error } = await supabase.from(table).select('count').limit(1)
       if (error) {
-        console.log(`❌ 表 ${table} 不存在或无法访问`)
-        console.log(`   错误: ${error.message}`)
+        console.warn(`❌ 表 ${table} 不存在或无法访问`)
+        console.warn(`   错误: ${error.message}`)
       }
       else {
-        console.log(`✅ 表 ${table} 存在`)
+        console.warn(`✅ 表 ${table} 存在`)
       }
     }
 
     // 检查角色
     const { data: roles } = await supabase.from('roles').select('role_name')
     if (roles && roles.length > 0) {
-      console.log(`\n✅ 找到 ${roles.length} 个角色: ${roles.map(r => r.role_name).join(', ')}`)
+      console.warn(`\n✅ 找到 ${roles.length} 个角色: ${roles.map(r => r.role_name).join(', ')}`)
     }
     else {
-      console.log('\n⚠️  roles 表为空，请确保已执行 schema.sql')
+      console.warn('\n⚠️  roles 表为空，请确保已执行 schema.sql')
     }
 
     return true
   }
   catch (error: any) {
-    console.log(`❌ 测试失败: ${error.message}`)
+    console.warn(`❌ 测试失败: ${error.message}`)
     return false
   }
 }
@@ -121,38 +120,38 @@ async function testSupabase() {
 async function main() {
   const supabaseOk = await testSupabase()
 
-  console.log('\n='.repeat(60))
-  console.log('\n📝 [步骤 3/3] Webhook 配置建议...\n')
+  console.warn('\n='.repeat(60))
+  console.warn('\n📝 [步骤 3/3] Webhook 配置建议...\n')
 
   if (envOk && supabaseOk) {
-    console.log('✅ 基本配置正确！\n')
-    console.log('📌 开发环境 Webhook 配置步骤:\n')
-    console.log('1. 启动后端服务:')
-    console.log('   cd service && pnpm start\n')
-    console.log('2. 在另一个终端启动 ngrok:')
-    console.log('   npx ngrok http 3002\n')
-    console.log('3. 复制 ngrok 生成的 URL (如 https://abc123.ngrok.io)')
-    console.log('4. 更新 Auth0 Webhook:')
-    console.log('   - 访问 https://manage.auth0.com')
-    console.log('   - Webhooks -> 选择你的 endpoint')
-    console.log('   - Endpoint URL: https://your-ngrok-url.ngrok.io/api/webhooks/auth0')
-    console.log('   - 确保订阅了: user.created, user.updated, user.deleted\n')
-    console.log('5. 测试同步:')
-    console.log('   - 在 Auth0 Dashboard 创建测试用户')
-    console.log('   - 或访问 http://localhost:1002/#/login 注册')
-    console.log('   - 观察后端日志')
-    console.log('   - 检查 Supabase users 表\n')
-    console.log('💡 关于密码:')
-    console.log('   - OAuth 用户 (Google/GitHub): 不需要密码，password 字段为 NULL')
-    console.log('   - Auth0 管理所有认证，你不需要在 Supabase 存储密码\n')
+    console.warn('✅ 基本配置正确！\n')
+    console.warn('📌 开发环境 Webhook 配置步骤:\n')
+    console.warn('1. 启动后端服务:')
+    console.warn('   cd service && pnpm start\n')
+    console.warn('2. 在另一个终端启动 ngrok:')
+    console.warn('   npx ngrok http 3002\n')
+    console.warn('3. 复制 ngrok 生成的 URL (如 https://abc123.ngrok.io)')
+    console.warn('4. 更新 Auth0 Webhook:')
+    console.warn('   - 访问 https://manage.auth0.com')
+    console.warn('   - Webhooks -> 选择你的 endpoint')
+    console.warn('   - Endpoint URL: https://your-ngrok-url.ngrok.io/api/webhooks/auth0')
+    console.warn('   - 确保订阅了: user.created, user.updated, user.deleted\n')
+    console.warn('5. 测试同步:')
+    console.warn('   - 在 Auth0 Dashboard 创建测试用户')
+    console.warn('   - 或访问 http://localhost:1002/#/login 注册')
+    console.warn('   - 观察后端日志')
+    console.warn('   - 检查 Supabase users 表\n')
+    console.warn('💡 关于密码:')
+    console.warn('   - OAuth 用户 (Google/GitHub): 不需要密码，password 字段为 NULL')
+    console.warn('   - Auth0 管理所有认证，你不需要在 Supabase 存储密码\n')
   }
   else {
-    console.log('❌ 配置有问题，请先解决上述错误\n')
+    console.warn('❌ 配置有问题，请先解决上述错误\n')
   }
 
-  console.log('='.repeat(60))
-  console.log('\n📚 详细文档: WEBHOOK_DEBUG_GUIDE.md')
-  console.log('🆘 需要帮助? 查看后端日志或 Auth0 Webhook Attempts\n')
+  console.warn('='.repeat(60))
+  console.warn('\n📚 详细文档: WEBHOOK_DEBUG_GUIDE.md')
+  console.warn('🆘 需要帮助? 查看后端日志或 Auth0 Webhook Attempts\n')
 }
 
 main()

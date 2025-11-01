@@ -12,17 +12,17 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-console.log('🔍 检查 Auth0 配置...\n')
+// 配置检查脚本 - 已禁用 console.log
 
 // 读取 .env 文件
 let envContent
 try {
   envContent = readFileSync(join(__dirname, '.env'), 'utf-8')
 }
-catch (error) {
+catch {
   console.error('❌ 错误: 找不到 .env 文件')
-  console.log('💡 请先创建 .env 文件：')
-  console.log('   cp .env.example .env')
+  console.error('💡 请先创建 .env 文件：')
+  console.error('   cp .env.example .env')
   process.exit(1)
 }
 
@@ -48,7 +48,7 @@ const requiredVars = [
 
 let hasErrors = false
 
-console.log('📋 环境变量检查:\n')
+// 环境变量检查
 
 requiredVars.forEach((varName) => {
   const value = envVars[varName]
@@ -60,11 +60,8 @@ requiredVars.forEach((varName) => {
     || value.includes('your-')
 
   if (isDefault) {
-    console.log(`❌ ${varName}: ${value ? '使用默认值' : '未配置'}`)
+    console.error(`❌ ${varName}: ${value ? '使用默认值' : '未配置'}`)
     hasErrors = true
-  }
-  else {
-    console.log(`✅ ${varName}: ${value}`)
   }
 })
 
@@ -75,25 +72,13 @@ if (redirectUri) {
   if (match) {
     const port = match[1]
     if (port !== '1002') {
-      console.log(`\n⚠️  警告: REDIRECT_URI 端口是 ${port}，但前端运行在 1002`)
-      console.log('   请确保端口一致，或修改 vite.config.ts 中的端口配置')
+      console.warn(`\n⚠️  警告: REDIRECT_URI 端口是 ${port}，但前端运行在 1002`)
+      console.warn('   请确保端口一致，或修改 vite.config.ts 中的端口配置')
     }
   }
 }
 
-console.log('\n📝 Auth0 Dashboard 配置检查清单:\n')
-console.log('请登录 Auth0 Dashboard 并确认以下配置：')
-console.log(`   1. Allowed Callback URLs 包含: ${envVars.VITE_AUTH0_REDIRECT_URI || 'http://localhost:1002'}`)
-console.log(`   2. Allowed Logout URLs 包含: ${envVars.VITE_AUTH0_REDIRECT_URI || 'http://localhost:1002'}`)
-console.log(`   3. Allowed Web Origins 包含: ${envVars.VITE_AUTH0_REDIRECT_URI || 'http://localhost:1002'}`)
-console.log(`   4. API (${envVars.VITE_AUTH0_AUDIENCE || 'http://supercocmos.com'}) 的 RBAC 已启用`)
-console.log('   5. API 的 "Add Permissions in the Access Token" 已启用\n')
-
 if (hasErrors) {
-  console.log('❌ 配置检查失败，请修复上述错误后重试\n')
+  console.error('❌ 配置检查失败，请修复上述错误后重试\n')
   process.exit(1)
-}
-else {
-  console.log('✅ 环境变量配置正确！\n')
-  console.log('🚀 现在可以运行: pnpm dev\n')
 }

@@ -74,7 +74,7 @@ export const minLevelDirective: Directive = {
  * <div v-paid>付费用户专属功能</div>
  */
 export const paidDirective: Directive = {
-  mounted(el, binding) {
+  mounted(el) {
     // const appInitStore = useAppInitStore()
 
     // TODO: 从 AppInitStore 获取用户角色

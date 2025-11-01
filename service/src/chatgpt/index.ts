@@ -308,7 +308,7 @@ async function chatReplyProcess(options: RequestOptions) {
     })
 
     const responseTime = Date.now() - startTime
-    console.log('📊 [ChatGPT] 响应信息:', {
+    console.warn('📊 [ChatGPT] 响应信息:', {
       time: `${responseTime}ms`,
       id: response.id,
       model: response.detail?.model || '未知',

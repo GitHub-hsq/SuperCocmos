@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 会话管理控制器
  * 处理用户会话的 CRUD 操作
@@ -13,7 +12,6 @@ import {
   updateConversation,
 } from '../db/conversationService'
 import {
-  createMessage,
   createMessages,
   getConversationMessages,
 } from '../db/messageService'
@@ -307,7 +305,7 @@ export async function deleteConversationHandler(req: Request, res: Response) {
     }
 
     // 🔍 添加调试日志，排查403错误
-    console.log('🔍 [403调试] 删除会话权限检查:', {
+    console.warn('🔍 [403调试] 删除会话权限检查:', {
       conversationId: id,
       conversationUserId: conversation.user_id,
       currentUserId: userId,
@@ -357,18 +355,18 @@ export async function deleteConversationHandler(req: Request, res: Response) {
  * GET /api/conversations/:id/messages
  */
 export async function getConversationMessagesHandler(req: Request, res: Response) {
-  console.log('='.repeat(80))
-  console.log('🔥🔥🔥 [DEBUG] ========== 进入 getConversationMessagesHandler ==========')
-  console.log('🔥🔥🔥 [DEBUG] conversationId:', req.params.id)
-  console.log('🔥🔥🔥 [DEBUG] query:', req.query)
-  console.log('='.repeat(80))
+  console.warn('='.repeat(80))
+  console.warn('🔥🔥🔥 [DEBUG] ========== 进入 getConversationMessagesHandler ==========')
+  console.warn('🔥🔥🔥 [DEBUG] conversationId:', req.params.id)
+  console.warn('🔥🔥🔥 [DEBUG] query:', req.query)
+  console.warn('='.repeat(80))
   try {
-    console.log('🔍 [DEBUG] 正在获取用户 Supabase UUID...')
+    console.warn('🔍 [DEBUG] 正在获取用户 Supabase UUID...')
     const userId = await getSupabaseUserIdFromRequest(req)
-    console.log('🔍 [DEBUG] 获取到的 userId (Supabase UUID):', userId)
+    console.warn('🔍 [DEBUG] 获取到的 userId (Supabase UUID):', userId)
 
     if (!userId) {
-      console.log('❌ [DEBUG] 用户未授权，返回 401')
+      console.warn('❌ [DEBUG] 用户未授权，返回 401')
       return res.status(401).json({
         status: 'Fail',
         message: '未授权：用户未登录',
@@ -385,7 +383,7 @@ export async function getConversationMessagesHandler(req: Request, res: Response
     const conversation = await getConversationByIdWithAuth(id, userId)
 
     if (!conversation) {
-      console.log('❌ [DEBUG] 会话不存在或无权访问')
+      console.warn('❌ [DEBUG] 会话不存在或无权访问')
       return res.status(404).json({
         status: 'Fail',
         message: '会话不存在或无权访问',
@@ -393,17 +391,17 @@ export async function getConversationMessagesHandler(req: Request, res: Response
       })
     }
 
-    console.log('✅ [DEBUG] 权限验证通过，会话ID:', conversation.id)
+    console.warn('✅ [DEBUG] 权限验证通过，会话ID:', conversation.id)
 
     // 🔥 传递 user_id 用于 Redis 缓存 LRU 管理
     const messages = await getConversationMessages(id, userId, { limit, offset })
 
     // 📊 输出返回的消息条数
-    console.log(`📊 [API] 准备返回 ${messages.length} 条消息给前端`)
-    console.log(`📊 [API] 消息ID列表: ${messages.map(m => m.id.substring(0, 8)).join(', ')}`)
+    console.warn(`📊 [API] 准备返回 ${messages.length} 条消息给前端`)
+    console.warn(`📊 [API] 消息ID列表: ${messages.map(m => m.id.substring(0, 8)).join(', ')}`)
     if (messages.length > 0) {
-      console.log(`📊 [API] 消息角色分布: user=${messages.filter(m => m.role === 'user').length}, assistant=${messages.filter(m => m.role === 'assistant').length}, system=${messages.filter(m => m.role === 'system').length}`)
-      console.log(`📊 [API] 消息状态分布: ${messages.filter(m => m.status === 'pending').length} pending, ${messages.filter(m => m.status === 'saved').length} saved, ${messages.filter(m => m.status === 'failed').length} failed, ${messages.filter(m => !m.status).length} 无状态`)
+      console.warn(`📊 [API] 消息角色分布: user=${messages.filter(m => m.role === 'user').length}, assistant=${messages.filter(m => m.role === 'assistant').length}, system=${messages.filter(m => m.role === 'system').length}`)
+      console.warn(`📊 [API] 消息状态分布: ${messages.filter(m => m.status === 'pending').length} pending, ${messages.filter(m => m.status === 'saved').length} saved, ${messages.filter(m => m.status === 'failed').length} failed, ${messages.filter(m => !m.status).length} 无状态`)
     }
 
     res.json({

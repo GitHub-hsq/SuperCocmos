@@ -55,7 +55,7 @@ export async function setTokenCookie(req: Request, res: Response) {
  */
 export async function handleAuth0Webhook(req: Request, res: Response) {
   try {
-    console.log('📥 [Auth0 Webhook] 接收到 Auth0 Webhook 请求')
+    console.warn('📥 [Auth0 Webhook] 接收到 Auth0 Webhook 请求')
     // TODO: 实现 Auth0 Webhook 处理逻辑
     console.warn('⚠️ [Webhook] Auth0 Webhook 处理逻辑待实现')
     return res.status(200).send({

@@ -85,30 +85,22 @@ export const useModelStore = defineStore('model-store', {
     // 从后端加载模型列表（移除 localStorage 缓存，始终从后端 API 获取最新数据）
     async loadModelsFromBackend(forceRefresh = false) {
       try {
-        console.log(`🔄 [ModelStore] loadModelsFromBackend 被调用: forceRefresh=${forceRefresh}, isProvidersLoaded=${this.isProvidersLoaded}`)
-
         // 🔥 如果不是强制刷新且已经在内存中加载过，直接返回
         if (!forceRefresh && this.isProvidersLoaded) {
-          console.log('✅ [ModelStore] 使用内存缓存的模型列表（跳过 API 请求）')
           return true
         }
 
         // 重置加载状态（强制刷新）
         if (forceRefresh) {
           this.isProvidersLoaded = false
-          console.log('🔄 [ModelStore] 强制刷新，重置加载状态')
         }
 
         // 🔥 从后端 API 加载（后端已使用 Redis 缓存，响应速度 1-5ms）
-        console.log('🔄 [ModelStore] 从后端 API 加载模型列表...')
-
         const response = await fetchProviders<BackendProviderInfo[]>()
-        console.log(`📥 [ModelStore] API 响应:`, response)
 
         if (response.status === 'Success' && response.data) {
           // 将后端数据转换为前端格式
           const providersData = response.data
-          console.log(`📊 [ModelStore] 收到 ${providersData.length} 个供应商数据`)
 
           // 构建 providers 数组
           this.providers = providersData.map((provider) => {
@@ -156,12 +148,6 @@ export const useModelStore = defineStore('model-store', {
             this.validateCurrentModel()
           }
 
-          console.log('✅ [ModelStore] 模型列表加载成功:', {
-            供应商数量: this.providers.length,
-            启用的模型: this.enabledModels.length,
-            isProvidersLoaded: this.isProvidersLoaded,
-          })
-
           return true
         }
         else {
@@ -206,9 +192,6 @@ export const useModelStore = defineStore('model-store', {
         // 根据 providerId 和 modelId（display_name）查找模型
         const provider = this.providers.find((p: any) => p.id === defaultModel.providerId)
         if (!provider) {
-          if (import.meta.env.DEV) {
-            console.log('⚠️ [ModelStore] 配置中的供应商不存在:', defaultModel.providerId)
-          }
           return false
         }
 
@@ -223,19 +206,9 @@ export const useModelStore = defineStore('model-store', {
         if (model && model.enabled !== false) {
           this.currentModelId = model.id
           this.currentProviderId = model.provider
-          if (import.meta.env.DEV) {
-            console.log('✅ [ModelStore] 从数据库恢复模型选择:', {
-              providerId: defaultModel.providerId,
-              modelId: defaultModel.modelId,
-              selectedModelId: model.id,
-            })
-          }
           return true
         }
         else {
-          if (import.meta.env.DEV) {
-            console.log('⚠️ [ModelStore] 配置中的模型不存在或已禁用:', defaultModel.modelId)
-          }
           return false
         }
       }

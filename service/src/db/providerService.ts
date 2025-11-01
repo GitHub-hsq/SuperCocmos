@@ -134,7 +134,7 @@ export async function createProvider(provider: Omit<Provider, 'id' | 'created_at
 
     // 如果找到软删除的记录，恢复它
     if (!checkError && existingProvider) {
-      console.log(`🔄 [恢复供应商] 发现软删除的供应商，正在恢复: ${provider.name}`)
+      console.warn(`🔄 [恢复供应商] 发现软删除的供应商，正在恢复: ${provider.name}`)
       const { data: restoredProvider, error: restoreError } = await supabase
         .from('providers')
         .update({
@@ -150,7 +150,7 @@ export async function createProvider(provider: Omit<Provider, 'id' | 'created_at
       if (restoreError)
         throw restoreError
 
-      console.log(`✅ [恢复成功] 供应商已恢复: ${restoredProvider.name}`)
+      console.warn(`✅ [恢复成功] 供应商已恢复: ${restoredProvider.name}`)
       return restoredProvider
     }
 
@@ -168,7 +168,7 @@ export async function createProvider(provider: Omit<Provider, 'id' | 'created_at
     if (error)
       throw error
 
-    console.log(`✅ [创建成功] 新供应商已创建: ${data.name}`)
+    console.warn(`✅ [创建成功] 新供应商已创建: ${data.name}`)
     return data
   }
   catch (error) {
@@ -311,7 +311,7 @@ export async function createModel(model: Omit<Model, 'id' | 'created_at' | 'upda
 
     // 如果找到软删除的记录，恢复它
     if (!checkError && existingModel) {
-      console.log(`🔄 [恢复模型] 发现软删除的模型，正在恢复: ${model.display_name}`)
+      console.warn(`🔄 [恢复模型] 发现软删除的模型，正在恢复: ${model.display_name}`)
       const { data: restoredModel, error: restoreError } = await supabase
         .from('models')
         .update({
@@ -327,7 +327,7 @@ export async function createModel(model: Omit<Model, 'id' | 'created_at' | 'upda
       if (restoreError)
         throw restoreError
 
-      console.log(`✅ [恢复成功] 模型已恢复: ${restoredModel.display_name}`)
+      console.warn(`✅ [恢复成功] 模型已恢复: ${restoredModel.display_name}`)
       return restoredModel
     }
 
@@ -346,7 +346,7 @@ export async function createModel(model: Omit<Model, 'id' | 'created_at' | 'upda
     if (error)
       throw error
 
-    console.log(`✅ [创建成功] 新模型已创建: ${data.display_name}`)
+    console.warn(`✅ [创建成功] 新模型已创建: ${data.display_name}`)
     return data
   }
   catch (error) {

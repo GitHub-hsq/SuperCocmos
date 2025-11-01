@@ -147,12 +147,6 @@ export const useChatStore = defineStore('chat-store', {
       if (index !== -1) {
         this.history[index].backendConversationId = backendUuid
         // 🔥 不需要保存到 localStorage，因为 history 现在只从 conversations_cache 恢复
-        if (import.meta.env.DEV) {
-          console.log('🔗 [映射] 建立会话映射:', {
-            前端nanoid: nanoidUuid,
-            后端UUID: backendUuid,
-          })
-        }
       }
     },
 
@@ -168,7 +162,6 @@ export const useChatStore = defineStore('chat-store', {
       // 🔥 获取要删除的会话信息
       const historyToDelete = this.history[index]
       if (!historyToDelete) {
-        console.log('⚠️ [ChatStore] 要删除的会话不存在')
         return
       }
 
@@ -178,9 +171,6 @@ export const useChatStore = defineStore('chat-store', {
         try {
           const { deleteConversation } = await import('@/api/services/conversationService')
           await deleteConversation(backendUuid)
-          if (import.meta.env.DEV) {
-            console.log('✅ [ChatStore] 已删除数据库会话:', backendUuid)
-          }
         }
         catch (error: any) {
           // 静默处理 404（会话可能已被删除）
@@ -411,11 +401,7 @@ export const useChatStore = defineStore('chat-store', {
               console.error(`❌ [ChatStore] 删除会话 ${uuid} 失败:`, err)
             }),
           ),
-        ).then(() => {
-          if (import.meta.env.DEV) {
-            console.log(`✅ [ChatStore] 已批量删除 ${backendUuidsToDelete.length} 个数据库会话`)
-          }
-        })
+        )
       }
 
       // 🔥 立即清空本地数据
@@ -634,7 +620,6 @@ export const useChatStore = defineStore('chat-store', {
       catch (error: any) {
         // 静默处理 404（用户未登录或没有会话）
         if (error?.response?.status === 404 || error?.message?.includes('404')) {
-          console.log('ℹ️ [ChatStore] 用户暂无会话记录')
           return { success: true, count: 0 }
         }
 
@@ -782,7 +767,6 @@ export const useChatStore = defineStore('chat-store', {
       }
       catch (error: any) {
         if (error?.response?.status === 404 || error?.message?.includes('404')) {
-          console.log(`ℹ️ [ChatStore] 会话 ${backendConversationId} 暂无消息`)
           return { success: true, count: 0 }
         }
 
@@ -837,8 +821,6 @@ export const useChatStore = defineStore('chat-store', {
           await saveMessages(conversationId, messages)
         }
 
-        console.log(`✅ [ChatStore] 会话 ${uuid} 已同步到数据库`)
-
         return { success: true, conversationId }
       }
       catch (error: any) {
@@ -861,7 +843,6 @@ export const useChatStore = defineStore('chat-store', {
       )
 
       if (exists) {
-        console.log('[SSE] 会话已存在，跳过')
         return
       }
 
@@ -887,8 +868,6 @@ export const useChatStore = defineStore('chat-store', {
      * SSE: 更新会话信息
      */
     updateConversationFromSSE(conversationId: string, updates: any) {
-      console.log('[SSE] 更新会话:', conversationId, updates)
-
       // 查找会话（通过 backendConversationId）
       const index = this.history.findIndex(
         item => item.backendConversationId === conversationId,
@@ -909,8 +888,6 @@ export const useChatStore = defineStore('chat-store', {
      * SSE: 删除会话
      */
     removeConversationFromSSE(conversationId: string) {
-      console.log('[SSE] 删除会话:', conversationId)
-
       // 查找会话
       const index = this.history.findIndex(
         item => item.backendConversationId === conversationId,
@@ -960,15 +937,12 @@ export const useChatStore = defineStore('chat-store', {
      * SSE: 添加新消息
      */
     addMessageFromSSE(conversationId: string, message: any) {
-      console.log('[SSE] 添加新消息:', conversationId, message)
-
       // 查找会话
       const history = this.history.find(
         item => item.backendConversationId === conversationId,
       )
 
       if (!history) {
-        console.log('[SSE] 会话不存在，跳过消息')
         return
       }
 
@@ -992,20 +966,13 @@ export const useChatStore = defineStore('chat-store', {
     /**
      * SSE: 更新消息
      */
-    updateMessageFromSSE(conversationId: string, messageId: string, updates: any) {
-      console.log('[SSE] 更新消息:', conversationId, messageId, updates)
-
+    updateMessageFromSSE(_conversationId: string, _messageId: string, _updates: any) {
       // 查找会话
-      const history = this.history.find(
-        item => item.backendConversationId === conversationId,
-      )
-
-      if (!history) {
-        console.log('[SSE] 会话不存在，跳过')
-      }
-
       // TODO: 实现消息更新逻辑
       // 需要在消息中添加 ID 字段才能准确定位
+      // const history = this.history.find(
+      //   item => item.backendConversationId === conversationId,
+      // )
     },
 
     /**
@@ -1018,7 +985,6 @@ export const useChatStore = defineStore('chat-store', {
 
       if (history) {
         // TODO: 添加未读标记逻辑
-        console.log('[SSE] 标记未读:', conversationId)
       }
     },
 
@@ -1026,8 +992,6 @@ export const useChatStore = defineStore('chat-store', {
      * SSE: 触发完整同步
      */
     async syncFromBackend() {
-      console.log('[SSE] 触发完整同步')
-
       // 重新加载会话列表
       await this.loadConversationsFromBackend()
     },

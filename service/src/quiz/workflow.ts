@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { ClassificationLabel, HumanFeedbackInput, ModelConfig, ModelInfo, QuizItem, Subject, WorkflowNodeConfig, WorkflowNodeType, WorkflowState } from './types'
 // workflow.ts
 import { writeFile } from 'node:fs/promises'
@@ -35,7 +34,7 @@ function makeLLM(modelInfo?: ModelInfo, config?: ModelConfig) {
     }
   }
 
-  console.log('🔑 [LLM配置]', {
+  console.warn('🔑 [LLM配置]', {
     model,
     baseURL,
     hasApiKey: !!apiKey,
@@ -111,8 +110,8 @@ subject: <math|physics|chemistry|biology|chinese|english|unknown>`,
 ])
 
 async function classify(state: WorkflowState): Promise<WorkflowState> {
-  console.log('🤖 [分类器] 开始调用 LLM 进行分类...')
-  console.log('📝 [分类器] 文本预览 (前100字):', state.text.slice(0, 100))
+  console.warn('🤖 [分类器] 开始调用 LLM 进行分类...')
+  console.warn('📝 [分类器] 文本预览 (前100字):', state.text.slice(0, 100))
 
   try {
     const nodeConfig = getNodeConfig(state, 'classify')
@@ -123,12 +122,12 @@ async function classify(state: WorkflowState): Promise<WorkflowState> {
     const chain = classifierPrompt.pipe(llm)
     const textSample = state.text.slice(0, 3000)
 
-    console.log('🔄 [分类器] 发送文本给 LLM，长度:', textSample.length)
+    console.warn('🔄 [分类器] 发送文本给 LLM，长度:', textSample.length)
 
     const result = await chain.invoke({ text: textSample })
     const response = (result.content as string).trim().toLowerCase()
 
-    console.log('📊 [分类器] LLM 返回结果:', response)
+    console.warn('📊 [分类器] LLM 返回结果:', response)
 
     // 解析响应
     const typeMatch = response.match(/type:\s*(note|question|mixed|unknown)/)
@@ -140,7 +139,7 @@ async function classify(state: WorkflowState): Promise<WorkflowState> {
     state.classification = type as ClassificationLabel
     state.subject = subject as Subject
 
-    console.log('✅ [分类器] 分类结果:', {
+    console.warn('✅ [分类器] 分类结果:', {
       type: state.classification,
       subject: state.subject,
     })
@@ -451,7 +450,7 @@ export async function classifyFile(filePath: string): Promise<{
   classification: string
   error?: string
 }> {
-  console.log('🎯 [工作流] 开始分类文件:', filePath)
+  console.warn('🎯 [工作流] 开始分类文件:', filePath)
 
   try {
     const state: WorkflowState = {
@@ -464,15 +463,15 @@ export async function classifyFile(filePath: string): Promise<{
       retry_count: 0,
     }
 
-    console.log('📂 [工作流] 步骤 1: 加载文件...')
+    console.warn('📂 [工作流] 步骤 1: 加载文件...')
     // 加载文件
     await loadFile(state)
-    console.log('✅ [工作流] 文件加载成功，文本长度:', state.text.length)
+    console.warn('✅ [工作流] 文件加载成功，文本长度:', state.text.length)
 
-    console.log('🔍 [工作流] 步骤 2: 执行分类...')
+    console.warn('🔍 [工作流] 步骤 2: 执行分类...')
     // 执行分类
     await classify(state)
-    console.log('✅ [工作流] 分类完成:', {
+    console.warn('✅ [工作流] 分类完成:', {
       classification: state.classification,
       error: state.error,
     })
@@ -591,12 +590,12 @@ export async function testLLMConnection(): Promise<{
   model?: string
   response?: string
 }> {
-  console.log('🧪 [测试] 开始测试 LLM 连接...')
+  console.warn('🧪 [测试] 开始测试 LLM 连接...')
 
   try {
     // 创建 LLM 实例
     const llm = makeLLM()
-    console.log('✅ [测试] LLM 实例创建成功')
+    console.warn('✅ [测试] LLM 实例创建成功')
 
     // 发送一个简单的测试问题
     const prompt = ChatPromptTemplate.fromMessages([
@@ -605,13 +604,13 @@ export async function testLLMConnection(): Promise<{
     ])
 
     const chain = prompt.pipe(llm)
-    console.log('🔄 [测试] 正在发送测试请求...')
+    console.warn('🔄 [测试] 正在发送测试请求...')
 
     const result = await chain.invoke({ text: '测试' })
     const response = (result.content as string).trim()
 
-    console.log('✅ [测试] LLM 响应成功!')
-    console.log('📝 [测试] 响应内容:', response)
+    console.warn('✅ [测试] LLM 响应成功!')
+    console.warn('📝 [测试] 响应内容:', response)
 
     return {
       success: true,

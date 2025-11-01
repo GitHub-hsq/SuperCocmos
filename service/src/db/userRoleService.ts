@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 用户-角色关联 Service
  * 提供用户角色关联的 CRUD 操作（集成 Redis 缓存）
@@ -48,7 +47,7 @@ export async function assignRoleToUser(userId: string, roleId: number): Promise<
     if (error)
       throw error
 
-    console.log(`✅ [UserRoleService] 用户 ${userId} 分配角色 ${roleId} 成功`)
+    console.warn(`✅ [UserRoleService] 用户 ${userId} 分配角色 ${roleId} 成功`)
     return data
   }
   catch (error: any) {
@@ -71,7 +70,7 @@ export async function removeRoleFromUser(userId: string, roleId: number): Promis
     if (error)
       throw error
 
-    console.log(`✅ [UserRoleService] 用户 ${userId} 移除角色 ${roleId} 成功`)
+    console.warn(`✅ [UserRoleService] 用户 ${userId} 移除角色 ${roleId} 成功`)
     return true
   }
   catch (error: any) {
@@ -250,7 +249,7 @@ export async function updateUserRoles(userId: string, roleIds: number[]): Promis
     // 🔥 3. 清除用户角色缓存
     await clearUserRolesCache(userId)
 
-    console.log(`✅ [UserRoleService] 用户 ${userId} 角色更新成功`)
+    console.warn(`✅ [UserRoleService] 用户 ${userId} 角色更新成功`)
     return true
   }
   catch (error: any) {

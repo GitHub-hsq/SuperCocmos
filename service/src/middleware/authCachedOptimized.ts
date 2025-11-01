@@ -84,7 +84,7 @@ async function verifyJWTWithDedup(
   // 检查是否已有正在进行的验证
   const existing = pendingVerifications.get(token)
   if (existing) {
-    console.log('🔄 [JWT去重] 等待已有验证完成...')
+    console.warn('🔄 [JWT去重] 等待已有验证完成...')
     return existing
   }
 
@@ -159,13 +159,13 @@ export async function auth(req: Request, res: Response, next: NextFunction) {
       authReq.userRoles = cached.roles || []
 
       const duration = performance.now() - start
-      console.log(`✅ [JWT缓存] 命中 (${duration.toFixed(1)}ms, userId: ${cached.userId})`)
+      console.warn(`✅ [JWT缓存] 命中 (${duration.toFixed(1)}ms, userId: ${cached.userId})`)
 
       return next()
     }
 
     // 🐢 慢速路径：缓存未命中，执行 RS256 验证（带去重）
-    console.log(`⚠️ [JWT缓存] 未命中，执行 RS256 验证...`)
+    console.warn(`⚠️ [JWT缓存] 未命中，执行 RS256 验证...`)
 
     const result = await verifyJWTWithDedup(token, req, res)
 
@@ -174,7 +174,7 @@ export async function auth(req: Request, res: Response, next: NextFunction) {
       authReq.userRoles = result.roles
 
       const duration = performance.now() - start
-      console.log(`✅ [JWT验证] RS256验证完成 (${duration.toFixed(0)}ms)`)
+      console.warn(`✅ [JWT验证] RS256验证完成 (${duration.toFixed(0)}ms)`)
     }
 
     next()

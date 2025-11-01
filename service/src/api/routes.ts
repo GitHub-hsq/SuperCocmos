@@ -244,7 +244,7 @@ router.delete('/conversations/:id', auth, requireAuth, conversationController.de
  * GET /api/conversations/:id/messages
  */
 router.get('/conversations/:id/messages', auth, requireAuth, (req, res) => {
-  console.log('🚀🚀🚀 [ROUTE] 路由被匹配到了！conversationId:', req.params.id)
+  console.warn('🚀🚀🚀 [ROUTE] 路由被匹配到了！conversationId:', req.params.id)
   return conversationController.getConversationMessagesHandler(req, res)
 })
 

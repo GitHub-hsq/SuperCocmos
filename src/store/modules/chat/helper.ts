@@ -92,7 +92,6 @@ export function getCachedConversations(): any[] | null {
   try {
     const timestamp = ss.get(CONVERSATIONS_CACHE_TIMESTAMP_KEY)
     if (!timestamp) {
-      console.log('ℹ️ [ConversationCache] 缓存时间戳不存在')
       return null
     }
 
@@ -100,17 +99,14 @@ export function getCachedConversations(): any[] | null {
     const age = now - timestamp
 
     if (age > CONVERSATIONS_CACHE_TTL) {
-      console.log(`ℹ️ [ConversationCache] 缓存已过期: ${Math.round(age / 1000)}秒前，TTL: ${CONVERSATIONS_CACHE_TTL / 1000}秒`)
       return null
     }
 
     const cached = ss.get(CONVERSATIONS_CACHE_KEY)
     if (!cached) {
-      console.log('ℹ️ [ConversationCache] 缓存数据不存在')
       return null
     }
 
-    console.log(`✅ [ConversationCache] 缓存命中: ${cached.length} 个会话，缓存年龄: ${Math.round(age / 1000)}秒`)
     return cached
   }
   catch (error) {
@@ -127,7 +123,6 @@ export function setCachedConversations(conversations: any[]): void {
   try {
     ss.set(CONVERSATIONS_CACHE_KEY, conversations)
     ss.set(CONVERSATIONS_CACHE_TIMESTAMP_KEY, Date.now())
-    console.log(`💾 [ConversationCache] 已缓存 ${conversations.length} 个会话，TTL: ${CONVERSATIONS_CACHE_TTL / 60000}分钟`)
   }
   catch (error) {
     console.error('❌ [ConversationCache] 写入缓存失败:', error)
@@ -151,9 +146,6 @@ export function updateCachedConversations(history: Array<{ uuid: string, backend
 
     ss.set(CONVERSATIONS_CACHE_KEY, conversations)
     ss.set(CONVERSATIONS_CACHE_TIMESTAMP_KEY, Date.now())
-    if (import.meta.env.DEV) {
-      console.log(`💾 [ConversationCache] 已更新缓存 ${conversations.length} 个会话`)
-    }
   }
   catch (error) {
     console.error('❌ [ConversationCache] 更新缓存失败:', error)
@@ -168,7 +160,6 @@ export function clearCachedConversations(): void {
   try {
     ss.remove(CONVERSATIONS_CACHE_KEY)
     ss.remove(CONVERSATIONS_CACHE_TIMESTAMP_KEY)
-    console.log('🗑️ [ConversationCache] 缓存已清除')
   }
   catch (error) {
     console.error('❌ [ConversationCache] 清除缓存失败:', error)

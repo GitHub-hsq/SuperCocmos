@@ -51,7 +51,7 @@ export async function getUserPermissions(
       const payload = jwtDecode<JWTPayload>(token)
 
       // 调试输出：查看完整的 payload 结构
-      console.log('🔍 JWT Payload:', payload)
+      console.warn('🔍 JWT Payload:', payload)
 
       // 优先从标准 permissions 字段获取
       const permissions = payload.permissions || []

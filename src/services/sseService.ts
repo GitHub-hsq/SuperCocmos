@@ -80,7 +80,7 @@ class SSEConnectionManager {
     this.isManualDisconnect = true
 
     if (this.eventSource) {
-      console.log('[SSE] 🔌 断开连接')
+      console.warn('[SSE] 🔌 断开连接')
       this.eventSource.close()
       this.eventSource = null
     }
@@ -97,7 +97,7 @@ class SSEConnectionManager {
    * 重新连接
    */
   reconnect(): void {
-    console.log('[SSE] 🔄 手动重连...')
+    console.warn('[SSE] 🔄 手动重连...')
     this.disconnect()
     this.connect()
   }
@@ -116,14 +116,14 @@ class SSEConnectionManager {
     // ==================== 连接成功 ====================
     this.eventSource.addEventListener('connected', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] ✅ 连接确认:', data)
+      console.warn('[SSE] ✅ 连接确认:', data)
       this.reconnectAttempts = 0
     })
 
     // ==================== 新建会话事件 ====================
     this.eventSource.addEventListener('conversation_created', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] 📝 新会话创建:', data)
+      console.warn('[SSE] 📝 新会话创建:', data)
 
       // 添加到会话列表
       if (data.conversation) {
@@ -134,7 +134,7 @@ class SSEConnectionManager {
     // ==================== 会话更新事件 ====================
     this.eventSource.addEventListener('conversation_updated', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] 📝 会话更新:', data)
+      console.warn('[SSE] 📝 会话更新:', data)
 
       // 更新会话信息
       if (data.conversationId && data.updates) {
@@ -145,7 +145,7 @@ class SSEConnectionManager {
     // ==================== 删除会话事件 ====================
     this.eventSource.addEventListener('conversation_deleted', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] 🗑️ 会话删除:', data)
+      console.warn('[SSE] 🗑️ 会话删除:', data)
 
       // 从列表移除
       if (data.conversationId) {
@@ -156,7 +156,7 @@ class SSEConnectionManager {
     // ==================== 新消息事件 ====================
     this.eventSource.addEventListener('new_message', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] 💬 新消息:', data)
+      console.warn('[SSE] 💬 新消息:', data)
 
       // 只更新当前激活的会话
       if (data.conversationId === chatStore.active && data.message) {
@@ -171,7 +171,7 @@ class SSEConnectionManager {
     // ==================== 消息更新事件 ====================
     this.eventSource.addEventListener('message_updated', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] 💬 消息更新:', data)
+      console.warn('[SSE] 💬 消息更新:', data)
 
       if (data.conversationId && data.messageId && data.updates) {
         chatStore.updateMessageFromSSE(
@@ -185,7 +185,7 @@ class SSEConnectionManager {
     // ==================== 需要同步事件 ====================
     this.eventSource.addEventListener('sync_required', (event) => {
       const data = JSON.parse(event.data)
-      console.log('[SSE] 🔄 需要同步:', data)
+      console.warn('[SSE] 🔄 需要同步:', data)
 
       // 触发完整同步
       chatStore.syncFromBackend()
@@ -219,7 +219,7 @@ class SSEConnectionManager {
 
       // 检查连接状态
       if (this.eventSource?.readyState === EventSource.CLOSED) {
-        console.log('[SSE] 连接已关闭')
+        console.warn('[SSE] 连接已关闭')
 
         // 如果不是手动断开，尝试重连
         if (!this.isManualDisconnect) {
@@ -230,7 +230,7 @@ class SSEConnectionManager {
 
     // ==================== 开启事件（浏览器默认） ====================
     this.eventSource.onopen = () => {
-      console.log('[SSE] 🌐 连接已打开')
+      console.warn('[SSE] 🌐 连接已打开')
     }
   }
 
@@ -239,7 +239,7 @@ class SSEConnectionManager {
    */
   private scheduleReconnect(): void {
     if (this.isManualDisconnect) {
-      console.log('[SSE] 手动断开，不重连')
+      console.warn('[SSE] 手动断开，不重连')
       return
     }
 
@@ -251,7 +251,7 @@ class SSEConnectionManager {
     this.reconnectAttempts++
     const delay = this.reconnectDelay * 2 ** (this.reconnectAttempts - 1)
 
-    console.log(
+    console.warn(
       `[SSE] 🔄 ${delay}ms 后尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
     )
 
@@ -282,18 +282,18 @@ export const sseManager = new SSEConnectionManager()
 // 监听网络状态变化
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    console.log('[SSE] 🌐 网络恢复，尝试重连')
+    console.warn('[SSE] 🌐 网络恢复，尝试重连')
     sseManager.reconnect()
   })
 
   window.addEventListener('offline', () => {
-    console.log('[SSE] ⚠️ 网络断开，断开 SSE 连接')
+    console.warn('[SSE] ⚠️ 网络断开，断开 SSE 连接')
     sseManager.disconnect()
   })
 
   // 🔥 页面卸载时主动断开连接（避免后端报错）
   window.addEventListener('beforeunload', () => {
-    console.log('[SSE] 🔄 页面卸载，主动断开连接')
+    console.warn('[SSE] 🔄 页面卸载，主动断开连接')
     sseManager.disconnect()
   })
 }

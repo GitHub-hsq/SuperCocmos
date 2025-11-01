@@ -16,7 +16,7 @@ export async function clearConversationCache(req: Request, res: Response) {
     const cacheKey = CONVERSATION_KEYS.messages(id)
     await deleteCached(cacheKey)
 
-    console.log(`🧹 [Debug] 已清除会话缓存: ${id}`)
+    console.warn(`🧹 [Debug] 已清除会话缓存: ${id}`)
 
     res.json({
       status: 'Success',

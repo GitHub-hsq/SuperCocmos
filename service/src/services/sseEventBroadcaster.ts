@@ -115,7 +115,7 @@ export function registerUserSSEConnection(userId: string, res: Response): void {
   userConnections.get(userId)!.add(res)
 
   const connectionCount = userConnections.get(userId)!.size
-  console.log(`[SSE] ✅ 用户 ${userId} 连接数: ${connectionCount}`)
+  console.warn(`[SSE] ✅ 用户 ${userId} 连接数: ${connectionCount}`)
 }
 
 /**
@@ -128,7 +128,7 @@ export function unregisterUserSSEConnection(userId: string, res: Response): void
     connections.delete(res)
 
     const connectionCount = connections.size
-    console.log(`[SSE] ❌ 用户 ${userId} 断开连接，剩余: ${connectionCount}`)
+    console.warn(`[SSE] ❌ 用户 ${userId} 断开连接，剩余: ${connectionCount}`)
 
     // 如果没有连接了，清理 Map
     if (connectionCount === 0) {
@@ -158,7 +158,7 @@ export function broadcastToUser(userId: string, event: SSEEvent): boolean {
   const connections = userConnections.get(userId)
 
   if (!connections || connections.size === 0) {
-    console.log(`[SSE] ⚠️ 用户 ${userId} 没有活动连接`)
+    console.warn(`[SSE] ⚠️ 用户 ${userId} 没有活动连接`)
     return false
   }
 
@@ -185,7 +185,7 @@ export function broadcastToUser(userId: string, event: SSEEvent): boolean {
     connections.delete(res)
   })
 
-  console.log(`[SSE] 📡 广播事件 "${event.event}" 到用户 ${userId} 的 ${successCount} 个设备`)
+  console.warn(`[SSE] 📡 广播事件 "${event.event}" 到用户 ${userId} 的 ${successCount} 个设备`)
 
   return successCount > 0
 }

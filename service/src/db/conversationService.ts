@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CONVERSATION_KEYS } from '../cache/cacheKeys'
 import { CACHE_TTL, deleteCached, getCached, setCached } from '../cache/cacheService'
@@ -76,7 +75,7 @@ export async function createConversation(
     const cacheKey = CONVERSATION_KEYS.userConversations(params.user_id)
     await deleteCached(cacheKey)
 
-    console.log('✅ [Conversation] 创建对话成功:', data.id)
+    console.warn('✅ [Conversation] 创建对话成功:', data.id)
     return data as Conversation
   }
   catch (error) {
@@ -127,17 +126,17 @@ export async function getConversationByIdWithAuth(
     const startTime = Date.now()
 
     // 🚀 1. 尝试从 Redis 缓存获取
-    console.log(`🔍 [ConversationCache] 尝试从缓存获取: ${conversationId}`)
+    console.warn(`🔍 [ConversationCache] 尝试从缓存获取: ${conversationId}`)
     const cachedData = await redisClient.get(cacheKey)
     if (cachedData) {
       const cacheTime = Date.now() - startTime
       const conversation = JSON.parse(cachedData) as Conversation
-      console.log(`✅ [ConversationCache] 缓存命中! 耗时: ${cacheTime}ms`)
+      console.warn(`✅ [ConversationCache] 缓存命中! 耗时: ${cacheTime}ms`)
       return conversation
     }
 
     // ❌ 2. 缓存未命中，查询数据库
-    console.log(`❌ [ConversationCache] 缓存未命中，查询数据库...`)
+    console.warn(`❌ [ConversationCache] 缓存未命中，查询数据库...`)
     const dbStartTime = Date.now()
 
     // 🔥 直接使用 user_id 验证，不需要 JOIN
@@ -155,14 +154,14 @@ export async function getConversationByIdWithAuth(
       return null
     }
 
-    console.log(`✅ [Conversation] 数据库查询成功，耗时: ${queryTime}ms`)
+    console.warn(`✅ [Conversation] 数据库查询成功，耗时: ${queryTime}ms`)
 
     // 🚀 3. 存入 Redis 缓存（10 分钟过期）
     await redisClient.setex(cacheKey, 600, JSON.stringify(data))
-    console.log(`✅ [ConversationCache] 已缓存，过期时间: 10分钟`)
+    console.warn(`✅ [ConversationCache] 已缓存，过期时间: 10分钟`)
 
     const totalTime = Date.now() - startTime
-    console.log(`✅ [Conversation] 总耗时: ${totalTime}ms`)
+    console.warn(`✅ [Conversation] 总耗时: ${totalTime}ms`)
 
     return data as Conversation
   }
@@ -295,10 +294,10 @@ export async function updateConversation(
     const keys = await redisClient.keys(pattern)
     if (keys.length > 0) {
       await redisClient.del(...keys)
-      console.log(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+      console.warn(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
     }
 
-    console.log('✅ [Conversation] 更新对话成功:', conversationId)
+    console.warn('✅ [Conversation] 更新对话成功:', conversationId)
     return true
   }
   catch (error) {
@@ -339,10 +338,10 @@ export async function deleteConversation(
     const keys = await redisClient.keys(pattern)
     if (keys.length > 0) {
       await redisClient.del(...keys)
-      console.log(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+      console.warn(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
     }
 
-    console.log('✅ [Conversation] 删除对话成功:', conversationId)
+    console.warn('✅ [Conversation] 删除对话成功:', conversationId)
     return true
   }
   catch (error) {
@@ -429,12 +428,12 @@ export async function getOrCreateConversation(
       .single()
 
     if (!error && data) {
-      console.log('✅ [Conversation] 找到并复用现有对话:', data.id)
+      console.warn('✅ [Conversation] 找到并复用现有对话:', data.id)
       return data as Conversation
     }
 
     // 如果没有找到，创建新对话
-    console.log('📝 [Conversation] 创建新对话')
+    console.warn('📝 [Conversation] 创建新对话')
     return await createConversation(
       {
         user_id: userId,

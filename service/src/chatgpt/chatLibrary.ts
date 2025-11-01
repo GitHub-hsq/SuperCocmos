@@ -79,7 +79,7 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
         stream: true,
       }
 
-      console.log('[ChatGPT库-流式] 发送请求:', {
+      console.warn('[ChatGPT库-流式] 发送请求:', {
         url: apiUrl,
         model,
         messagesCount: fullMessages.length,
@@ -159,7 +159,7 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
 
       const responseTime = Date.now() - startTime
 
-      console.log('📊 [ChatGPT库-流式] 响应信息:', {
+      console.warn('📊 [ChatGPT库-流式] 响应信息:', {
         time: `${responseTime}ms`,
         id: messageId,
         model,
@@ -196,13 +196,13 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
     setupProxy(apiOptions as any)
     const apiInstance = new ChatGPTAPI({ ...apiOptions })
 
-    console.log('[ChatGPT库] 发送请求:', {
+    console.warn('[ChatGPT库] 发送请求:', {
       model,
       hasContext: !!lastContext,
     })
 
     // 构建发送选项
-    let sendOptions: SendMessageOptions = {
+    const sendOptions: SendMessageOptions = {
       timeoutMs,
     }
 
@@ -281,7 +281,7 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
 
     const responseTime = Date.now() - startTime
 
-    console.log('📊 [ChatGPT库] 响应信息:', {
+    console.warn('📊 [ChatGPT库] 响应信息:', {
       time: `${responseTime}ms`,
       id: response.id,
       model: response.detail?.model || '未知',

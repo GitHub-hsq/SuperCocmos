@@ -16,6 +16,8 @@ export default antfu({
     '**/.output/**',
     '**/.nuxt/**',
     '**/.vitepress/cache/**',
+    '**/.claude/**',
+    '**/*.md',
   ],
   // 自定义规则
   rules: {

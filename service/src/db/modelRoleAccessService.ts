@@ -262,7 +262,7 @@ export async function getAllModelsWithRoles(): Promise<ModelWithAccessRoles[]> {
       .from('models_with_roles')
       .select('*')
       .order('created_at', { ascending: false })
-    console.log('获取所有模型及其可访问角色3333333:')
+    console.warn('获取所有模型及其可访问角色3333333:')
     if (error) {
       console.error('获取模型和角色列表失败:', error)
       return []

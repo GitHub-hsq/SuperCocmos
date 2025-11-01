@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 📝 消息历史 Redis 缓存
  * - 缓存短期上下文（最近 10-20 条消息）
@@ -35,12 +34,12 @@ export async function getMessagesFromCache(
     const cached = await redis.get(key)
 
     if (!cached) {
-      console.log('❌ [缓存] 未命中:', conversationId)
+      console.warn('❌ [缓存] 未命中:', conversationId)
       return null
     }
 
     const messages = JSON.parse(cached) as Message[]
-    console.log(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
+    console.warn(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
     return messages
   }
   catch (error) {
@@ -67,7 +66,7 @@ export async function setMessagesToCache(
     const value = JSON.stringify(messages)
 
     await redis.setex(key, ttl, value)
-    console.log(`✅ [缓存] 写入: ${conversationId}，消息数: ${messages.length}`)
+    console.warn(`✅ [缓存] 写入: ${conversationId}，消息数: ${messages.length}`)
     return true
   }
   catch (error) {
@@ -124,7 +123,7 @@ export async function appendMessageToCache(
 
     // 写回缓存
     await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
-    console.log(`✅ [缓存] 追加消息: ${conversationId}, role: ${message.role}, status: ${status}, 总消息数: ${messages.length}`)
+    console.warn(`✅ [缓存] 追加消息: ${conversationId}, role: ${message.role}, status: ${status}, 总消息数: ${messages.length}`)
     return true
   }
   catch (error) {
@@ -206,7 +205,7 @@ export async function updateMessageStatusInCache(
             if (foundIndex >= 0) {
               updatedMessages[foundIndex].status = status
               await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(updatedMessages))
-              console.log(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
+              console.warn(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
               return true
             }
           }
@@ -220,7 +219,7 @@ export async function updateMessageStatusInCache(
 
     // 写回缓存
     await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
-    console.log(`✅ [缓存] 更新消息状态: ${messageId}, status: ${status}`)
+    console.warn(`✅ [缓存] 更新消息状态: ${messageId}, status: ${status}`)
     return true
   }
   catch (error) {
@@ -263,7 +262,7 @@ export async function clearMessagesCache(conversationId: string): Promise<boolea
 
     const key = getMessageCacheKey(conversationId)
     await redis.del(key)
-    console.log(`✅ [缓存] 清除: ${conversationId}`)
+    console.warn(`✅ [缓存] 清除: ${conversationId}`)
     return true
   }
   catch (error) {
@@ -363,10 +362,10 @@ export async function getConversationContextWithCache(
     // ✅ 统一的日志输出
     const pendingCount = validMessages.filter(m => m.status === 'pending').length
     if (pendingCount > 0) {
-      console.log(`📚 [上下文] 从缓存/数据库加载: ${chatMessages.length} 条（包含 ${pendingCount} 条 pending）`)
+      console.warn(`📚 [上下文] 从缓存/数据库加载: ${chatMessages.length} 条（包含 ${pendingCount} 条 pending）`)
     }
     else {
-      console.log(`📚 [上下文] 从缓存/数据库加载: ${chatMessages.length} 条`)
+      console.warn(`📚 [上下文] 从缓存/数据库加载: ${chatMessages.length} 条`)
     }
     return chatMessages
   }

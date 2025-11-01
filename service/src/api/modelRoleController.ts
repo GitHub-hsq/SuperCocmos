@@ -20,7 +20,7 @@ import {
 export async function getAllModelsWithRolesHandler(req: Request, res: Response) {
   try {
     const models = await getAllModelsWithRoles()
-    console.log('获取所有模型及其可访问角色2222222:')
+    console.warn('获取所有模型及其可访问角色2222222:')
     res.send({
       status: 'Success',
       message: '获取模型角色列表成功',

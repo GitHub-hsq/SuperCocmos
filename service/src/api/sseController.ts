@@ -4,7 +4,28 @@
  */
 
 import type { Request, Response } from 'express'
+import type { Socket } from 'node:net'
 import { getSSEStats, registerUserSSEConnection, unregisterUserSSEConnection } from '../services/sseEventBroadcaster'
+
+// 扩展 Request 类型以包含认证信息和 socket
+interface SSERequest extends Omit<Request, 'socket'> {
+  user?: {
+    user_id: string
+    auth0_id: string
+    [key: string]: any
+  }
+  socket?: Socket
+}
+
+// 扩展 Response 类型以确保包含所有必要的方法
+interface SSEResponse extends Response {
+  setHeader: (name: string, value: string | number | string[]) => this
+  flushHeaders: () => void
+  write: (chunk: any, encoding?: any) => boolean
+  end: (chunk?: any, encoding?: any) => this
+  status: (code: number) => this
+  json: (body: any) => this
+}
 
 /**
  * SSE 连接 endpoint
@@ -12,11 +33,13 @@ import { getSSEStats, registerUserSSEConnection, unregisterUserSSEConnection } f
  * 建立 SSE 长连接，用于推送实时事件,目前不处理同步问题，因为是单设备登录，留着sse只是为了后续可能会用到
  */
 export async function handleSSEConnection(req: Request, res: Response) {
+  const sseReq = req as SSERequest
+  const sseRes = res as SSEResponse
   // 获取用户 ID（从认证中间件设置）
-  const userId = req.user?.user_id
+  const userId = sseReq.user?.user_id
 
   if (!userId) {
-    return res.status(401).json({
+    return sseRes.status(401).json({
       status: 'Fail',
       message: '未认证',
       data: null,
@@ -24,19 +47,19 @@ export async function handleSSEConnection(req: Request, res: Response) {
   }
 
   // 设置 SSE 响应头
-  res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache, no-transform')
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('X-Accel-Buffering', 'no') // 禁用 Nginx 缓冲
+  sseRes.setHeader('Content-Type', 'text/event-stream')
+  sseRes.setHeader('Cache-Control', 'no-cache, no-transform')
+  sseRes.setHeader('Connection', 'keep-alive')
+  sseRes.setHeader('X-Accel-Buffering', 'no') // 禁用 Nginx 缓冲
 
   // 设置 TCP 无延迟
-  if (req.socket) {
-    req.socket.setNoDelay(true)
-    req.socket.setTimeout(0)
+  if (sseReq.socket) {
+    sseReq.socket.setNoDelay(true)
+    sseReq.socket.setTimeout(0)
   }
 
   // 立即发送响应头
-  res.flushHeaders()
+  sseRes.flushHeaders()
 
   // 发送连接确认事件
   const connectedEvent = `event: connected\ndata: ${JSON.stringify({
@@ -45,17 +68,17 @@ export async function handleSSEConnection(req: Request, res: Response) {
     message: 'SSE 连接已建立',
   })}\n\n`
 
-  res.write(connectedEvent)
+  sseRes.write(connectedEvent)
 
-  // console.log(`[SSE] ✅ 用户 ${userId} 连接成功`)
+  // console.warn(`[SSE] ✅ 用户 ${userId} 连接成功`)
 
   // 注册连接
-  registerUserSSEConnection(userId, res)
+  registerUserSSEConnection(userId, sseRes)
 
   // 心跳保持连接（每 30 秒发送一次心跳）
   const heartbeatInterval = setInterval(() => {
     try {
-      res.write(`:heartbeat ${Date.now()}\n\n`)
+      sseRes.write(`:heartbeat ${Date.now()}\n\n`)
     }
     catch (error) {
       console.error(`[SSE] ❌ 心跳发送失败:`, error)
@@ -64,17 +87,17 @@ export async function handleSSEConnection(req: Request, res: Response) {
   }, 30000)
 
   // 客户端断开连接时清理
-  req.on('close', () => {
+  sseReq.on('close', () => {
     clearInterval(heartbeatInterval)
-    unregisterUserSSEConnection(userId, res)
-    res.end()
+    unregisterUserSSEConnection(userId, sseRes)
+    sseRes.end()
   })
 
   // 处理错误
-  req.on('error', () => {
+  sseReq.on('error', () => {
     clearInterval(heartbeatInterval)
-    unregisterUserSSEConnection(userId, res)
-    res.end()
+    unregisterUserSSEConnection(userId, sseRes)
+    sseRes.end()
   })
 }
 

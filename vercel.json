@@ -11,7 +11,7 @@
   ],
   "functions": {
     "service/build/index.mjs": {
-      "runtime": "nodejs18",
+      "runtime": "nodejs@18",
       "memory": 1024,
       "maxDuration": 30
     }

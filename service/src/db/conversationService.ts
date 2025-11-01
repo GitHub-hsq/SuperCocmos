@@ -182,7 +182,7 @@ export async function getConversationByFrontendUuid(
   try {
     console.warn(`🔍 [getConversationByFrontendUuid] 查询参数:`, {
       frontendUuid,
-      userId: userId.substring(0, 8) + '...',
+      userId: `${userId.substring(0, 8)}...`,
     })
 
     const { data, error } = await client
@@ -205,7 +205,7 @@ export async function getConversationByFrontendUuid(
     console.warn(`✅ [getConversationByFrontendUuid] 找到会话:`, {
       id: data.id,
       frontend_uuid: data.frontend_uuid,
-      user_id: data.user_id?.substring(0, 8) + '...',
+      user_id: `${data.user_id?.substring(0, 8)}...`,
     })
 
     return data as Conversation

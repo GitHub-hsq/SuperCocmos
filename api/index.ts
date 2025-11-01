@@ -4,10 +4,9 @@
  */
 
 // 设置环境变量标识为 Vercel 环境
-process.env.VERCEL = '1'
-
 // 导入构建后的 Express 应用
 import handler from '../service/build/index.mjs'
 
-export default handler
+process.env.VERCEL = '1'
 
+export default handler

@@ -43,7 +43,7 @@ async function preloadUserRoles(userId: string): Promise<void> {
 /**
  * 预加载用户配置到 Redis
  */
-async function preloadUserConfig(userId: string): Promise<void> {
+export async function preloadUserConfig(userId: string): Promise<void> {
   try {
     // 调用 getUserConfig 会自动触发缓存写入
     await getUserConfig(userId)

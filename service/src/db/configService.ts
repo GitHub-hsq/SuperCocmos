@@ -45,37 +45,95 @@ export async function getUserConfig(userId: string) {
     // 如果用户配置不存在，创建默认配置
     if (error.code === 'PGRST116') {
       logger.debug(`ℹ️  [ConfigService] 用户 ${userId.substring(0, 8)}... 配置不存在，创建默认配置`)
-      return await createUserConfig(userId)
+      try {
+        return await createUserConfig(userId)
+      }
+      catch (createError: any) {
+        // 🔥 如果创建失败（可能是并发创建），重新查询一次
+        // 因为另一个请求可能已经创建了配置
+        if (createError.code === '23505') {
+          logger.warn(`⚠️ [ConfigService] 创建配置时发生并发冲突，重新查询: ${userId.substring(0, 8)}...`)
+          const { data: retryData, error: retryError } = await supabase
+            .from('user_configs')
+            .select('*')
+            .eq('user_id', userId)
+            .single()
+
+          if (retryError) {
+            logger.error(`❌ [ConfigService] 重新查询配置失败:`, retryError)
+            throw retryError
+          }
+
+          // 立即写入缓存
+          await setCached(cacheKey, retryData, CACHE_TTL.USER_CONFIG)
+          return retryData
+        }
+        throw createError
+      }
     }
     throw error
   }
 
-  // 保存到缓存（异步，不阻塞响应）
-  setCached(cacheKey, data, CACHE_TTL.USER_CONFIG).catch((err) => {
-    logger.error(`❌ [ConfigService] 缓存写入失败:`, err)
-  })
+  // 保存到缓存（同步写入，确保后续请求能命中缓存）
+  await setCached(cacheKey, data, CACHE_TTL.USER_CONFIG)
 
   return data
 }
 
 /**
  * 创建用户默认配置
+ * 🔥 处理并发创建：如果配置已存在，则直接查询并返回
  */
 export async function createUserConfig(userId: string) {
-  const { data, error } = await supabase
-    .from('user_configs')
-    .insert({
-      user_id: userId,
-      // 使用数据库默认值
-    })
-    .select()
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('user_configs')
+      .insert({
+        user_id: userId,
+        // 使用数据库默认值
+      })
+      .select()
+      .single()
 
-  if (error)
+    if (error) {
+      // 🔥 处理并发创建：如果配置已存在（PostgreSQL 错误码 23505），则查询并返回
+      if (error.code === '23505') {
+        logger.warn(`⚠️ [ConfigService] 配置已存在（并发创建），重新查询: ${userId.substring(0, 8)}...`)
+        // 配置已存在，重新查询
+        const { data: existingData, error: queryError } = await supabase
+          .from('user_configs')
+          .select('*')
+          .eq('user_id', userId)
+          .single()
+
+        if (queryError) {
+          logger.error(`❌ [ConfigService] 重新查询配置失败:`, queryError)
+          throw queryError
+        }
+
+        // 立即写入缓存
+        const cacheKey = USER_CONFIG_KEYS.full(userId)
+        await setCached(cacheKey, existingData, CACHE_TTL.USER_CONFIG)
+
+        logger.warn(`✅ [ConfigService] 已从数据库获取现有配置并缓存: ${userId.substring(0, 8)}...`)
+        return existingData
+      }
+
+      // 其他错误直接抛出
+      throw error
+    }
+
+    // 🔥 立即写入缓存（确保后续请求能命中缓存）
+    const cacheKey = USER_CONFIG_KEYS.full(userId)
+    await setCached(cacheKey, data, CACHE_TTL.USER_CONFIG)
+
+    logger.warn(`✅ [ConfigService] 已为用户 ${userId.substring(0, 8)}... 创建默认配置并缓存`)
+    return data
+  }
+  catch (error: any) {
+    logger.error(`❌ [ConfigService] 创建用户配置失败:`, error)
     throw error
-
-  console.warn(`✅ [ConfigService] 已为用户 ${userId} 创建默认配置`)
-  return data
+  }
 }
 
 /**

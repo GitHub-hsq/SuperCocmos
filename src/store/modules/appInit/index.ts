@@ -122,9 +122,29 @@ export const useAppInitStore = defineStore('app-init', {
             try {
               const { syncAuth0UserToSupabase } = await import('@/api/services/auth0Service')
               await syncAuth0UserToSupabase(user)
+              console.warn('✅ [AppInit] 用户同步成功')
             }
-            catch {
-              // 用户同步失败，可能是网络问题或用户已存在
+            catch (error: any) {
+              // 🔥 用户同步失败，尝试重试（最多3次）
+              console.warn('⚠️ [AppInit] 用户同步失败，尝试重试...', error.message)
+              let retryCount = 0
+              const maxRetries = 3
+              while (retryCount < maxRetries) {
+                try {
+                  await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))) // 递增延迟
+                  const { syncAuth0UserToSupabase } = await import('@/api/services/auth0Service')
+                  await syncAuth0UserToSupabase(user)
+                  console.warn(`✅ [AppInit] 用户同步成功（重试 ${retryCount + 1} 次）`)
+                  return
+                }
+                catch (retryError: any) {
+                  retryCount++
+                  if (retryCount >= maxRetries) {
+                    console.error('❌ [AppInit] 用户同步失败（已重试3次）:', retryError.message)
+                    // 即使失败也继续，让用户能够使用应用（用户可能在数据库中已存在）
+                  }
+                }
+              }
             }
           })()
 
@@ -143,8 +163,11 @@ export const useAppInitStore = defineStore('app-init', {
             }
           })()
 
-          // 等待用户同步和 token 获取完成
-          const [_, token] = await Promise.all([syncPromise, tokenPromise])
+          // 🔥 等待用户同步完成（注册后首次登录的关键步骤）
+          await syncPromise
+
+          // 然后获取 token（用户同步完成后，token 可能需要一点时间才能获取到）
+          const token = await tokenPromise
 
           // 🔥 并行执行：设置 Cookie + 权限解码（都需要 token，但互不依赖）
           const cookiePromise = (async () => {
@@ -197,9 +220,12 @@ export const useAppInitStore = defineStore('app-init', {
           }
         })()
 
-        // ⚙️ 步骤 3: 加载用户配置（仅在已登录时）
+        // ⚙️ 步骤 3: 加载用户配置（仅在已登录时，且步骤1完成后）
         const step3Promise = (async () => {
           if (auth0.isAuthenticated.value && !configStore.loaded) {
+            // 🔥 等待步骤1完成（用户同步和配置预加载）
+            await step1Promise
+
             try {
               const loadConfig = (configStore as any).loadAllConfig
               if (typeof loadConfig === 'function') {

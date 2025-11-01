@@ -5,8 +5,8 @@
 
 import type { Role } from '../db/roleService'
 import { getAllRoles } from '../db/roleService'
-import { redis } from './redisClient.auto'
 import { logger } from '../utils/logger'
+import { redis } from './redisClient.auto'
 
 const ROLE_LIST_KEY = 'roles:list'
 const ROLE_ID_PREFIX = 'role:'

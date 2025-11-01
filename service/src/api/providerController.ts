@@ -295,7 +295,7 @@ export async function addModel(req: Request, res: Response) {
     // 清除供应商和模型缓存
     await deleteCached(PROVIDER_KEYS.list())
     await deleteCached(PROVIDER_KEYS.models(providerId))
-    
+
     // 🔥 清除 models_with_roles 缓存
     try {
       const { clearModelsWithRolesCache } = await import('../cache/modelCache')

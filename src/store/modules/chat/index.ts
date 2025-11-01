@@ -544,8 +544,10 @@ export const useChatStore = defineStore('chat-store', {
           console.warn(`⚠️ [ChatStore] API 请求耗时过长: ${apiTime}ms`)
         }
 
-        if (response.status === 'Success' && response.data) {
-          const conversations = response.data as Array<{
+        // 🔥 处理响应：允许 data 为空数组（新用户没有会话是正常情况）
+        if (response.status === 'Success') {
+          // data 可能是 undefined、null 或空数组，都视为没有会话
+          const conversations = (response.data || []) as Array<{
             id: string
             title: string
             modelId: string
@@ -557,6 +559,7 @@ export const useChatStore = defineStore('chat-store', {
           }>
 
           if (conversations.length === 0) {
+            // 🔥 新用户没有会话，这是正常情况，返回成功
             return { success: true, count: 0 }
           }
 
@@ -618,13 +621,30 @@ export const useChatStore = defineStore('chat-store', {
         return { success: false, error: '数据格式错误' }
       }
       catch (error: any) {
-        // 静默处理 404（用户未登录或没有会话）
-        if (error?.response?.status === 404 || error?.message?.includes('404')) {
+        // 🔥 静默处理 404 和其他错误（新用户没有会话是正常情况）
+        const status = error?.response?.status
+        const statusText = error?.response?.statusText || ''
+        const message = error?.message || ''
+
+        // 404 表示资源不存在（新用户没有会话），这是正常情况
+        if (status === 404 || statusText.includes('404') || message.includes('404')) {
+          if (import.meta.env.DEV) {
+            console.warn('ℹ️ [ChatStore] 用户没有会话（新用户），这是正常情况')
+          }
           return { success: true, count: 0 }
         }
 
+        // 401 表示未授权，可能是 token 过期
+        if (status === 401) {
+          console.error('❌ [ChatStore] 未授权，请重新登录')
+          return { success: false, error: '未授权，请重新登录' }
+        }
+
+        // 其他错误记录日志，但不阻止应用使用
         console.error('❌ [ChatStore] 加载会话列表失败:', error)
-        return { success: false, error: error.message }
+        // 🔥 即使错误也返回成功，使用空列表（降级处理）
+        // 这样可以确保新用户即使遇到错误也能正常使用应用
+        return { success: true, count: 0 }
       }
     },
 

@@ -140,18 +140,20 @@ export async function getUserConversationsHandler(req: Request, res: Response) {
 
     const conversations = await getUserConversations(userId, { limit, offset })
 
+    // 🔥 确保返回数组（即使为空），新用户没有会话是正常情况
     res.json({
       status: 'Success',
       message: '获取会话列表成功',
-      data: conversations,
+      data: conversations || [], // 确保返回数组，即使为空
     })
   }
   catch (error: any) {
     console.error('❌ [Conversation] 获取会话列表失败:', error)
-    res.status(500).json({
-      status: 'Fail',
-      message: error.message || '获取会话列表失败',
-      data: null,
+    // 🔥 即使出错也返回空数组，不返回 500，让前端能正常处理
+    res.json({
+      status: 'Success',
+      message: '获取会话列表成功',
+      data: [], // 降级处理：返回空数组
     })
   }
 }

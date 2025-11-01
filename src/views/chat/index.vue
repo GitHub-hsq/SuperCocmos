@@ -1600,7 +1600,7 @@ function handleSelectModel(model: ModelItem) {
 
 <template>
   <!-- TODO: 添加 Auth0 登录检查 -->
-  <div class="flex flex-col w-full h-full bg-white dark:bg-[#161618]">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-white dark:bg-[#161618]">
     <transition name="fade" mode="out-in">
       <!-- 设置页面 - 整体替换 -->
       <div v-if="showSettingsPage" key="settings" class="flex-1 overflow-hidden flex flex-col">

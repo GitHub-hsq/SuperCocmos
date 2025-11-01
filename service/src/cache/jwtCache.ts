@@ -8,8 +8,8 @@
  */
 
 import crypto from 'node:crypto'
-import { redis } from './redisClient.auto'
 import { logger } from '../utils/logger'
+import { redis } from './redisClient.auto'
 
 const CACHE_PREFIX = 'jwt_verified:'
 const DEFAULT_TTL = 3600 // 默认1小时

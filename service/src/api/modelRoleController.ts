@@ -4,6 +4,7 @@
  */
 
 import type { Request, Response } from 'express'
+import { clearModelsWithRolesCache } from '../cache/modelCache'
 import {
   assignRoleToModel,
   getAllModelsWithRoles,
@@ -13,7 +14,6 @@ import {
   setModelRoles,
 } from '../db/modelRoleAccessService'
 import { clearModelPermissionCache } from '../middleware/modelAccessAuth'
-import { clearModelsWithRolesCache } from '../cache/modelCache'
 
 /**
  * 获取所有模型及其可访问角色
@@ -178,7 +178,7 @@ export async function removeRoleHandler(req: Request, res: Response) {
  * 批量设置模型的角色（覆盖现有设置）
  * POST /api/model-roles/set
  * Body: { modelId: string, roleIds: string[] }
- * 
+ *
  * 🔥 优化：先更新 Redis 缓存并立即返回，然后异步执行数据库同步（提高响应速度）
  */
 export async function setModelRolesHandler(req: Request, res: Response) {
@@ -212,7 +212,7 @@ export async function setModelRolesHandler(req: Request, res: Response) {
       const { getModelsWithRolesFromCache } = await import('../cache/modelCache')
       const cachedModels = await getModelsWithRolesFromCache()
       const existingModel = cachedModels?.find((m: any) => m.id === modelId)
-      
+
       if (existingModel) {
         await updateModelRolesInCache(modelId, roleIds, {
           model_id: existingModel.model_id,

@@ -6,9 +6,9 @@
  */
 
 import type { Message, MessageStatus } from '../db/messageService'
+import { logger } from '../utils/logger'
 import { CONVERSATION_KEYS } from './cacheKeys'
 import { redis } from './redisClient.auto'
-import { logger } from '../utils/logger'
 
 const MESSAGE_CACHE_TTL = 3600 // 1小时过期
 
@@ -40,7 +40,7 @@ export async function getMessagesFromCache(
     }
 
     const messages = JSON.parse(cached) as Message[]
-      logger.debug(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
+    logger.debug(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
     return messages
   }
   catch (error) {

@@ -5,8 +5,8 @@
 
 import type { ModelWithProvider } from '../db/providerService'
 import { getAllProvidersWithModels } from '../db/providerService'
-import { redis } from './redisClient.auto'
 import { logger } from '../utils/logger'
+import { redis } from './redisClient.auto'
 
 const CACHE_PREFIX = 'model_cache:'
 const PROVIDER_CACHE_PREFIX = 'provider_cache:'
@@ -253,7 +253,13 @@ export async function clearModelsWithRolesCache(): Promise<void> {
  * 🔥 更新 models_with_roles 视图缓存中的单个模型（追加/更新模式）
  * @param modelId 模型ID（UUID）
  * @param roleIds 角色ID数组
- * @param modelInfo 模型基本信息（可选，如果缓存中没有）
+ * @param modelInfo - 模型基本信息（可选，如果缓存中没有）
+ * @param modelInfo.model_id - 模型ID
+ * @param modelInfo.display_name - 模型显示名称
+ * @param modelInfo.enabled - 是否启用
+ * @param modelInfo.provider_id - 供应商ID
+ * @param modelInfo.created_at - 创建时间
+ * @param modelInfo.updated_at - 更新时间
  */
 export async function updateModelRolesInCache(
   modelId: string,
@@ -282,13 +288,15 @@ export async function updateModelRolesInCache(
 
     // 🔥 2. 构建 accessible_roles 数组
     const accessibleRoles = roleIds
-      .map(roleId => {
+      .map((roleId) => {
         const role = roles.find(r => r.role_id === roleId)
-        return role ? {
-          roleId: role.role_id,
-          roleName: role.role_name,
-          roleDescription: role.role_description,
-        } : null
+        return role
+          ? {
+              roleId: role.role_id,
+              roleName: role.role_name,
+              roleDescription: role.role_description,
+            }
+          : null
       })
       .filter((r): r is NonNullable<typeof r> => r !== null)
 

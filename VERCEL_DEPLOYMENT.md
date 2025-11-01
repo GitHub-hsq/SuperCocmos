@@ -154,7 +154,30 @@ VITE_GLOB_APP_PWA=false
 - 环境变量更改后需要重新部署
 - 检查是否分配到 Production 环境
 
-### Q5: 功能开关说明
+### Q5: Serverless Function 超过 250MB 限制？
+
+**A: 优化方案**
+
+如果遇到 "A Serverless Function has exceeded the unzipped maximum size of 250 MB" 错误：
+
+1. **检查依赖项**：
+   - 确保 `service/package.json` 中没有不必要的依赖
+   - 使用 `pnpm install --prod` 只安装生产依赖
+
+2. **排除不必要的文件**：
+   - `vercel.json` 已配置为不包含 `node_modules`
+   - Vercel 会自动分析代码依赖并打包
+
+3. **优化代码**：
+   - 移除未使用的导入
+   - 使用动态导入（`import()`）延迟加载大型模块
+   - 考虑将大型依赖改为外部服务调用
+
+4. **检查构建输出**：
+   - 确保 `service/build/` 目录不会被包含
+   - 检查是否有大文件被意外包含
+
+### Q6: 功能开关说明
 
 **`VITE_GLOB_OPEN_LONG_REPLY`** - 长回复自动续写
 - `true`: 当 AI 回复因长度限制被截断时，自动继续生成后续内容

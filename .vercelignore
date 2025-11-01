@@ -1,0 +1,39 @@
+# Node modules (Vercel 会自动安装依赖，不需要打包)
+node_modules/
+service/node_modules/
+
+# 构建输出（如果有）
+service/build/
+dist/
+
+# 测试文件
+**/*.test.ts
+**/*.spec.ts
+**/__tests__/
+**/test-*.ts
+
+# 文档和配置文件
+**/*.md
+docs/
+supabse/
+*.md
+
+# 上传文件
+service/uploads/
+
+# 脚本文件
+service/scripts/
+
+# 配置文件（除了必要的）
+service/tsconfig.json
+service/tsup.config.ts
+service/eslint.config.mjs
+service/.gitignore
+service/package-lock.json
+
+# 其他不需要的文件
+.DS_Store
+*.log
+.env.local
+service/.env.local
+

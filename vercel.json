@@ -1,7 +1,7 @@
 {
   "version": 2,
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "pnpm install --no-frozen-lockfile && cd service && pnpm install --no-frozen-lockfile",
+  "installCommand": "pnpm install --no-frozen-lockfile && cd service && pnpm install --prod --no-frozen-lockfile",
   "buildCommand": "pnpm build && cd service && pnpm build",
   "outputDirectory": "dist",
   "framework": "vite",
@@ -13,7 +13,8 @@
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "service/**"
+      "maxDuration": 60,
+      "memory": 3008
     }
   },
   "env": {

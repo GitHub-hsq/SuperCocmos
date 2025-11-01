@@ -15,7 +15,7 @@ import cookieParser from 'cookie-parser'
 
 // 引入 Express 框架和 Multer（用于文件上传）
 import express from 'express'
-import type { Request } from 'express'
+import type { NextFunction, Request, Response } from 'express'
 
 import multer from 'multer'
 
@@ -61,7 +61,7 @@ app.set('x-powered-by', false)
 app.set('etag', false)
 
 // 全局 CORS 配置：支持 Auth0 认证和 SSE
-app.all('*', (req, res, next) => {
+app.all('*', (req: Request, res: Response, next: NextFunction) => {
   // 允许的来源（开发环境）
   const allowedOrigins = [
     'http://localhost:5173',
@@ -89,7 +89,7 @@ app.all('*', (req, res, next) => {
 })
 
 // 🚀 流式返回 LLM 的回复内容 - 优化版：支持消息历史
-router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAccess(), async (req, res) => {
+router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAccess(), async (req: Request, res: Response) => {
   // 🔥 设置正确的响应头以支持真正的流式传输
   res.setHeader('Content-Type', 'text/event-stream') // 使用 SSE 格式
   res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -103,8 +103,6 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
   }
 
   res.flushHeaders() // 🔥 立即发送响应头
-
-  const _perfStart = Date.now() // 🔥 在外层声明，以便在 catch 中使用
 
   // 🔥 声明变量在外层作用域，以便在 catch 块中使用
   let conversationId: string | undefined
@@ -143,7 +141,6 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
     }
 
     // 🚀 步骤1：快速从 Redis 获取模型配置（<10ms）
-    const _step1Start = Date.now()
     const { getModelFromCache } = await import('./cache/modelCache')
     let modelConfig = await getModelFromCache(model, providerId)
 
@@ -234,7 +231,7 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
         model_id: modelConfig.id,
         provider_id: modelConfig.provider_id,
         frontend_uuid: frontendUuid, // 🔥 保存前端 nanoid
-        title: prompt.substring(0, 50), // 使用前50个字符作为标题
+        title: prompt ? prompt.substring(0, 50) : '新对话', // 使用前50个字符作为标题
         temperature: temperature ?? 0.7,
         top_p: top_p ?? 1.0,
         max_tokens: maxTokens ?? 2048,
@@ -300,10 +297,14 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
     const _llmCallStart = Date.now()
     let firstResponseTime: number | null = null
     let lastChunkTime = _llmCallStart
-    let _chunksSent = 0
     let assistantResponse = '' // 🔥 累积助手的完整回复
     let responseId = '' // 🔥 响应消息 ID
     let responseTokens = 0 // 🔥 响应使用的 tokens
+
+    if (!prompt) {
+      res.write(JSON.stringify({ role: 'assistant', text: '', error: { message: '提示词不能为空' } }))
+      return res.end()
+    }
 
     await chatReplyProcess({
       message: prompt,
@@ -331,10 +332,9 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
 
         const _timeSinceLastChunk = currentTime - lastChunkTime
         // if (_timeSinceLastChunk > 100) {
-        //   console.warn(`⏱️ [后端-性能] 第${_chunksSent + 1}个chunk，距离上次: ${_timeSinceLastChunk}ms`)
+        //   console.warn(`⏱️ [后端-性能] chunk，距离上次: ${_timeSinceLastChunk}ms`)
         // }
 
-        _chunksSent++
         lastChunkTime = currentTime
 
         // 🔥 累积助手回复

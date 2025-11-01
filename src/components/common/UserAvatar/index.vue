@@ -4,7 +4,10 @@ import { computed } from 'vue'
 import { useUserStore } from '@/store'
 import { isString } from '@/utils/is'
 
-const DEFAULT_AVATAR = 'https://raw.githubusercontent.com/Chanzhaoyu/chatgpt-web/main/src/assets/avatar.jpg'
+// SVG 默认头像（用户图标）
+const DEFAULT_AVATAR = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4s-4 1.79-4 4s1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4"/></svg>',
+)}`
 
 const userStore = useUserStore()
 

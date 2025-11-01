@@ -34,11 +34,26 @@ export async function getCached<T>(key: string): Promise<T | null> {
       return null
     }
 
+    // 🔥 检测损坏的缓存数据（"[object Object]" 或其他无效 JSON）
+    if (typeof cached === 'string' && cached.startsWith('[object ')) {
+      console.warn(`⚠️ [Cache] 检测到损坏的缓存数据，已删除: ${key}`)
+      await deleteCached(key)
+      return null
+    }
+
     const data = JSON.parse(cached) as T
     return data
   }
   catch (error: any) {
+    // 🔥 解析失败时，删除损坏的缓存
     console.error(`❌ [Cache] 读取缓存失败: ${key}`, error.message)
+    // 尝试删除损坏的缓存
+    try {
+      await deleteCached(key)
+    }
+    catch {
+      // 忽略删除失败
+    }
     return null
   }
 }

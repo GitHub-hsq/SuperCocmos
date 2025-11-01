@@ -46,6 +46,13 @@ export async function getJWTFromCache(token: string): Promise<JWTVerificationRes
       return null
     }
 
+    // 🔥 检测损坏的缓存数据（"[object Object]" 或其他无效 JSON）
+    if (typeof cached === 'string' && cached.startsWith('[object ')) {
+      console.warn(`⚠️ [JWT缓存] 检测到损坏的缓存数据，已删除: ${cacheKey}`)
+      await redis.del(cacheKey)
+      return null
+    }
+
     const result: JWTVerificationResult = JSON.parse(cached)
 
     // 验证缓存的数据是否已过期
@@ -60,6 +67,15 @@ export async function getJWTFromCache(token: string): Promise<JWTVerificationRes
   }
   catch (error) {
     console.error('❌ [JWT缓存] 获取失败:', error)
+    // 🔥 解析失败时，尝试删除损坏的缓存
+    try {
+      const hash = hashToken(token)
+      const cacheKey = `${CACHE_PREFIX}${hash}`
+      await redis.del(cacheKey)
+    }
+    catch {
+      // 忽略删除失败
+    }
     return null
   }
 }

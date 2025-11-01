@@ -28,17 +28,25 @@ export const redis = {
   // 基本操作
   async get(key: string): Promise<string | null> {
     const result = await upstashRedis.get(key)
-    return result === null ? null : String(result)
+    if (result === null) {
+      return null
+    }
+    // 🔥 确保返回字符串格式（防止对象类型）
+    return typeof result === 'string' ? result : JSON.stringify(result)
   },
 
   async set(key: string, value: string): Promise<'OK'> {
-    await upstashRedis.set(key, value)
+    // 🔥 确保值始终是字符串（防止 "[object Object]" 问题）
+    const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
+    await upstashRedis.set(key, stringValue)
     return 'OK'
   },
 
   // 🔥 适配 setex：使用 set 配合 ex 选项
   async setex(key: string, seconds: number, value: string): Promise<'OK'> {
-    await upstashRedis.set(key, value, { ex: seconds })
+    // 🔥 确保值始终是字符串（防止 "[object Object]" 问题）
+    const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
+    await upstashRedis.set(key, stringValue, { ex: seconds })
     return 'OK'
   },
 

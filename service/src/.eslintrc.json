@@ -5,6 +5,13 @@
       "rules": {
         "no-console": "off"
       }
+    },
+    {
+      "files": ["index.ts"],
+      "rules": {
+        "perfectionist/sort-imports": "off",
+        "unused-imports/no-unused-imports": "off"
+      }
     }
   ]
 }

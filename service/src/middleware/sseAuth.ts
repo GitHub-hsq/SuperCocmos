@@ -1,42 +1,40 @@
 /**
  * SSE 认证中间件
- * 由于 EventSource 不支持自定义 headers，需要从 URL 参数中获取 token
+ * 从 Cookie 中提取 token 并验证 JWT
  */
 
 import type { NextFunction, Request, Response } from 'express'
 import { expressjwt } from 'express-jwt'
 import jwksRsa from 'jwks-rsa'
 
+// 扩展 Request 类型
+interface AuthRequest extends Request {
+  auth?: {
+    sub: string
+    [key: string]: any
+  }
+  user?: {
+    user_id: string
+    auth0_id: string
+    [key: string]: any
+  }
+}
+
 const AUTH0_DOMAIN = process.env.AUTH0_DOMAIN
 const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE
 
 if (!AUTH0_DOMAIN || !AUTH0_AUDIENCE) {
-  console.error('❌ [SSE Auth] 环境变量缺失: AUTH0_DOMAIN 或 AUTH0_AUDIENCE')
+  console.error('❌ 缺少环境变量: AUTH0_DOMAIN 或 AUTH0_AUDIENCE')
 }
 
 /**
- * 从 Cookie 或 URL 参数中提取 token 并放入 Authorization header
- * 优先使用 Cookie（更安全），降级到 URL 参数（兼容性）
+ * 从 Cookie 中提取 token 并放入 Authorization header
  */
-export function extractTokenFromQuery(req: Request, res: Response, next: NextFunction) {
-  // 🔥 优先从 Cookie 读取 token（方案 A）
-  let token = req.cookies?.access_token
+export function extractTokenFromCookie(req: Request, res: Response, next: NextFunction) {
+  const token = req.cookies?.access_token
 
   if (token) {
     req.headers.authorization = `Bearer ${token}`
-    // console.log('[SSE Auth] ✅ 从 Cookie 中提取到 token')
-  }
-  else {
-    // 🔥 降级：从 URL 参数读取（兼容旧版本）
-    token = req.query.token as string
-
-    if (token) {
-      req.headers.authorization = `Bearer ${token}`
-      // console.log('[SSE Auth] ⚠️ 从 URL 参数中提取到 token（不安全，建议使用 Cookie）')
-    }
-    else {
-      console.warn('[SSE Auth] ⚠️ Cookie 和 URL 参数中都没有 token')
-    }
   }
 
   next()
@@ -61,16 +59,14 @@ export const sseJwtAuth = expressjwt({
  * 提取用户信息到 req.user
  */
 export function extractSSEUserInfo(req: Request, res: Response, next: NextFunction) {
-  if (req.auth) {
-    req.user = {
-      user_id: req.auth.sub,
-      auth0_id: req.auth.sub,
-      ...req.auth,
-    } as any
-    // console.log('[SSE Auth] ✅ 用户认证成功:', req.auth.sub)
-  }
-  else {
-    console.warn('[SSE Auth] ⚠️ JWT 验证成功但 req.auth 为空')
+  const authReq = req as AuthRequest
+
+  if (authReq.auth) {
+    authReq.user = {
+      user_id: authReq.auth.sub,
+      auth0_id: authReq.auth.sub,
+      ...authReq.auth,
+    }
   }
 
   next()
@@ -80,7 +76,7 @@ export function extractSSEUserInfo(req: Request, res: Response, next: NextFuncti
  * SSE 认证中间件数组
  */
 export const sseAuth = [
-  extractTokenFromQuery, // 1. 从 URL 参数提取 token
+  extractTokenFromCookie, // 1. 从 Cookie 提取 token
   sseJwtAuth, // 2. JWT 验证
   extractSSEUserInfo, // 3. 提取用户信息
 ]

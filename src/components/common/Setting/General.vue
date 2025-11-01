@@ -79,17 +79,17 @@ async function exportData(): Promise<void> {
   const date = getCurrentDate()
   const { createLocalStorage } = await import('@/utils/storage')
   const ss = createLocalStorage()
-  
+
   // 🔥 导出会话列表缓存
   const conversationsCache = ss.get('conversations_cache') || []
   const chatPreferences = ss.get('chatPreferences') || {}
-  
+
   const exportData = {
     conversations: conversationsCache,
     preferences: chatPreferences,
     exportDate: date,
   }
-  
+
   const jsonString: string = JSON.stringify(exportData, null, 2)
   const blob: Blob = new Blob([jsonString], { type: 'application/json' })
   const url: string = URL.createObjectURL(blob)
@@ -115,9 +115,9 @@ async function importData(event: Event): Promise<void> {
     try {
       const { createLocalStorage } = await import('@/utils/storage')
       const ss = createLocalStorage()
-      
+
       const data = JSON.parse(reader.result as string)
-      
+
       // 🔥 兼容旧格式（chatStorage）和新格式（conversations + preferences）
       if (data.conversations) {
         // 新格式
@@ -126,7 +126,8 @@ async function importData(event: Event): Promise<void> {
           ss.set('chatPreferences', data.preferences)
         }
         ss.set('conversations_cache_timestamp', Date.now())
-      } else if (data.history) {
+      }
+      else if (data.history) {
         // 旧格式（chatStorage），转换为新格式
         const conversations = data.history.map((h: any) => ({
           id: h.backendConversationId || h.uuid,
@@ -135,7 +136,7 @@ async function importData(event: Event): Promise<void> {
         }))
         ss.set('conversations_cache', conversations)
         ss.set('conversations_cache_timestamp', Date.now())
-        
+
         if (data.active || data.usingContext !== undefined || data.chatMode) {
           ss.set('chatPreferences', {
             active: data.active || null,
@@ -143,10 +144,11 @@ async function importData(event: Event): Promise<void> {
             chatMode: data.chatMode || 'normal',
           })
         }
-      } else {
+      }
+      else {
         throw new Error('Invalid file format')
       }
-      
+
       ms.success(t('common.success'))
       location.reload()
     }
@@ -161,15 +163,15 @@ async function clearData(): Promise<void> {
   const { createLocalStorage } = await import('@/utils/storage')
   const { clearAllMessageCaches } = await import('@/utils/messageCache')
   const ss = createLocalStorage()
-  
+
   // 🔥 清除会话列表缓存和偏好设置
   ss.remove('conversations_cache')
   ss.remove('conversations_cache_timestamp')
   ss.remove('chatPreferences')
-  
+
   // 🔥 清除所有旧的消息缓存（msg_cache_*）
   clearAllMessageCaches()
-  
+
   location.reload()
 }
 

@@ -133,7 +133,7 @@ VITE_GLOB_APP_PWA=false
 
 ### Q2: Redis 连接失败？
 
-**A:** 
+**A:**
 - 确保配置了 `UPSTASH_REDIS_REST_URL` 和 `UPSTASH_REDIS_REST_TOKEN`
 - 确保值没有多余的空格
 - 检查日志确认使用的是 Upstash Redis（不是 ioredis）
@@ -191,4 +191,3 @@ VITE_GLOB_APP_PWA=false
 ---
 
 ✅ **配置完成！可以开始部署了！**
-

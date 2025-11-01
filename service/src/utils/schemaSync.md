@@ -72,4 +72,3 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 2. 确认 Supabase 项目是否正常运行
 3. 检查网络连接
 4. 确认 SERVICE_ROLE_KEY 权限是否足够
-

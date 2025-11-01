@@ -1304,6 +1304,22 @@ router.get('/users', unifiedAuth, requireAuth, async (req, res) => {
   }
 })
 
+// 健康检查端点（不需要认证）
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    env: {
+      hasAuth0Domain: !!process.env.AUTH0_DOMAIN,
+      hasAuth0Audience: !!process.env.AUTH0_AUDIENCE,
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_ANON_KEY,
+      hasRedis: !!(process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_HOST),
+      isVercel: !!process.env.VERCEL,
+    },
+  })
+})
+
 app.use('', router)
 app.use('/api', router)
 // 集成 Auth0 + Supabase 路由

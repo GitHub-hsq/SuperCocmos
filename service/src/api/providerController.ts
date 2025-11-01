@@ -250,7 +250,7 @@ export async function removeProvider(req: Request, res: Response) {
  */
 export async function addModel(req: Request, res: Response) {
   try {
-    const { modelId, displayName, enabled, providerId } = req.body
+    const { modelId, displayName, enabled, providerId, roleIds } = req.body
 
     // 参数验证
     if (!modelId || !displayName || !providerId) {
@@ -279,9 +279,31 @@ export async function addModel(req: Request, res: Response) {
       provider_id: providerId,
     })
 
+    // 🔥 如果提供了 roleIds，设置模型的角色权限
+    if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
+      try {
+        const { setModelRoles } = await import('../db/modelRoleAccessService')
+        await setModelRoles(model.id, roleIds)
+        console.warn(`✅ [ProviderController] 模型创建成功并设置角色: ${model.id}, 角色: ${roleIds.join(', ')}`)
+      }
+      catch (roleError: any) {
+        console.error('❌ [ProviderController] 设置模型角色失败:', roleError)
+        // 角色设置失败不影响模型创建，只记录错误
+      }
+    }
+
     // 清除供应商和模型缓存
     await deleteCached(PROVIDER_KEYS.list())
     await deleteCached(PROVIDER_KEYS.models(providerId))
+    
+    // 🔥 清除 models_with_roles 缓存
+    try {
+      const { clearModelsWithRolesCache } = await import('../cache/modelCache')
+      await clearModelsWithRolesCache()
+    }
+    catch (cacheError) {
+      console.error('⚠️ [ProviderController] 清除 models_with_roles 缓存失败:', cacheError)
+    }
 
     res.json({
       status: 'Success',

@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import { useMessage } from 'naive-ui'
 import { computed, nextTick, ref } from 'vue'
 import { HoverButton } from '@/components/common'
 import MenuIcon from '@/components/common/MenuIcon.vue'
 import ModelSelector from '@/components/common/ModelSelector/index.vue'
-import { useAppStore, useChatStore } from '@/store'
+import { useAppStore, useChatStore, useModelStore } from '@/store'
 
 interface Props {
   usingContext: boolean
@@ -13,6 +14,8 @@ defineProps<Props>()
 
 const appStore = useAppStore()
 const chatStore = useChatStore()
+const modelStore = useModelStore()
+const ms = useMessage()
 
 const collapsed = computed(() => appStore.siderCollapsed)
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
@@ -33,11 +36,27 @@ function openModelSelector() {
   showModelSelector.value = true
 }
 
-function handleModelSelect(modelId: string, provider: string) {
-  // eslint-disable-next-line no-console
-  console.log('选择的模型:', modelId, provider)
-  // 这里可以保存到 store 或直接使用
-  // modelStore.setCurrentModel(modelId, provider)
+// 🔥 处理模型选择（移动端）
+function handleModelSelect(modelId: string, _provider: string) {
+  // 从 enabledModels 中找到完整的模型信息
+  const model = modelStore.enabledModels.find((m: any) => m.id === modelId)
+  if (model) {
+    // 更新 ModelStore（已由 ModelSelector 组件内部处理，这里只是确保同步）
+    // ModelSelector 已经调用了 modelStore.setCurrentModel(model.id)
+
+    // 触发页面刷新，让 chat/index.vue 重新加载模型
+    // 由于 ModelStore 已经更新，chat/index.vue 的 loadCurrentModel 会在下次访问时自动加载
+    ms.success(`已切换到模型: ${model.displayName || model.name}`)
+
+    if (import.meta.env.DEV) {
+      console.warn('✅ [Header] 移动端模型选择:', {
+        modelId: model.id,
+        modelId_value: model.modelId,
+        providerId: model.providerId || model.provider,
+        displayName: model.displayName,
+      })
+    }
+  }
 }
 </script>
 

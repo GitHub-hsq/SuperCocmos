@@ -248,6 +248,42 @@ watch(() => chatStore.active, async (newActive, oldActive) => {
   }
 })
 
+// 🔥 监听 ModelStore 的 currentModel 变化，自动更新 currentSelectedModel（用于移动端 ModelSelector）
+watch(
+  () => modelStore.currentModel,
+  async (newModel) => {
+    if (newModel) {
+      // 检查模型是否仍然存在于可用模型列表中
+      const isModelAvailable = modelStore.enabledModels.some((m: any) => m.id === newModel.id)
+
+      if (isModelAvailable) {
+        // 更新 currentSelectedModel（确保 modelId 和 providerId 正确）
+        currentSelectedModel.value = {
+          id: newModel.id,
+          name: newModel.name || '',
+          modelId: newModel.modelId || newModel.name || '', // 🔥 确保 modelId 有值
+          provider: newModel.provider,
+          providerId: newModel.providerId || newModel.provider, // 🔥 确保 providerId 有值
+          displayName: newModel.displayName || newModel.name || newModel.modelId || '',
+          enabled: true,
+          deleted: false,
+        }
+        // 注意：selectedModelFromPopover 在 loadCurrentModel 中设置，这里不重复设置
+
+        if (import.meta.env.DEV) {
+          console.warn('✅ [Chat] ModelStore 模型变化，已更新 currentSelectedModel:', {
+            id: newModel.id,
+            modelId: newModel.modelId,
+            providerId: newModel.providerId || newModel.provider,
+            displayName: newModel.displayName,
+          })
+        }
+      }
+    }
+  },
+  { immediate: true },
+)
+
 // 🔥 监听消息列表变化，当有新消息时恢复footer位置
 watch(dataSources, (newSources, oldSources) => {
   // 当从空消息列表变为有消息时（首次发送消息）
@@ -390,7 +426,21 @@ async function onConversation() {
     options.model = selectedModel.modelId || selectedModel.name
 
     // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
-    options.providerId = selectedModel.providerId
+    options.providerId = selectedModel.providerId || selectedModel.provider
+
+    if (import.meta.env.DEV) {
+      console.log('📤 [请求] 发送模型信息:', {
+        modelId: options.model,
+        providerId: options.providerId,
+        displayName: selectedModel.displayName,
+        modelObject: selectedModel,
+      })
+    }
+  }
+  else {
+    console.error('❌ [请求] 未选择模型！')
+    ms.error('请先选择一个模型')
+    return
   }
 
   // 🔥 添加用户配置的参数（从 ConfigStore 获取）
@@ -584,7 +634,34 @@ async function onConversation() {
                   return fetchChatAPIOnce()
                 }
 
-                scrollToBottomIfAtBottom()
+                updateChat(
+                  actualUuid,
+                  dataSources.value.length - 1,
+                  {
+                    dateTime: new Date().toLocaleString(),
+                    text: displayText,
+                    inversion: false,
+                    error: false,
+                    loading: true,
+                    conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
+                    requestOptions: { prompt: message, options: { ...options } },
+                  },
+                )
+
+                // 🔥 检查是否需要继续回复（长回复）
+                if (openLongReply && data.detail?.choices?.[0]?.finish_reason === 'length') {
+                  options.parentMessageId = data.id
+                  message = ''
+                  return fetchChatAPIOnce()
+                }
+
+                // 🔥 移动端：流式更新时强制滚动到底部
+                if (isMobile.value) {
+                  scrollToBottom()
+                }
+                else {
+                  scrollToBottomIfAtBottom()
+                }
               }
               catch (parseError: any) {
                 console.error('❌ [解析错误] chunk 解析失败:', parseError)
@@ -600,6 +677,21 @@ async function onConversation() {
     }
 
     await fetchChatAPIOnce()
+
+    // 🔥 消息发送完成后，确保滚动到底部（特别是移动端）
+    await nextTick()
+    if (isMobile.value) {
+      // 移动端：强制滚动到底部，确保用户能看到最新消息
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToBottom()
+        })
+      })
+    }
+    else {
+      // PC端：只在用户处于底部时滚动
+      scrollToBottomIfAtBottom()
+    }
 
     // 🔥 消息不再缓存到前端 localStorage（已禁用前端消息缓存）
   }
@@ -681,10 +773,16 @@ async function onRegenerate(index: number) {
   if (selectedModel) {
     // 🔥 发送 modelId 而不是 UUID
     options.model = selectedModel.modelId || selectedModel.name
-    console.log('🔄 [重新生成] 使用模型:', selectedModel.displayName, '(modelId:', options.model, ')')
 
     // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
-    options.providerId = selectedModel.providerId
+    options.providerId = selectedModel.providerId || selectedModel.provider
+
+    if (import.meta.env.DEV) {
+      console.warn('🔄 [重新生成] 使用模型:', selectedModel.displayName, {
+        modelId: options.model,
+        providerId: options.providerId,
+      })
+    }
   }
 
   // 🔥 添加用户配置的参数（从 ConfigStore 获取）
@@ -1432,8 +1530,9 @@ function loadCurrentModel() {
         currentSelectedModel.value = {
           id: currentModelFromStore.id,
           name: currentModelFromStore.name || '',
+          modelId: currentModelFromStore.modelId || currentModelFromStore.name || '', // 🔥 添加 modelId 字段
           provider: currentModelFromStore.provider,
-          providerId: currentModelFromStore.providerId, // 🔥 添加 providerId 字段
+          providerId: currentModelFromStore.providerId || currentModelFromStore.provider, // 🔥 确保 providerId 有值
           displayName: currentModelFromStore.displayName || currentModelFromStore.name || currentModelFromStore.modelId || '',
           enabled: true,
           deleted: false,
@@ -1715,7 +1814,7 @@ function handleSelectModel(model: ModelItem) {
                         </transition>
                       </template>
                       <template v-else>
-                        <div :style="isMobile ? '' : 'padding: 0 15% 5%;'">
+                        <div :style="isMobile ? 'padding: 2rem 0 3rem;' : 'padding: 0 15% 5%;'">
                           <!-- 占位空间，防止第一条消息被悬浮的 header 遮挡 -->
                           <div v-if="!isMobile" class="h-24" />
                           <Message

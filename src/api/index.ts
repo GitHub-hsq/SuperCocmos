@@ -177,7 +177,7 @@ export function deleteProvider<T = any>(id: string) {
 
 // ==================== 模型管理 API ====================
 // 创建模型
-export function addModel<T = any>(data: { modelId: string, displayName: string, enabled?: boolean, providerId: string }) {
+export function addModel<T = any>(data: { modelId: string, displayName: string, enabled?: boolean, providerId: string, roleIds?: number[] }) {
   return post<T>({
     url: '/models',
     data,

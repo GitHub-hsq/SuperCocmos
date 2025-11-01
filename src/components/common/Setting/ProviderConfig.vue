@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { DataTableColumns } from 'naive-ui'
 import type { Role } from '@/api/services/roleService'
-import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
-import { computed, h, ref, watch } from 'vue'
+import { NButton, NCheckbox, NCheckboxGroup, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, testModelConnection, updateModel, updateProvider } from '@/api'
 import { getAllModelsWithRoles, getAllRoles } from '@/api/services/roleService'
 import { SvgIcon } from '@/components/common'
@@ -84,6 +84,8 @@ const addModelForm = ref({
   displayName: '',
   providerId: '',
 })
+// 🔥 新增模型时选择的角色ID列表（默认选择 Free 角色）
+const addModelSelectedRoleIds = ref<number[]>([])
 
 // 编辑模型对话框
 const showEditModel = ref(false)
@@ -132,6 +134,15 @@ async function loadAllRoles() {
     loadingRoles.value = true
     const response = await getAllRoles()
     allRoles.value = response.data?.roles || []
+    
+    // 🔥 默认选择 Free 角色（role_id = 5）
+    // 在首次加载时，如果 addModelSelectedRoleIds 为空，则默认选择 Free
+    if (allRoles.value.length > 0 && addModelSelectedRoleIds.value.length === 0) {
+      const freeRole = allRoles.value.find(r => r.role_name === 'Free' || r.role_id === 5)
+      if (freeRole) {
+        addModelSelectedRoleIds.value = [freeRole.role_id]
+      }
+    }
   }
   catch (error) {
     console.error('加载角色列表失败:', error)
@@ -210,26 +221,28 @@ const modelColumns: DataTableColumns<ModelItem> = [
     width: 100, // 🔥 增加宽度：200 -> 220
     fixed: 'right', // 🔥 固定操作列到右侧
     render: (row) => {
-      return h(NSpace, { size: 'small' }, [
-        h(NButton, {
-          size: 'small',
-          onClick: () => editModel(row),
-        }, { default: () => '编辑' }),
-        h(NButton, {
-          size: 'small',
-          type: 'info',
-          onClick: () => handleEditModelRoles(row),
-        }, { default: () => '权限' }),
-        h(NPopconfirm, {
-          onPositiveClick: () => handleDeleteModel(row.id, row.providerId),
-        }, {
-          trigger: () => h(NButton, {
+      return h(NSpace, { size: 'small' }, {
+        default: () => [
+          h(NButton, {
             size: 'small',
-            type: 'error',
-          }, { default: () => '删除' }),
-          default: () => '确定要删除这个模型吗？',
-        }),
-      ])
+            onClick: () => editModel(row),
+          }, { default: () => '编辑' }),
+          h(NButton, {
+            size: 'small',
+            type: 'info',
+            onClick: () => handleEditModelRoles(row),
+          }, { default: () => '权限' }),
+          h(NPopconfirm, {
+            onPositiveClick: () => handleDeleteModel(row.id, row.providerId),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'small',
+              type: 'error',
+            }, { default: () => '删除' }),
+            default: () => '确定要删除这个模型吗？',
+          }),
+        ],
+      })
     },
   },
 ]
@@ -302,21 +315,23 @@ const providerColumns: DataTableColumns<ProviderItem> = [
     width: 180, // 🔥 调整宽度：200 -> 180
     fixed: 'right',
     render: (row) => {
-      return h(NSpace, { size: 'small' }, [
-        h(NButton, {
-          size: 'small',
-          onClick: () => editProvider(row),
-        }, { default: () => '编辑' }),
-        h(NPopconfirm, {
-          onPositiveClick: () => handleDeleteProvider(row.id),
-        }, {
-          trigger: () => h(NButton, {
+      return h(NSpace, { size: 'small' }, {
+        default: () => [
+          h(NButton, {
             size: 'small',
-            type: 'error',
-          }, { default: () => '删除' }),
-          default: () => '确定要删除这个供应商及其所有模型吗？',
-        }),
-      ])
+            onClick: () => editProvider(row),
+          }, { default: () => '编辑' }),
+          h(NPopconfirm, {
+            onPositiveClick: () => handleDeleteProvider(row.id),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'small',
+              type: 'error',
+            }, { default: () => '删除' }),
+            default: () => '确定要删除这个供应商及其所有模型吗？',
+          }),
+        ],
+      })
     },
   },
 ]
@@ -509,6 +524,16 @@ function openAddModel(providerId: string) {
     providerId,
   }
   oldModelId.value = ''
+  
+  // 🔥 默认选择 Free 角色（role_id = 5）
+  const freeRole = allRoles.value.find(r => r.role_name === 'Free' || r.role_id === 5)
+  if (freeRole) {
+    addModelSelectedRoleIds.value = [freeRole.role_id]
+  }
+  else {
+    addModelSelectedRoleIds.value = []
+  }
+  
   showAddModel.value = true
   // display_name 会通过 watch 自动生成为 "供应商名_模型ID" 格式
 }
@@ -526,6 +551,7 @@ async function handleAddModel() {
       displayName: addModelForm.value.displayName,
       enabled: true,
       providerId: addModelForm.value.providerId,
+      roleIds: addModelSelectedRoleIds.value, // 🔥 传递角色ID列表
     })
 
     if (response.status === 'Success') {
@@ -867,6 +893,43 @@ watch(() => props.visible, async (visible) => {
         <div class="text-xs text-gray-500 -mt-2 mb-2">
           <span class="font-medium">💡 提示：</span>display_name 全局唯一，用于区分不同供应商的相同模型（如：OpenAI_gpt-4o 和 Mirror_gpt-4o）
         </div>
+
+        <!-- 🔥 角色权限选择 -->
+        <NFormItem label="访问权限">
+          <div class="space-y-2">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              选择可以访问此模型的角色。如果不选择任何角色，则所有人都可以访问。
+            </div>
+            <NCheckboxGroup
+              v-model:value="addModelSelectedRoleIds"
+              :disabled="loadingRoles"
+            >
+              <div class="grid grid-cols-2 gap-2">
+                <NCheckbox
+                  v-for="role in allRoles"
+                  :key="role.role_id"
+                  :value="role.role_id"
+                  :label="role.role_name"
+                >
+                  <template #default>
+                    <div class="flex flex-col">
+                      <span class="font-medium">{{ role.role_name }}</span>
+                      <span v-if="role.role_description" class="text-xs text-gray-500">
+                        {{ role.role_description }}
+                      </span>
+                    </div>
+                  </template>
+                </NCheckbox>
+              </div>
+            </NCheckboxGroup>
+            <div v-if="addModelSelectedRoleIds.length === 0" class="text-sm text-blue-600 dark:text-blue-400">
+              ✓ 当前设置为对所有人开放
+            </div>
+            <div v-else class="text-sm text-green-600 dark:text-green-400">
+              ✓ 已选择 {{ addModelSelectedRoleIds.length }} 个角色
+            </div>
+          </div>
+        </NFormItem>
       </NForm>
 
       <template #footer>

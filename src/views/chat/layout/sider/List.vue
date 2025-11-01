@@ -95,8 +95,8 @@ function handlePopoverUpdateShow(show: boolean, uuid: string) {
 </script>
 
 <template>
-  <NScrollbar class="px-4">
-    <div class="flex flex-col gap-2 text-sm">
+  <NScrollbar class="px-4" style="height: 100%;">
+    <div class="flex flex-col gap-2 text-sm py-2">
       <template v-if="!dataSources.length">
         <div class="flex flex-col items-center mt-4 text-center text-neutral-300">
           <SvgIcon icon="ri:inbox-line" class="mb-2 text-3xl" />

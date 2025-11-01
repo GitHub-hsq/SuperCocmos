@@ -9,6 +9,7 @@
 
 import crypto from 'node:crypto'
 import { redis } from './redisClient.auto'
+import { logger } from '../utils/logger'
 
 const CACHE_PREFIX = 'jwt_verified:'
 const DEFAULT_TTL = 3600 // 默认1小时
@@ -99,7 +100,7 @@ export async function cacheJWTVerification(
     // 只有在 TTL > 0 时才缓存
     if (ttl > 0) {
       await redis.setex(cacheKey, ttl, JSON.stringify(result))
-      console.warn(`✅ [JWT缓存] 已缓存 (TTL: ${ttl}s, userId: ${result.userId})`)
+      logger.debug(`✅ [JWT缓存] 已缓存 (TTL: ${ttl}s, userId: ${result.userId})`)
     }
   }
   catch (error) {

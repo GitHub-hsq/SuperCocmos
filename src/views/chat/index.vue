@@ -465,81 +465,133 @@ async function onConversation() {
 
           // 处理所有完整的行
           for (let i = 0; i < completeLines.length; i++) {
-            const chunk = completeLines[i].trim()
+            let chunk = completeLines[i].trim()
             if (!chunk)
               continue // 空行，跳过
 
-            // 更新已处理的位置
-            const chunkEndIndex = responseText.indexOf(chunk, lastProcessedIndex) + chunk.length
-            lastProcessedIndex = chunkEndIndex
+            // 🔥 修复：处理可能的 JSON 对象拼接（多个 JSON 连在一起）
+            // 如果 chunk 包含多个 JSON 对象，逐个解析
+            while (chunk.length > 0) {
+              try {
+                // 尝试找到第一个完整的 JSON 对象
+                let jsonEndIndex = -1
+                let braceCount = 0
+                let inString = false
+                let escapeNext = false
 
-            try {
-              const data = JSON.parse(chunk)
+                for (let j = 0; j < chunk.length; j++) {
+                  const char = chunk[j]
 
-              // 🔥 步骤3：保存后端返回的 UUID，建立映射关系
-              if (data.conversationId) {
-                // 如果是首次收到后端 UUID，建立映射
-                if (!chatStore.getBackendConversationId(actualUuid)) {
-                  chatStore.setBackendConversationId(actualUuid, data.conversationId)
+                  if (escapeNext) {
+                    escapeNext = false
+                    continue
+                  }
+
+                  if (char === '\\') {
+                    escapeNext = true
+                    continue
+                  }
+
+                  if (char === '"' && !escapeNext) {
+                    inString = !inString
+                    continue
+                  }
+
+                  if (!inString) {
+                    if (char === '{') {
+                      braceCount++
+                    }
+                    else if (char === '}') {
+                      braceCount--
+                      if (braceCount === 0) {
+                        jsonEndIndex = j + 1
+                        break
+                      }
+                    }
+                  }
                 }
 
-                // 更新当前对话ID（用于 localStorage 缓存等）
-                if (data.conversationId !== currentConversationId.value) {
-                  currentConversationId.value = data.conversationId
+                if (jsonEndIndex === -1) {
+                  // 没有找到完整的 JSON，跳过这一行
+                  break
                 }
-              }
 
-              // 🔥 检查是否有错误
-              if (data.error) {
-                console.error('❌ [聊天错误] 后端返回错误:', data.error)
+                const jsonStr = chunk.substring(0, jsonEndIndex)
+                const data = JSON.parse(jsonStr)
+
+                // 更新已处理的位置和剩余 chunk
+                const chunkStartIndex = responseText.indexOf(completeLines[i], lastProcessedIndex)
+                const processedLength = chunkStartIndex !== -1 ? chunkStartIndex + completeLines[i].indexOf(jsonStr) + jsonStr.length : lastProcessedIndex + jsonStr.length
+                lastProcessedIndex = processedLength
+                chunk = chunk.substring(jsonEndIndex).trim()
+
+                // 🔥 步骤3：保存后端返回的 UUID，建立映射关系
+                if (data.conversationId) {
+                  // 如果是首次收到后端 UUID，建立映射
+                  if (!chatStore.getBackendConversationId(actualUuid)) {
+                    chatStore.setBackendConversationId(actualUuid, data.conversationId)
+                  }
+
+                  // 更新当前对话ID（用于 localStorage 缓存等）
+                  if (data.conversationId !== currentConversationId.value) {
+                    currentConversationId.value = data.conversationId
+                  }
+                }
+
+                // 🔥 检查是否有错误
+                if (data.error) {
+                  console.error('❌ [聊天错误] 后端返回错误:', data.error)
+                  updateChat(
+                    actualUuid,
+                    dataSources.value.length - 1,
+                    {
+                      dateTime: new Date().toLocaleString(),
+                      text: data.error.message || '发生错误',
+                      inversion: false,
+                      error: true,
+                      loading: false,
+                      conversationOptions: null,
+                      requestOptions: { prompt: message, options: { ...options } },
+                    },
+                  )
+                  return
+                }
+
+                // 🔥 检查是否是思考过程
+                const isThinking = data.isThinking || false
+                // 🔥 修复：正确累积文本，使用 data.text 而不是 lastText + data.text
+                // 因为 data.text 已经是累积的完整文本
+                const displayText = isThinking ? data.text : (data.text ?? '')
+
                 updateChat(
                   actualUuid,
                   dataSources.value.length - 1,
                   {
                     dateTime: new Date().toLocaleString(),
-                    text: data.error.message || '发生错误',
+                    text: displayText,
                     inversion: false,
-                    error: true,
-                    loading: false,
-                    conversationOptions: null,
+                    error: false,
+                    loading: true,
+                    conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
                     requestOptions: { prompt: message, options: { ...options } },
                   },
                 )
-                return
+
+                // 🔥 检查是否需要继续回复（长回复）
+                if (openLongReply && data.detail?.choices?.[0]?.finish_reason === 'length') {
+                  options.parentMessageId = data.id
+                  message = ''
+                  return fetchChatAPIOnce()
+                }
+
+                scrollToBottomIfAtBottom()
               }
-
-              // 🔥 检查是否是思考过程
-              const isThinking = data.isThinking || false
-              // 🔥 修复：正确累积文本，使用 data.text 而不是 lastText + data.text
-              // 因为 data.text 已经是累积的完整文本
-              const displayText = isThinking ? data.text : (data.text ?? '')
-
-              updateChat(
-                actualUuid,
-                dataSources.value.length - 1,
-                {
-                  dateTime: new Date().toLocaleString(),
-                  text: displayText,
-                  inversion: false,
-                  error: false,
-                  loading: true,
-                  conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                  requestOptions: { prompt: message, options: { ...options } },
-                },
-              )
-
-              if (openLongReply && data.detail.choices[0].finish_reason === 'length') {
-                options.parentMessageId = data.id
-                message = ''
-                return fetchChatAPIOnce()
+              catch (parseError: any) {
+                console.error('❌ [解析错误] chunk 解析失败:', parseError)
+                console.error('❌ [解析错误] chunk 内容:', chunk.substring(0, 200))
+                // 如果解析失败，尝试跳过这个 chunk 继续处理
+                break
               }
-
-              scrollToBottomIfAtBottom()
-            }
-            catch (parseError: any) {
-              console.error('❌ [解析错误] chunk 解析失败:', parseError)
-              console.error('❌ [解析错误] chunk 内容:', chunk)
-              // 不要静默失败，记录错误
             }
           }
         },

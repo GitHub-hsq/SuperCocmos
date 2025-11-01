@@ -249,8 +249,8 @@ watch(
             </div>
 
             <!-- 导航列表（展开状态） -->
-            <div v-show="!collapsed" class="nav-bg flex-1 min-h-0 overflow-hidden">
-              <div class="px-4 py-2">
+            <div v-show="!collapsed" class="nav-bg flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div class="px-4 py-2 flex-shrink-0">
                 <!-- 新建聊天 -->
                 <div class="nav-item" @click="handleAdd">
                   <span class="nav-item-icon">

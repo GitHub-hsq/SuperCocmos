@@ -6,6 +6,7 @@
 import type { Role } from '../db/roleService'
 import { getAllRoles } from '../db/roleService'
 import { redis } from './redisClient.auto'
+import { logger } from '../utils/logger'
 
 const ROLE_LIST_KEY = 'roles:list'
 const ROLE_ID_PREFIX = 'role:'
@@ -46,7 +47,7 @@ export async function preloadRolesToRedis(): Promise<void> {
     }
 
     const endTime = Date.now()
-    console.warn(`✅ [Redis缓存] 角色预加载完成: ${roles.length} 个角色, ${cacheCount} 个缓存键, 耗时 ${endTime - startTime}ms`)
+    logger.info(`✅ [Redis缓存] 角色预加载完成: ${roles.length} 个角色, ${cacheCount} 个缓存键, 耗时 ${endTime - startTime}ms`)
   }
   catch (error) {
     console.error('❌ [缓存] 角色预加载失败:', error)
@@ -62,7 +63,7 @@ export async function getAllRolesFromCache(): Promise<Role[] | null> {
     const cached = await redis.get(ROLE_LIST_KEY)
 
     if (cached) {
-      console.warn('✅ [缓存] 角色列表缓存命中')
+      logger.debug('✅ [缓存] 角色列表缓存命中')
       return JSON.parse(cached)
     }
 
@@ -84,7 +85,7 @@ export async function getRoleByIdFromCache(roleId: number): Promise<Role | null>
     const cached = await redis.get(cacheKey)
 
     if (cached) {
-      console.warn(`✅ [缓存] 角色缓存命中: ID=${roleId}`)
+      logger.debug(`✅ [缓存] 角色缓存命中: ID=${roleId}`)
       return JSON.parse(cached)
     }
 
@@ -106,7 +107,7 @@ export async function getRoleByNameFromCache(roleName: string): Promise<Role | n
     const cached = await redis.get(cacheKey)
 
     if (cached) {
-      console.warn(`✅ [缓存] 角色缓存命中: ${roleName}`)
+      logger.debug(`✅ [缓存] 角色缓存命中: ${roleName}`)
       return JSON.parse(cached)
     }
 

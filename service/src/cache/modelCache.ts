@@ -6,6 +6,7 @@
 import type { ModelWithProvider } from '../db/providerService'
 import { getAllProvidersWithModels } from '../db/providerService'
 import { redis } from './redisClient.auto'
+import { logger } from '../utils/logger'
 
 const CACHE_PREFIX = 'model_cache:'
 const PROVIDER_CACHE_PREFIX = 'provider_cache:'
@@ -77,9 +78,9 @@ export async function preloadModelsToRedis(): Promise<void> {
     }
 
     const endTime = Date.now()
-    console.warn(`✅ [Redis缓存] 预加载完成: ${providerCount} 个供应商, ${modelCount} 个模型, 耗时 ${endTime - startTime}ms`)
+    logger.info(`✅ [Redis缓存] 预加载完成: ${providerCount} 个供应商, ${modelCount} 个模型, 耗时 ${endTime - startTime}ms`)
     if (cacheKeySamples.length > 0) {
-      console.warn(`📋 [Redis缓存] 缓存键样本:`, cacheKeySamples.slice(0, 3))
+      logger.debug(`📋 [Redis缓存] 缓存键样本:`, cacheKeySamples.slice(0, 3))
     }
   }
   catch (error) {
@@ -97,7 +98,7 @@ export async function getModelFromCache(modelId: string, providerId: string): Pr
     const cached = await redis.get(cacheKey)
 
     if (cached) {
-      console.warn(`✅ [缓存] 命中: ${cacheKey}`)
+      logger.debug(`✅ [缓存] 命中: ${cacheKey}`)
       return JSON.parse(cached)
     }
 

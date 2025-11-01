@@ -8,6 +8,7 @@
 import type { Message, MessageStatus } from '../db/messageService'
 import { CONVERSATION_KEYS } from './cacheKeys'
 import { redis } from './redisClient.auto'
+import { logger } from '../utils/logger'
 
 const MESSAGE_CACHE_TTL = 3600 // 1小时过期
 
@@ -39,7 +40,7 @@ export async function getMessagesFromCache(
     }
 
     const messages = JSON.parse(cached) as Message[]
-    console.warn(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
+      logger.debug(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
     return messages
   }
   catch (error) {
@@ -66,7 +67,7 @@ export async function setMessagesToCache(
     const value = JSON.stringify(messages)
 
     await redis.setex(key, ttl, value)
-    console.warn(`✅ [缓存] 写入: ${conversationId}，消息数: ${messages.length}`)
+    logger.debug(`✅ [缓存] 写入: ${conversationId}，消息数: ${messages.length}`)
     return true
   }
   catch (error) {
@@ -123,7 +124,7 @@ export async function appendMessageToCache(
 
     // 写回缓存
     await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
-    console.warn(`✅ [缓存] 追加消息: ${conversationId}, role: ${message.role}, status: ${status}, 总消息数: ${messages.length}`)
+    logger.debug(`✅ [缓存] 追加消息: ${conversationId}, role: ${message.role}, status: ${status}, 总消息数: ${messages.length}`)
     return true
   }
   catch (error) {
@@ -205,7 +206,7 @@ export async function updateMessageStatusInCache(
             if (foundIndex >= 0) {
               updatedMessages[foundIndex].status = status
               await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(updatedMessages))
-              console.warn(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
+              logger.debug(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
               return true
             }
           }
@@ -219,7 +220,7 @@ export async function updateMessageStatusInCache(
 
     // 写回缓存
     await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
-    console.warn(`✅ [缓存] 更新消息状态: ${messageId}, status: ${status}`)
+    logger.debug(`✅ [缓存] 更新消息状态: ${messageId}, status: ${status}`)
     return true
   }
   catch (error) {
@@ -262,7 +263,7 @@ export async function clearMessagesCache(conversationId: string): Promise<boolea
 
     const key = getMessageCacheKey(conversationId)
     await redis.del(key)
-    console.warn(`✅ [缓存] 清除: ${conversationId}`)
+    logger.debug(`✅ [缓存] 清除: ${conversationId}`)
     return true
   }
   catch (error) {

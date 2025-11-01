@@ -10,4 +10,5 @@ export default defineConfig({
   minify: false,
   shims: true,
   dts: false,
+  clean: true, // 自动清理，不需要单独的 clean 步骤
 })

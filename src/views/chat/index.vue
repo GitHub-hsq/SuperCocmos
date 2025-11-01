@@ -13,7 +13,7 @@ import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGener
 import planningIcon from '@/assets/icons/planning.svg'
 import testIcon from '@/assets/icons/test.svg'
 import writingIcon from '@/assets/icons/writing.svg'
-import { HoverButton, SvgIcon } from '@/components/common'
+import { SvgIcon } from '@/components/common'
 import About from '@/components/common/Setting/About.vue'
 import Advanced from '@/components/common/Setting/Advanced.vue'
 // 🔥 使用新的配置面板组件
@@ -55,7 +55,7 @@ const modelStore = useModelStore()
 const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
-const { usingContext, toggleUsingContext } = useUsingContext()
+const { usingContext } = useUsingContext()
 
 // 判断是否是暗色主题（支持 auto 模式）
 const isDarkTheme = computed(() => {
@@ -432,7 +432,6 @@ async function onConversation() {
   let firstChunkTime: number | null = null
 
   try {
-    let lastText = ''
     let lastProcessedIndex = 0 // 🔥 记录上次处理的位置
 
     const fetchChatAPIOnce = async () => {
@@ -515,11 +514,6 @@ async function onConversation() {
               // 因为 data.text 已经是累积的完整文本
               const displayText = isThinking ? data.text : (data.text ?? '')
 
-              // 🔥 更新 lastText，确保最后的数据被保存
-              if (!isThinking && data.text) {
-                lastText = data.text
-              }
-
               updateChat(
                 actualUuid,
                 dataSources.value.length - 1,
@@ -536,7 +530,6 @@ async function onConversation() {
 
               if (openLongReply && data.detail.choices[0].finish_reason === 'length') {
                 options.parentMessageId = data.id
-                lastText = data.text
                 message = ''
                 return fetchChatAPIOnce()
               }

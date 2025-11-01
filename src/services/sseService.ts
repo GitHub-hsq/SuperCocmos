@@ -42,8 +42,21 @@ class SSEConnectionManager {
 
     try {
       // 构建 SSE URL
+      // VITE_APP_API_BASE_URL 可能是完整 URL（如 https://supercocmos.me/api）或空字符串
       const baseURL = import.meta.env.VITE_APP_API_BASE_URL || ''
-      const url = `${baseURL}api/events/sync`
+      let url: string
+      if (!baseURL) {
+        // 开发环境：使用相对路径
+        url = '/api/events/sync'
+      }
+      else if (baseURL.endsWith('/api')) {
+        // 生产环境：baseURL 已包含 /api，直接拼接路径
+        url = `${baseURL}/events/sync`
+      }
+      else {
+        // 如果 baseURL 不包含 /api，则添加
+        url = `${baseURL}/api/events/sync`
+      }
 
       // 🔥 创建 EventSource（使用 Cookie 认证）
       // withCredentials: true 会自动发送 Cookie

@@ -7,7 +7,6 @@ import type { Request, Response } from 'express'
 import {
   createConversation,
   deleteConversation,
-  getConversationById,
   getUserConversations,
   updateConversation,
 } from '../db/conversationService'
@@ -59,6 +58,43 @@ async function getSupabaseUserIdFromRequest(req: Request): Promise<string | null
     console.error('❌ [getUserId] 查询失败:', error)
     return null
   }
+}
+
+/**
+ * 🔥 辅助函数：通过前端 UUID 或后端 UUID 获取会话
+ * 支持前端 UUID（nanoid）和后端 UUID（标准 UUID 格式）
+ */
+async function getConversationByIdOrFrontendUuid(
+  id: string,
+  userId: string,
+): Promise<{ conversation: any, backendId: string } | null> {
+  // UUID 格式验证（PostgreSQL UUID 格式）
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isBackendUuid = uuidRegex.test(id)
+
+  let conversation = null
+  let backendId = id
+
+  // 🔥 步骤1：如果是前端 UUID，先通过 frontend_uuid 查找
+  if (!isBackendUuid) {
+    const { getConversationByFrontendUuid } = await import('../db/conversationService')
+    conversation = await getConversationByFrontendUuid(id, userId)
+    if (conversation) {
+      backendId = conversation.id
+    }
+  }
+
+  // 🔥 步骤2：如果是后端 UUID 或前端 UUID 查找失败，使用后端 UUID 查找
+  if (!conversation) {
+    const { getConversationByIdWithAuth } = await import('../db/conversationService')
+    conversation = await getConversationByIdWithAuth(backendId, userId)
+  }
+
+  if (!conversation) {
+    return null
+  }
+
+  return { conversation, backendId: conversation.id }
 }
 
 /**
@@ -114,24 +150,17 @@ export async function getConversationByIdHandler(req: Request, res: Response) {
 
     const { id } = req.params
 
-    const conversation = await getConversationById(id)
-
-    if (!conversation) {
+    // 🔥 支持前端 UUID 和后端 UUID
+    const result = await getConversationByIdOrFrontendUuid(id, userId)
+    if (!result) {
       return res.status(404).json({
         status: 'Fail',
-        message: '会话不存在',
+        message: '会话不存在或无权访问',
         data: null,
       })
     }
 
-    // 验证会话所有权
-    if (conversation.user_id !== userId) {
-      return res.status(403).json({
-        status: 'Fail',
-        message: '无权访问此会话',
-        data: null,
-      })
-    }
+    const { conversation } = result
 
     res.json({
       status: 'Success',
@@ -175,14 +204,14 @@ export async function createConversationHandler(req: Request, res: Response) {
     }
 
     const conversation = await createConversation({
-      userId,
+      user_id: userId,
       title: title || '新对话',
-      modelId,
-      providerId,
+      model_id: modelId,
+      provider_id: providerId,
       temperature,
-      topP,
-      maxTokens,
-      systemPrompt,
+      top_p: topP,
+      max_tokens: maxTokens,
+      system_prompt: systemPrompt,
     })
 
     if (!conversation) {
@@ -225,32 +254,22 @@ export async function updateConversationHandler(req: Request, res: Response) {
     }
 
     const { id } = req.params
-    const { title, temperature, topP, maxTokens, systemPrompt } = req.body
+    const { title } = req.body
 
-    // 验证会话所有权
-    const conversation = await getConversationById(id)
-    if (!conversation) {
+    // 🔥 支持前端 UUID 和后端 UUID
+    const result = await getConversationByIdOrFrontendUuid(id, userId)
+    if (!result) {
       return res.status(404).json({
         status: 'Fail',
-        message: '会话不存在',
+        message: '会话不存在或无权访问',
         data: null,
       })
     }
 
-    if (conversation.user_id !== userId) {
-      return res.status(403).json({
-        status: 'Fail',
-        message: '无权修改此会话',
-        data: null,
-      })
-    }
-
-    const updated = await updateConversation(id, {
+    const { backendId } = result
+    // 🔥 UpdateConversationParams 只支持 title, total_tokens, message_count
+    const updated = await updateConversation(backendId, {
       title,
-      temperature,
-      topP,
-      maxTokens,
-      systemPrompt,
     })
 
     if (!updated) {
@@ -294,37 +313,20 @@ export async function deleteConversationHandler(req: Request, res: Response) {
 
     const { id } = req.params
 
-    // 验证会话所有权
-    const conversation = await getConversationById(id)
-    if (!conversation) {
+    // 🔥 支持前端 UUID 和后端 UUID
+    const result = await getConversationByIdOrFrontendUuid(id, userId)
+    if (!result) {
       return res.status(404).json({
         status: 'Fail',
-        message: '会话不存在',
+        message: '会话不存在或无权访问',
         data: null,
       })
     }
 
-    // 🔍 添加调试日志，排查403错误
-    console.warn('🔍 [403调试] 删除会话权限检查:', {
-      conversationId: id,
-      conversationUserId: conversation.user_id,
-      currentUserId: userId,
-      说明: 'currentUserId 现在是 Supabase UUID（通过 Auth0 ID 查询得到）',
-      isMatch: conversation.user_id === userId,
-      userIdType: typeof userId,
-      conversationUserIdType: typeof conversation.user_id,
-    })
-
-    if (conversation.user_id !== userId) {
-      return res.status(403).json({
-        status: 'Fail',
-        message: '无权删除此会话',
-        data: null,
-      })
-    }
+    const { backendId } = result
 
     // 删除会话（会级联删除所有消息）
-    const success = await deleteConversation(id)
+    const success = await deleteConversation(backendId)
 
     if (!success) {
       return res.status(500).json({
@@ -378,11 +380,9 @@ export async function getConversationMessagesHandler(req: Request, res: Response
     const limit = Number.parseInt(req.query.limit as string) || 100
     const offset = Number.parseInt(req.query.offset as string) || 0
 
-    // 🔥 一次查询搞定：获取会话 + 验证 user_id
-    const { getConversationByIdWithAuth } = await import('../db/conversationService')
-    const conversation = await getConversationByIdWithAuth(id, userId)
-
-    if (!conversation) {
+    // 🔥 支持前端 UUID 和后端 UUID
+    const result = await getConversationByIdOrFrontendUuid(id, userId)
+    if (!result) {
       console.warn('❌ [DEBUG] 会话不存在或无权访问')
       return res.status(404).json({
         status: 'Fail',
@@ -391,10 +391,11 @@ export async function getConversationMessagesHandler(req: Request, res: Response
       })
     }
 
+    const { conversation, backendId } = result
     console.warn('✅ [DEBUG] 权限验证通过，会话ID:', conversation.id)
 
-    // 🔥 传递 user_id 用于 Redis 缓存 LRU 管理
-    const messages = await getConversationMessages(id, userId, { limit, offset })
+    // 🔥 使用后端 UUID 查询消息（消息表中的 conversation_id 是后端 UUID）
+    const messages = await getConversationMessages(backendId, userId, { limit, offset })
 
     // 📊 输出返回的消息条数
     console.warn(`📊 [API] 准备返回 ${messages.length} 条消息给前端`)
@@ -449,27 +450,21 @@ export async function saveMessagesHandler(req: Request, res: Response) {
       })
     }
 
-    // 验证会话所有权
-    const conversation = await getConversationById(id)
-    if (!conversation) {
+    // 🔥 支持前端 UUID 和后端 UUID
+    const result = await getConversationByIdOrFrontendUuid(id, userId)
+    if (!result) {
       return res.status(404).json({
         status: 'Fail',
-        message: '会话不存在',
+        message: '会话不存在或无权访问',
         data: null,
       })
     }
 
-    if (conversation.user_id !== userId) {
-      return res.status(403).json({
-        status: 'Fail',
-        message: '无权修改此会话',
-        data: null,
-      })
-    }
+    const { backendId } = result
 
     // 批量创建消息
     const messageParams = messages.map((msg: any) => ({
-      conversationId: id,
+      conversation_id: backendId,
       role: msg.role,
       content: msg.content,
       tokens: msg.tokens || 0,

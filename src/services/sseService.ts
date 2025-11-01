@@ -49,13 +49,18 @@ class SSEConnectionManager {
         // 开发环境：使用相对路径
         url = '/api/events/sync'
       }
-      else if (baseURL.endsWith('/api')) {
-        // 生产环境：baseURL 已包含 /api，直接拼接路径
-        url = `${baseURL}/events/sync`
-      }
       else {
-        // 如果 baseURL 不包含 /api，则添加
-        url = `${baseURL}/api/events/sync`
+        // 规范化 baseURL：移除尾随斜杠
+        const normalizedBaseURL = baseURL.replace(/\/+$/, '')
+
+        if (normalizedBaseURL.endsWith('/api')) {
+          // 生产环境：baseURL 已包含 /api，直接拼接路径
+          url = `${normalizedBaseURL}/events/sync`
+        }
+        else {
+          // 如果 baseURL 不包含 /api，则添加
+          url = `${normalizedBaseURL}/api/events/sync`
+        }
       }
 
       // 🔥 创建 EventSource（使用 Cookie 认证）

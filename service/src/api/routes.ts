@@ -13,6 +13,7 @@ import * as authController from './authController'
 import * as configController from './configController'
 import * as conversationController from './conversationController'
 import * as debugController from './debugController'
+import * as initController from './initController'
 import * as modelRoleController from './modelRoleController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
@@ -26,6 +27,20 @@ router.use(performanceLogger)
 // ==============================================
 // Auth0 相关路由
 // ==============================================
+
+/**
+ * 🔥 应用初始化接口（优化版）
+ * POST /api/init
+ *
+ * 并行执行用户同步、配置加载、会话列表获取
+ * 用于优化首次登录的加载速度
+ *
+ * 🎯 性能优化：
+ * - 用户同步 + 配置加载 + 会话列表并行执行
+ * - 减少网络往返次数（3次请求 -> 1次请求）
+ * - 预期加载时间从 10-15 秒降至 2-5 秒
+ */
+router.post('/init', initController.initializeApp)
 
 /**
  * 同步 Auth0 用户到 Supabase

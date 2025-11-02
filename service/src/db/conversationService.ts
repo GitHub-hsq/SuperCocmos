@@ -348,26 +348,29 @@ export async function updateConversation(
       }
     }
 
-    // 🔥 清除会话权限验证缓存（所有用户）
-    // 使用 Promise.race 添加超时保护，避免 keys 操作阻塞
+    // 🔥 清理权限验证缓存（使用超时保护，不阻塞更新操作）
+    // 注意：权限验证缓存会自动过期，即使清理失败也不影响功能
     try {
       const pattern = `conversation:auth:${conversationId}:*`
       logger.debug(`🔍 [ConversationCache] 开始扫描权限验证缓存: ${pattern}`)
 
-      // 设置 5 秒超时，避免 keys 操作阻塞
+      // 使用 keys 操作，但添加超时保护（2秒）
       const keysPromise = redisClient.keys(pattern)
       const timeoutPromise = new Promise<string[]>((resolve) => {
         setTimeout(() => {
-          console.warn(`⚠️ [ConversationCache] Redis keys 操作超时（5秒），跳过缓存清理`)
           resolve([])
-        }, 5000)
+        }, 2000) // 缩短到 2 秒，避免阻塞太久
       })
 
       const keys = await Promise.race([keysPromise, timeoutPromise])
 
       if (keys.length > 0) {
-        logger.debug(`🔍 [ConversationCache] 找到 ${keys.length} 个权限验证缓存键`)
-        await redisClient.del(...keys)
+        // 分批删除，避免一次性删除过多
+        const batchSize = 100
+        for (let i = 0; i < keys.length; i += batchSize) {
+          const batch = keys.slice(i, i + batchSize)
+          await redisClient.del(...batch)
+        }
         logger.debug(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
       }
       else {
@@ -375,8 +378,8 @@ export async function updateConversation(
       }
     }
     catch (cacheError: any) {
-      // 缓存清除失败不影响主流程
-      console.warn('⚠️ [ConversationCache] 清除权限验证缓存失败:', cacheError.message)
+      // 权限验证缓存清除失败不影响主流程（这些缓存会自动过期）
+      logger.warn(`⚠️ [ConversationCache] 清除权限验证缓存失败（不影响更新）: ${cacheError.message}`)
     }
 
     logger.debug('✅ [Conversation] 更新对话成功:', conversationId)
@@ -415,39 +418,65 @@ export async function deleteConversation(
 
     logger.debug('✅ [Conversation] 数据库删除成功，开始清理缓存')
 
-    // 🔥 清除用户会话列表缓存（使用 try-catch 包装，避免影响主流程）
+    // 🔥 优先清理核心缓存（快速操作，不阻塞）
     if (conversation) {
       try {
-        const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
-        await deleteCached(cacheKey)
-        logger.debug(`✅ [ConversationCache] 已清除用户会话列表缓存: ${cacheKey}`)
+        // 1. 清除用户会话列表缓存（最关键）
+        const conversationsKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
+        await deleteCached(conversationsKey)
+        logger.debug(`✅ [ConversationCache] 已清除用户会话列表缓存: ${conversationsKey}`)
       }
       catch (cacheError: any) {
-        // 缓存清除失败不影响主流程
         console.warn('⚠️ [ConversationCache] 清除用户会话列表缓存失败:', cacheError.message)
+      }
+
+      try {
+        // 2. 清除会话消息缓存（确定的 key，快速操作）
+        const messagesKey = CONVERSATION_KEYS.messages(conversationId)
+        await deleteCached(messagesKey)
+        logger.debug(`✅ [ConversationCache] 已清除会话消息缓存: ${messagesKey}`)
+      }
+      catch (cacheError: any) {
+        console.warn('⚠️ [ConversationCache] 清除会话消息缓存失败:', cacheError.message)
+      }
+
+      try {
+        // 3. 清除用户当前缓存会话引用（如果存在）
+        const currentCachedKey = CONVERSATION_KEYS.userCurrentCached(conversation.user_id)
+        const cachedConvId = await redisClient.get(currentCachedKey)
+        if (cachedConvId === conversationId) {
+          await redisClient.del(currentCachedKey)
+          logger.debug(`✅ [ConversationCache] 已清除用户当前缓存会话引用`)
+        }
+      }
+      catch (cacheError: any) {
+        console.warn('⚠️ [ConversationCache] 清除用户当前缓存会话引用失败:', cacheError.message)
       }
     }
 
-    // 🔥 清除会话权限验证缓存（所有用户）
-    // 使用 Promise.race 添加超时保护，避免 keys 操作阻塞
+    // 🔥 清理权限验证缓存（使用超时保护，不阻塞删除操作）
+    // 注意：权限验证缓存会自动过期，即使清理失败也不影响功能
     try {
       const pattern = `conversation:auth:${conversationId}:*`
       logger.debug(`🔍 [ConversationCache] 开始扫描权限验证缓存: ${pattern}`)
 
-      // 设置 5 秒超时，避免 keys 操作阻塞
+      // 使用 keys 操作，但添加超时保护（2秒）
       const keysPromise = redisClient.keys(pattern)
       const timeoutPromise = new Promise<string[]>((resolve) => {
         setTimeout(() => {
-          console.warn(`⚠️ [ConversationCache] Redis keys 操作超时（5秒），跳过缓存清理`)
           resolve([])
-        }, 5000)
+        }, 2000) // 缩短到 2 秒，避免阻塞太久
       })
 
       const keys = await Promise.race([keysPromise, timeoutPromise])
 
       if (keys.length > 0) {
-        logger.debug(`🔍 [ConversationCache] 找到 ${keys.length} 个权限验证缓存键`)
-        await redisClient.del(...keys)
+        // 分批删除，避免一次性删除过多
+        const batchSize = 100
+        for (let i = 0; i < keys.length; i += batchSize) {
+          const batch = keys.slice(i, i + batchSize)
+          await redisClient.del(...batch)
+        }
         logger.debug(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
       }
       else {
@@ -455,8 +484,8 @@ export async function deleteConversation(
       }
     }
     catch (cacheError: any) {
-      // 缓存清除失败不影响主流程
-      console.warn('⚠️ [ConversationCache] 清除权限验证缓存失败:', cacheError.message)
+      // 权限验证缓存清除失败不影响主流程（这些缓存会自动过期）
+      logger.warn(`⚠️ [ConversationCache] 清除权限验证缓存失败（不影响删除）: ${cacheError.message}`)
     }
 
     logger.debug('✅ [Conversation] 删除对话成功:', conversationId)

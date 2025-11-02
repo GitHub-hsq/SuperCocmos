@@ -1496,8 +1496,8 @@ const currentVendorModels = computed(() => {
     if (modelSearch.value) {
       const keyword = modelSearch.value.toLowerCase()
       filteredModels = filteredModels.filter((model: any) =>
-        model.name.toLowerCase().includes(keyword)
-        || model.displayName.toLowerCase().includes(keyword),
+        model.name?.toLowerCase().includes(keyword)
+        || model.displayName?.toLowerCase().includes(keyword),
       )
     }
 

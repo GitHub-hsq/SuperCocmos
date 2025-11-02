@@ -205,24 +205,21 @@ export async function saveMessagePair(
   await appendMessageToCache(conversationId, userMessage, 'pending')
   await appendMessageToCache(conversationId, assistantMessage, 'pending')
 
-  // 🔥 Step 2: 异步写数据库（并行保存）
-  const saveUserPromise = saveMessageToDatabaseWithRetry({
-    conversation_id: conversationId,
-    role: 'user',
-    content: userContent,
-    tokens: userTokens,
-  })
+  // 🔥 Step 2: 异步写数据库（顺序保存，确保用户消息先于助手消息）
+  // ⚠️ 修复：使用顺序保存而非并行保存，避免时间戳顺序错乱
+  const saveMessagesSequentially = async () => {
+    let userMsg = null
+    let assistantMsg = null
 
-  const saveAssistantPromise = saveMessageToDatabaseWithRetry({
-    conversation_id: conversationId,
-    role: 'assistant',
-    content: assistantContent,
-    tokens: finalAssistantTokens,
-    model_info: modelInfo,
-  })
+    try {
+      // 先保存用户消息
+      userMsg = await saveMessageToDatabaseWithRetry({
+        conversation_id: conversationId,
+        role: 'user',
+        content: userContent,
+        tokens: userTokens,
+      })
 
-  Promise.all([saveUserPromise, saveAssistantPromise])
-    .then(async ([userMsg, assistantMsg]) => {
       // 更新用户消息状态
       if (userMsg) {
         await updateMessageStatusInCache(conversationId, userMessageId, 'saved')
@@ -230,6 +227,15 @@ export async function saveMessagePair(
       else {
         await updateMessageStatusInCache(conversationId, userMessageId, 'failed')
       }
+
+      // 再保存助手消息（确保晚于用户消息）
+      assistantMsg = await saveMessageToDatabaseWithRetry({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: assistantContent,
+        tokens: finalAssistantTokens,
+        model_info: modelInfo,
+      })
 
       // 更新助手消息状态
       if (assistantMsg) {
@@ -245,18 +251,22 @@ export async function saveMessagePair(
       }
 
       if (userMsg && assistantMsg) {
-        console.warn(`✅ [保存] 消息对已保存: ${userMessageId} + ${assistantMessageId}`)
+        console.warn(`✅ [保存] 消息对已保存（顺序正确）: ${userMessageId} → ${assistantMessageId}`)
       }
       else {
         console.warn(`⚠️ [保存] 消息对部分保存失败: user=${!!userMsg}, assistant=${!!assistantMsg}`)
       }
-    })
-    .catch(async (error) => {
+    }
+    catch (error) {
       // 更新状态为 failed
       await updateMessageStatusInCache(conversationId, userMessageId, 'failed')
       await updateMessageStatusInCache(conversationId, assistantMessageId, 'failed')
       console.error(`❌ [保存] 消息对保存异常:`, error)
-    })
+    }
+  }
+
+  // 启动异步保存（不等待完成）
+  saveMessagesSequentially()
 
   // 立即返回，不等待数据库写入
   return {

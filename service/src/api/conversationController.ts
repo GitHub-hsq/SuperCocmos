@@ -44,6 +44,8 @@ async function getAuth0IdFromRequest(req: Request): Promise<string | null> {
  * 🔥 从 Auth0 ID 获取 Supabase 用户 UUID（用于数据库查询）
  */
 async function getSupabaseUserIdFromRequest(req: Request): Promise<string | null> {
+  const stepStart = performance.now()
+
   const auth0Id = await getAuth0IdFromRequest(req)
   if (!auth0Id) {
     return null
@@ -52,10 +54,20 @@ async function getSupabaseUserIdFromRequest(req: Request): Promise<string | null
   try {
     const { findUserByAuth0Id } = await import('../db/supabaseUserService')
     const user = await findUserByAuth0Id(auth0Id)
+    const stepTime = performance.now() - stepStart
+
+    if (user) {
+      console.warn(`✅ [getSupabaseUserIdFromRequest] 查询用户成功，耗时: ${stepTime.toFixed(0)}ms`)
+    }
+    else {
+      console.warn(`❌ [getSupabaseUserIdFromRequest] 用户不存在，耗时: ${stepTime.toFixed(0)}ms`)
+    }
+
     return user?.user_id || null
   }
   catch (error) {
-    console.error('❌ [getUserId] 查询失败:', error)
+    const stepTime = performance.now() - stepStart
+    console.error(`❌ [getUserId] 查询失败，耗时: ${stepTime.toFixed(0)}ms`, error)
     return null
   }
 }
@@ -68,6 +80,8 @@ async function getConversationByIdOrFrontendUuid(
   id: string,
   userId: string,
 ): Promise<{ conversation: any, backendId: string } | null> {
+  const stepStart = performance.now()
+
   // UUID 格式验证（PostgreSQL UUID 格式）
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isBackendUuid = uuidRegex.test(id)
@@ -79,44 +93,45 @@ async function getConversationByIdOrFrontendUuid(
   })
 
   let conversation = null
-  let backendId = id
 
-  // 🔥 步骤1：如果是前端 UUID，先通过 frontend_uuid 查找
-  if (!isBackendUuid) {
-    console.warn(`🔍 [getConversationByIdOrFrontendUuid] 尝试通过 frontend_uuid 查找: ${id}`)
+  // 🔥 优化：优先使用后端 UUID 查找（因为有缓存），前端 UUID 作为降级方案
+  if (isBackendUuid) {
+    // 步骤1: 如果是后端 UUID，直接查找（有缓存，快）
+    const step1Start = performance.now()
+    const { getConversationByIdWithAuth } = await import('../db/conversationService')
+    conversation = await getConversationByIdWithAuth(id, userId)
+    const step1Time = performance.now() - step1Start
+
+    if (conversation) {
+      console.warn(`✅ [getConversationByIdOrFrontendUuid] 通过后端 UUID 找到会话: ${conversation.id}, 耗时: ${step1Time.toFixed(0)}ms`)
+    }
+    else {
+      console.warn(`❌ [getConversationByIdOrFrontendUuid] 通过后端 UUID 未找到会话, 耗时: ${step1Time.toFixed(0)}ms`)
+    }
+  }
+  else {
+    // 步骤2: 如果是前端 UUID，先尝试前端查找
+    const step2Start = performance.now()
     const { getConversationByFrontendUuid } = await import('../db/conversationService')
     conversation = await getConversationByFrontendUuid(id, userId)
-    if (conversation) {
-      console.warn(`✅ [getConversationByIdOrFrontendUuid] 通过 frontend_uuid 找到会话: ${conversation.id}`)
-      backendId = conversation.id
-    }
-    else {
-      console.warn(`❌ [getConversationByIdOrFrontendUuid] 通过 frontend_uuid 未找到会话`)
-    }
-  }
+    const step2Time = performance.now() - step2Start
 
-  // 🔥 步骤2：如果是后端 UUID 或前端 UUID 查找失败，使用后端 UUID 查找
-  if (!conversation) {
-    console.warn(`🔍 [getConversationByIdOrFrontendUuid] 尝试通过后端 UUID 查找: ${backendId}`)
-    const { getConversationByIdWithAuth } = await import('../db/conversationService')
-    conversation = await getConversationByIdWithAuth(backendId, userId)
     if (conversation) {
-      console.warn(`✅ [getConversationByIdOrFrontendUuid] 通过后端 UUID 找到会话: ${conversation.id}`)
+      console.warn(`✅ [getConversationByIdOrFrontendUuid] 通过 frontend_uuid 找到会话: ${conversation.id}, 耗时: ${step2Time.toFixed(0)}ms`)
     }
     else {
-      console.warn(`❌ [getConversationByIdOrFrontendUuid] 通过后端 UUID 也未找到会话`)
-      console.warn(`🔍 [getConversationByIdOrFrontendUuid] 可能的原因:`, {
-        会话不存在: true,
-        用户ID不匹配: true,
-        frontend_uuid未设置: !isBackendUuid,
-      })
+      console.warn(`❌ [getConversationByIdOrFrontendUuid] 通过 frontend_uuid 未找到会话, 耗时: ${step2Time.toFixed(0)}ms`)
     }
   }
 
   if (!conversation) {
+    const totalTime = performance.now() - stepStart
+    console.warn(`❌ [getConversationByIdOrFrontendUuid] 会话查找失败，总耗时: ${totalTime.toFixed(0)}ms`)
     return null
   }
 
+  const totalTime = performance.now() - stepStart
+  console.warn(`✅ [getConversationByIdOrFrontendUuid] 会话查找成功，总耗时: ${totalTime.toFixed(0)}ms`)
   return { conversation, backendId: conversation.id }
 }
 
@@ -382,15 +397,19 @@ export async function deleteConversationHandler(req: Request, res: Response) {
  * GET /api/conversations/:id/messages
  */
 export async function getConversationMessagesHandler(req: Request, res: Response) {
+  const startTime = performance.now()
   console.warn('='.repeat(80))
   console.warn('🔥🔥🔥 [DEBUG] ========== 进入 getConversationMessagesHandler ==========')
   console.warn('🔥🔥🔥 [DEBUG] conversationId:', req.params.id)
   console.warn('🔥🔥🔥 [DEBUG] query:', req.query)
   console.warn('='.repeat(80))
   try {
+    // 📊 步骤1: 获取用户ID
+    const step1Start = performance.now()
     console.warn('🔍 [DEBUG] 正在获取用户 Supabase UUID...')
     const userId = await getSupabaseUserIdFromRequest(req)
-    console.warn('🔍 [DEBUG] 获取到的 userId (Supabase UUID):', userId)
+    const step1Time = performance.now() - step1Start
+    console.warn(`🔍 [DEBUG] 获取到的 userId (Supabase UUID): ${userId}, 耗时: ${step1Time.toFixed(0)}ms`)
 
     if (!userId) {
       console.warn('❌ [DEBUG] 用户未授权，返回 401')
@@ -405,8 +424,12 @@ export async function getConversationMessagesHandler(req: Request, res: Response
     const limit = Number.parseInt(req.query.limit as string) || 100
     const offset = Number.parseInt(req.query.offset as string) || 0
 
-    // 🔥 支持前端 UUID 和后端 UUID
+    // 📊 步骤2: 查找会话
+    const step2Start = performance.now()
     const result = await getConversationByIdOrFrontendUuid(id, userId)
+    const step2Time = performance.now() - step2Start
+    console.warn(`📊 [Performance] 步骤2-查找会话耗时: ${step2Time.toFixed(0)}ms`)
+
     if (!result) {
       console.warn('❌ [DEBUG] 会话不存在或无权访问')
       return res.status(404).json({
@@ -419,16 +442,28 @@ export async function getConversationMessagesHandler(req: Request, res: Response
     const { conversation, backendId } = result
     console.warn('✅ [DEBUG] 权限验证通过，会话ID:', conversation.id)
 
-    // 🔥 使用后端 UUID 查询消息（消息表中的 conversation_id 是后端 UUID）
+    // 📊 步骤3: 查询消息
+    const step3Start = performance.now()
     const messages = await getConversationMessages(backendId, userId, { limit, offset })
+    const step3Time = performance.now() - step3Start
+    console.warn(`📊 [Performance] 步骤3-查询消息耗时: ${step3Time.toFixed(0)}ms`)
 
-    // 📊 输出返回的消息条数
+    // 📊 输出返回的消息条数和性能统计
+    const totalTime = performance.now() - startTime
     console.warn(`📊 [API] 准备返回 ${messages.length} 条消息给前端`)
     console.warn(`📊 [API] 消息ID列表: ${messages.map(m => m.id.substring(0, 8)).join(', ')}`)
     if (messages.length > 0) {
       console.warn(`📊 [API] 消息角色分布: user=${messages.filter(m => m.role === 'user').length}, assistant=${messages.filter(m => m.role === 'assistant').length}, system=${messages.filter(m => m.role === 'system').length}`)
       console.warn(`📊 [API] 消息状态分布: ${messages.filter(m => m.status === 'pending').length} pending, ${messages.filter(m => m.status === 'saved').length} saved, ${messages.filter(m => m.status === 'failed').length} failed, ${messages.filter(m => !m.status).length} 无状态`)
     }
+
+    // 📊 性能统计汇总
+    console.warn(`📊 [Performance] ========== 性能统计汇总 ==========`)
+    console.warn(`📊 [Performance] 步骤1-获取用户ID: ${step1Time.toFixed(0)}ms (${(step1Time / totalTime * 100).toFixed(1)}%)`)
+    console.warn(`📊 [Performance] 步骤2-查找会话: ${step2Time.toFixed(0)}ms (${(step2Time / totalTime * 100).toFixed(1)}%)`)
+    console.warn(`📊 [Performance] 步骤3-查询消息: ${step3Time.toFixed(0)}ms (${(step3Time / totalTime * 100).toFixed(1)}%)`)
+    console.warn(`📊 [Performance] 总耗时: ${totalTime.toFixed(0)}ms`)
+    console.warn(`📊 [Performance] ========================================`)
 
     res.json({
       status: 'Success',

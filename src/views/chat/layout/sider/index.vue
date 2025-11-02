@@ -30,8 +30,8 @@ const isAdmin = computed(() => {
   const roles = authStore.userInfo?.roles || []
   const singleRole = authStore.userInfo?.role
 
-  // 检查 roles 数组
-  if (roles.some((r: string) => r.toLowerCase() === 'admin')) {
+  // 检查 roles 数组（过滤 null/undefined）
+  if (roles.some((r: string) => r && r.toLowerCase() === 'admin')) {
     return true
   }
 

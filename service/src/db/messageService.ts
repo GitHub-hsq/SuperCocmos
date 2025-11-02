@@ -173,29 +173,17 @@ export async function getConversationMessages(
         logger.debug(`📊 [MessageCache] 缓存的消息ID: ${cached.map(m => m.id.substring(0, 8)).join(', ')}`)
         logger.debug(`📊 [MessageCache] 缓存消息状态分布: ${cached.filter(m => m.status === 'pending').length} pending, ${cached.filter(m => m.status === 'saved').length} saved, ${cached.filter(m => m.status === 'failed').length} failed, ${cached.filter(m => !m.status).length} 无状态`)
 
-        // 🔥 验证缓存完整性：如果缓存的消息数量明显少于预期，重新从数据库加载
-        // 检查数据库中的实际消息数量
-        const { count } = await client
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', conversationId)
-
-        if (count !== null && cached.length < count) {
-          console.warn(`⚠️ [MessageCache] 缓存消息数 (${cached.length}) 少于数据库消息数 (${count})，重新从数据库加载`)
-          // 清除缓存，强制从数据库重新加载
-          await deleteCached(cacheKey)
+        // 🔥 性能优化：移除缓存完整性检查，避免额外的 count 查询
+        // 如果需要验证缓存，应该在写入时就确保正确性，而不是在读取时验证
+        // 过滤掉 failed 状态的消息（但保留 pending 和 saved）
+        const validMessages = cached.filter(msg => msg.status !== 'failed')
+        const failedCount = cached.length - validMessages.length
+        if (failedCount > 0) {
+          logger.debug(`📊 [MessageCache] 过滤掉 ${failedCount} 条 failed 状态的消息`)
         }
-        else {
-          // 过滤掉 failed 状态的消息（但保留 pending 和 saved）
-          const validMessages = cached.filter(msg => msg.status !== 'failed')
-          const failedCount = cached.length - validMessages.length
-          if (failedCount > 0) {
-            logger.debug(`📊 [MessageCache] 过滤掉 ${failedCount} 条 failed 状态的消息`)
-          }
-          logger.debug(`📊 [MessageCache] 过滤后返回 ${validMessages.length} 条有效消息`)
-          logger.debug(`📊 [MessageCache] 有效消息ID: ${validMessages.map(m => m.id.substring(0, 8)).join(', ')}`)
-          return validMessages
-        }
+        logger.debug(`📊 [MessageCache] 过滤后返回 ${validMessages.length} 条有效消息`)
+        logger.debug(`📊 [MessageCache] 有效消息ID: ${validMessages.map(m => m.id.substring(0, 8)).join(', ')}`)
+        return validMessages
       }
       console.warn(`❌ [MessageCache] 缓存未命中，查询数据库...`)
     }

@@ -4,10 +4,10 @@
  */
 
 import type { Request, Response } from 'express'
+import { clearJWTCache } from '../cache/jwtCache'
+import { clearUserLoginCache } from '../cache/userLoginCache'
 import { findUserByAuth0Id } from '../db/supabaseUserService'
 import { getUserWithRoles } from '../db/userRoleService'
-import { clearUserLoginCache } from '../cache/userLoginCache'
-import { clearJWTCache } from '../cache/jwtCache'
 
 /**
  * 将 Access Token 写入 Cookie（用于 SSE 认证）

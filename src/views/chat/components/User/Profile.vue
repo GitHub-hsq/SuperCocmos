@@ -35,21 +35,21 @@ const dropdownOptions = computed(() => {
 // 处理下拉菜单点击
 async function handleDropdownSelect(key: string) {
   if (key === 'logout') {
-    // 🔥 先调用后端 API 清除 Redis 缓存（在清除本地存储之前）
-    // 此时 token 还存在，可以正常认证
-    try {
-      const { logout: logoutApi } = await import('@/api/services/authService')
-      await logoutApi()
-    }
-    catch (error) {
-      console.error('❌ [Profile] 调用退出登录 API 失败:', error)
-      // 即使 API 调用失败，也继续退出登录流程
-    }
+    // 🔥 优化：先调用后端（token 在 Cookie 中，不会被清除）
+    // 然后立即清除本地数据并退出，不等待后端完成
 
-    // 🔥 清除所有用户相关的本地存储数据（在调用 API 之后）
+    // 1. 发起后端清除请求（异步，不等待）
+    // 后端从 Cookie 获取 token，即使清除了 localStorage 也能认证
+    import('@/api/services/authService').then(({ logout: logoutApi }) => {
+      logoutApi().catch((error) => {
+        console.warn('⚠️ [Profile] 后端清除缓存失败（不影响退出）:', error)
+      })
+    })
+
+    // 2. 立即清除本地存储（用户体验优先）
     clearAllUserData()
 
-    // 退出登录
+    // 3. 立即退出登录（跳转到 Auth0）
     logout({
       logoutParams: {
         returnTo: window.location.origin,
@@ -72,8 +72,8 @@ const userInitial = computed(() => {
 const primaryRole = computed(() => {
   const roles = userRoles.value
 
-  // 检查是否为管理员（不区分大小写）
-  if (roles.some(r => r.toLowerCase() === 'admin'))
+  // 检查是否为管理员（不区分大小写，过滤 null/undefined）
+  if (roles.some(r => r && r.toLowerCase() === 'admin'))
     return 'Admin'
 
   // 按会员等级优先级排序

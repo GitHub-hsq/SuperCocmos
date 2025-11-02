@@ -20,16 +20,63 @@ export const CACHE_TTL = {
 }
 
 /**
- * 从缓存获取数据
+ * 从缓存获取数据（带超时保护）
+ *
+ * @param key - 缓存键
+ * @param timeoutMs - 超时时间（毫秒），默认 2000ms
  */
-export async function getCached<T>(key: string): Promise<T | null> {
+export async function getCached<T>(key: string, timeoutMs: number = 2000): Promise<T | null> {
   if (!redis) {
-    console.warn('⚠️  [Cache] Redis 未启用，跳过缓存读取')
     return null
   }
 
   try {
-    const cached = await redis.get(key)
+    // 🔥 添加超时保护：如果 Redis 响应慢，直接跳过缓存
+    const startTime = performance.now()
+    let timeoutId: NodeJS.Timeout | null = null
+    let isTimedOut = false
+
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeoutId = setTimeout(() => {
+        isTimedOut = true
+        const duration = performance.now() - startTime
+        console.warn(`⚠️ [Cache] 读取超时 (${duration.toFixed(0)}ms > ${timeoutMs}ms)，跳过缓存: ${key.substring(0, 50)}...`)
+        resolve(null)
+      }, timeoutMs)
+    })
+
+    const cachePromise = (async () => {
+      try {
+        const cached = await redis.get(key)
+        const duration = performance.now() - startTime
+
+        // 清除超时定时器
+        if (timeoutId)
+          clearTimeout(timeoutId)
+
+        // 如果已经超时，不记录日志
+        if (isTimedOut) {
+          return null
+        }
+
+        // 🔥 记录慢查询（超过 300ms）
+        if (duration > 300) {
+          console.warn(`⚠️ [Cache] 慢查询 (${duration.toFixed(0)}ms): ${key.substring(0, 50)}...`)
+        }
+
+        return cached
+      }
+      catch (error: any) {
+        // 清除超时定时器
+        if (timeoutId)
+          clearTimeout(timeoutId)
+        throw error
+      }
+    })()
+
+    // 🔥 竞速：超时 vs Redis 查询
+    const cached = await Promise.race([cachePromise, timeoutPromise])
+
     if (!cached) {
       return null
     }
@@ -37,7 +84,8 @@ export async function getCached<T>(key: string): Promise<T | null> {
     // 🔥 检测损坏的缓存数据（"[object Object]" 或其他无效 JSON）
     if (typeof cached === 'string' && cached.startsWith('[object ')) {
       console.warn(`⚠️ [Cache] 检测到损坏的缓存数据，已删除: ${key}`)
-      await deleteCached(key)
+      // 异步删除，不阻塞
+      deleteCached(key).catch(() => {})
       return null
     }
 
@@ -45,15 +93,10 @@ export async function getCached<T>(key: string): Promise<T | null> {
     return data
   }
   catch (error: any) {
-    // 🔥 解析失败时，删除损坏的缓存
+    // 🔥 解析失败时，异步删除损坏的缓存
     console.error(`❌ [Cache] 读取缓存失败: ${key}`, error.message)
-    // 尝试删除损坏的缓存
-    try {
-      await deleteCached(key)
-    }
-    catch {
-      // 忽略删除失败
-    }
+    // 异步删除，不阻塞
+    deleteCached(key).catch(() => {})
     return null
   }
 }
@@ -179,14 +222,20 @@ export async function getTTL(key: string): Promise<number> {
 /**
  * 缓存辅助函数：获取或设置缓存
  * 如果缓存存在，返回缓存数据；否则执行 fetchFn 并缓存结果
+ *
+ * @param key - 缓存键
+ * @param fetchFn - 缓存未命中时的数据获取函数
+ * @param ttl - 缓存过期时间（秒）
+ * @param timeoutMs - 缓存读取超时时间（毫秒），默认 3000ms
  */
 export async function getOrSet<T>(
   key: string,
   fetchFn: () => Promise<T>,
   ttl: number,
+  timeoutMs: number = 3000,
 ): Promise<T> {
-  // 尝试从缓存获取
-  const cached = await getCached<T>(key)
+  // 尝试从缓存获取（带超时）
+  const cached = await getCached<T>(key, timeoutMs)
   if (cached !== null) {
     return cached
   }
@@ -194,8 +243,10 @@ export async function getOrSet<T>(
   // 缓存不存在，执行获取函数
   const data = await fetchFn()
 
-  // 保存到缓存
-  await setCached(key, data, ttl)
+  // 保存到缓存（异步，不阻塞返回）
+  setCached(key, data, ttl).catch((error) => {
+    console.error(`⚠️ [Cache] 写入缓存失败: ${key}`, error)
+  })
 
   return data
 }

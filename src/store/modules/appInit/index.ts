@@ -92,113 +92,149 @@ export const useAppInitStore = defineStore('app-init', {
         const configStore = useConfigStore()
         const authStore = useAuthStore()
 
-        // 🔥 并行加载优化：将独立的步骤并行执行
+        // 🔥 并行加载优化：使用统一初始化接口
 
-        // 🔐 步骤 1: 设置用户信息、同步用户到数据库、加载权限（如果已登录）
+        // 🔐 步骤 1: 统一初始化（用户同步 + 配置加载 + 会话列表）
         const step1Promise = (async () => {
           if (!auth0.isAuthenticated.value || !auth0.user.value) {
             this.permissionsLoaded = true
+            this.configLoaded = true
             return
           }
           const user = auth0.user.value
 
-          // 提取角色信息（支持两种命名空间）
-          const roles = (user['http://supercocmos.com/roles'] as string[]
+          // 🔥 优化：先从 Auth0 token 中提取角色（不依赖后端）
+          const auth0Roles = (user['http://supercocmos.com/roles'] as string[]
             || user['https://supercocmos.com/roles'] as string[]
-            || [])
+            || []).filter(r => r != null)
 
-          // 设置用户信息到 authStore
+          const primaryRole = auth0Roles.includes('admin') ? 'admin' : (auth0Roles[0] || 'user')
+
+          // 先设置用户信息（使用 Auth0 角色）
           authStore.setUserInfo({
             email: user.email || '',
             id: user.sub || '',
             createdAt: new Date().toISOString(),
             avatarUrl: user.picture,
-            roles, // 🔥 保存角色数组
-            role: roles[0] || 'Free', // 主要角色
+            roles: auth0Roles,
+            role: primaryRole,
           })
 
-          // 🔥 并行执行：用户同步 + 获取 token（互不依赖）
-          const syncPromise = (async () => {
-            try {
-              const { syncAuth0UserToSupabase } = await import('@/api/services/auth0Service')
-              await syncAuth0UserToSupabase(user)
-              console.warn('✅ [AppInit] 用户同步成功')
-            }
-            catch (error: any) {
-              // 🔥 用户同步失败，尝试重试（最多3次）
-              console.warn('⚠️ [AppInit] 用户同步失败，尝试重试...', error.message)
-              let retryCount = 0
-              const maxRetries = 3
-              while (retryCount < maxRetries) {
-                try {
-                  await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))) // 递增延迟
-                  const { syncAuth0UserToSupabase } = await import('@/api/services/auth0Service')
-                  await syncAuth0UserToSupabase(user)
-                  console.warn(`✅ [AppInit] 用户同步成功（重试 ${retryCount + 1} 次）`)
-                  return
-                }
-                catch (retryError: any) {
-                  retryCount++
-                  if (retryCount >= maxRetries) {
-                    console.error('❌ [AppInit] 用户同步失败（已重试3次）:', retryError.message)
-                    // 即使失败也继续，让用户能够使用应用（用户可能在数据库中已存在）
+          try {
+            // 🔥 调用统一的初始化接口（后端并行执行）
+            const { initializeApp: initApp } = await import('@/api/services/initService')
+            const initStartTime = performance.now()
+
+            const initResponse = await initApp(user)
+
+            const initDuration = performance.now() - initStartTime
+            console.warn(`🎉 [AppInit] 统一初始化完成: ${initDuration.toFixed(0)}ms`)
+            console.warn(`📊 [AppInit] 性能数据:`, initResponse.data?.performance)
+
+            if (initResponse.status === 'Success' && initResponse.data) {
+              const { user: userData, config, conversations } = initResponse.data
+
+              // 🔥 不再从后端更新角色（已从 Auth0 token 获取）
+              // 只更新其他用户信息
+              authStore.setUserInfo({
+                ...authStore.userInfo,
+                email: userData.email || '',
+                id: userData.auth0Id || '',
+                createdAt: userData.createdAt,
+                avatarUrl: userData.avatarUrl,
+                // 保持 Auth0 的角色，不使用后端角色
+                roles: auth0Roles,
+                role: primaryRole,
+              })
+
+              // 🔥 加载配置到 configStore
+              if (config) {
+                // 映射配置到 store（后端返回的是 snake_case 格式）
+                configStore.userSettings = config.userSettings || (config as any).user_settings
+                configStore.chatConfig = config.chatConfig || (config as any).chat_config
+                configStore.workflowConfig = config.workflowConfig || (config as any).workflow_config
+                configStore.loaded = true
+              }
+              this.configLoaded = true
+
+              // 🔥 加载会话列表到 chatStore
+              const { useChatStore } = await import('../chat')
+              const chatStore = useChatStore()
+
+              if (conversations && conversations.length > 0) {
+                // 将会话数据转换为 chatStore 格式
+                type HistoryMode = 'normal' | 'noteToQuestion' | 'noteToStory'
+                const historyItems = conversations.map((conv): Chat.History => {
+                  // 确保 mode 是有效的类型
+                  const mode: HistoryMode = (conv.mode === 'noteToQuestion' || conv.mode === 'noteToStory')
+                    ? (conv.mode as HistoryMode)
+                    : 'normal'
+
+                  return {
+                    uuid: conv.frontend_uuid || conv.id,
+                    title: conv.title || '新对话',
+                    isEdit: false,
+                    mode,
+                    backendConversationId: conv.id, // 后端 UUID
                   }
-                }
+                })
+
+                // 更新 chatStore（直接设置 history 数组）
+                chatStore.history = historyItems
+
+                console.warn(`✅ [AppInit] 会话列表已加载: ${conversations.length} 条`)
               }
             }
-          })()
+          }
+          catch (error: any) {
+            console.error('❌ [AppInit] 统一初始化失败:', error)
+            // 初始化失败时，标记为已完成，避免阻塞应用
+            this.configLoaded = true
+          }
 
-          const tokenPromise = (async () => {
-            try {
-              const token = await auth0.getAccessTokenSilently({
-                authorizationParams: {
-                  audience: import.meta.env.VITE_AUTH0_AUDIENCE,
-                },
-              })
-              return token
-            }
-            catch (error: any) {
-              console.error('⚠️ [AppInit] 获取 token 失败:', error)
-              return null
-            }
-          })()
+          // 🔥 获取 token 并设置 Cookie + 权限
+          try {
+            const token = await auth0.getAccessTokenSilently({
+              authorizationParams: {
+                audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+              },
+            })
 
-          // 🔥 等待用户同步完成（注册后首次登录的关键步骤）
-          await syncPromise
+            // 并行执行：设置 Cookie + 权限解码
+            const cookiePromise = (async () => {
+              if (token) {
+                try {
+                  const { setTokenCookie } = await import('@/api/services/authService')
+                  await setTokenCookie(token)
+                }
+                catch (error: any) {
+                  console.error('⚠️ [AppInit] 设置 token 到 Cookie 失败:', error)
+                }
+              }
+            })()
 
-          // 然后获取 token（用户同步完成后，token 可能需要一点时间才能获取到）
-          const token = await tokenPromise
-
-          // 🔥 并行执行：设置 Cookie + 权限解码（都需要 token，但互不依赖）
-          const cookiePromise = (async () => {
-            if (token) {
+            const permPromise = (async () => {
               try {
-                const { setTokenCookie } = await import('@/api/services/authService')
-                await setTokenCookie(token)
+                if (token) {
+                  this.userPermissions = getUserPermissionsFromToken(token)
+                }
+                else {
+                  this.userPermissions = []
+                }
+                this.permissionsLoaded = true
               }
               catch (error: any) {
-                console.error('⚠️ [AppInit] 设置 token 到 Cookie 失败:', error)
+                console.error('⚠️ [AppInit] 权限加载失败:', error)
+                this.permissionsLoaded = true
               }
-            }
-          })()
+            })()
 
-          const permPromise = (async () => {
-            try {
-              if (token) {
-                this.userPermissions = getUserPermissionsFromToken(token)
-              }
-              else {
-                this.userPermissions = []
-              }
-              this.permissionsLoaded = true
-            }
-            catch (error: any) {
-              console.error('⚠️ [AppInit] 权限加载失败:', error)
-              this.permissionsLoaded = true
-            }
-          })()
-
-          await Promise.all([cookiePromise, permPromise])
+            await Promise.all([cookiePromise, permPromise])
+          }
+          catch (error: any) {
+            console.error('⚠️ [AppInit] 获取 token 失败:', error)
+            this.permissionsLoaded = true
+          }
         })()
 
         // 📦 步骤 2: 加载模型列表
@@ -220,78 +256,8 @@ export const useAppInitStore = defineStore('app-init', {
           }
         })()
 
-        // ⚙️ 步骤 3: 加载用户配置（仅在已登录时，且步骤1完成后）
-        const step3Promise = (async () => {
-          if (auth0.isAuthenticated.value && !configStore.loaded) {
-            // 🔥 等待步骤1完成（用户同步和配置预加载）
-            await step1Promise
-
-            try {
-              const loadConfig = (configStore as any).loadAllConfig
-              if (typeof loadConfig === 'function') {
-                await loadConfig()
-              }
-              this.configLoaded = true
-            }
-            catch {
-            // 配置加载失败不阻止应用
-              this.configLoaded = true // 标记但不阻止
-            }
-          }
-          else {
-            this.configLoaded = true
-          }
-        })()
-
-        // ⚙️ 步骤 4: 用户登录时从数据库同步会话
-        const step4Promise = (async () => {
-          if (auth0.isAuthenticated.value) {
-            try {
-              const { useChatStore } = await import('../chat')
-              const chatStore = useChatStore()
-
-              // 🔥 优化：始终从数据库同步会话列表，确保跨设备数据一致性
-              const result = await chatStore.loadConversationsFromBackend()
-
-              if (result.success && result.count && result.count > 0) {
-                // 🔥 只有当 active 不为 null 时才加载消息（首次登录时 active 为 null，不加载）
-                if (chatStore.active) {
-                  const activeConversation = chatStore.history.find(
-                    h => h.uuid === chatStore.active,
-                  )
-
-                  if (activeConversation?.backendConversationId) {
-                    await chatStore.loadConversationMessages(
-                      activeConversation.backendConversationId,
-                    )
-                  }
-                }
-              }
-              else if (result.success && result.count === 0) {
-              // 数据库无会话，使用本地缓存作为降级
-                const localHasData = chatStore.history.length > 0
-                if (localHasData) {
-                  // 加载本地第一个会话的消息（如果没有）
-                  const firstConversation = chatStore.history[0]
-                  if (firstConversation) {
-                    const chatData = chatStore.chat.find(c => c.uuid === firstConversation.uuid)
-                    if (chatData && chatData.data.length === 0 && firstConversation.backendConversationId) {
-                      chatStore.loadConversationMessages(firstConversation.backendConversationId)
-                        .catch(err => console.error('❌ [AppInit] 会话消息加载失败:', err))
-                    }
-                  }
-                }
-              }
-            }
-            catch (error) {
-              console.error('❌ [AppInit] 会话同步失败:', error)
-              // 同步失败不阻止应用使用，继续使用本地缓存
-            }
-          }
-        })()
-
-        // 🔥 等待所有并行任务完成
-        await Promise.all([step1Promise, step2Promise, step3Promise, step4Promise])
+        // 🔥 等待所有并行任务完成（统一初始化 + 模型加载）
+        await Promise.all([step1Promise, step2Promise])
 
         // ⚙️ 🔥 步骤 5: 启动 SSE 连接（跨设备实时同步，依赖步骤1的 token）
         // 🔥 临时禁用：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复

@@ -149,21 +149,60 @@ export async function getUsersByRole(roleId: number): Promise<string[]> {
 /**
  * 获取用户及其角色详情（使用视图）
  */
-export async function getUserWithRoles(userId: string): Promise<UserWithRoles | null> {
+/**
+ * 🔥 通过 Auth0 ID 获取用户及其角色
+ */
+export async function getUserWithRolesByAuth0Id(auth0Id: string): Promise<UserWithRoles | null> {
   try {
-    const { data, error } = await supabase
-      .from('v_users_with_roles')
-      .select('*')
-      .eq('user_id', userId)
-      .single()
+    // 1. 查询用户信息
+    const { findUserByAuth0Id } = await import('./supabaseUserService')
+    const user = await findUserByAuth0Id(auth0Id)
 
-    if (error) {
-      if (error.code === 'PGRST116')
-        return null
-      throw error
+    if (!user) {
+      return null
     }
 
-    return data
+    // 2. 查询用户角色
+    const roles = await getUserRoles(user.user_id)
+    // 🔥 过滤掉 null 和 undefined 的角色名
+    const roleNames = roles.map(r => r.role_name).filter(name => name != null)
+
+    return {
+      user_id: user.user_id,
+      auth0_id: user.auth0_id || '',
+      username: user.username,
+      email: user.email,
+      roles: roleNames,
+    }
+  }
+  catch (error: any) {
+    console.error('❌ [UserRoleService] 通过 Auth0 ID 获取用户详情失败:', error.message)
+    throw new Error(`通过 Auth0 ID 获取用户详情失败: ${error.message}`)
+  }
+}
+
+export async function getUserWithRoles(userId: string): Promise<UserWithRoles | null> {
+  try {
+    // 1. 查询用户信息
+    const { findUserById } = await import('./supabaseUserService')
+    const user = await findUserById(userId)
+
+    if (!user) {
+      return null
+    }
+
+    // 2. 查询用户角色
+    const roles = await getUserRoles(userId)
+    // 🔥 过滤掉 null 和 undefined 的角色名
+    const roleNames = roles.map(r => r.role_name).filter(name => name != null)
+
+    return {
+      user_id: user.user_id,
+      auth0_id: user.auth0_id || '',
+      username: user.username,
+      email: user.email,
+      roles: roleNames,
+    }
   }
   catch (error: any) {
     console.error('❌ [UserRoleService] 获取用户详情失败:', error.message)

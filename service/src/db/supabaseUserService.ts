@@ -510,30 +510,17 @@ export async function upsertUserFromAuth0(input: {
       // 🔥 写入 Redis 缓存（优先执行，加快后续请求）
       await setCached(cacheKey, userData, CACHE_TTL.USER_INFO)
 
-      // 🔥 同步预加载用户配置到 Redis（确保配置缓存可用）
-      // 注册后首次登录的关键步骤：确保配置在后续请求之前已缓存
-      try {
-        const { preloadUserConfig } = await import('../cache/userLoginCache')
-        await preloadUserConfig(userData.user_id)
-        console.warn(`✅ [UserSync] 用户配置已预加载到缓存: ${userData.user_id.substring(0, 8)}...`)
-      }
-      catch (error) {
-        console.error('⚠️ [UserSync] 预加载用户配置失败:', error)
-        // 不阻塞，继续执行
-      }
-
-      // 🔥 优化：异步执行角色同步和其他预加载，不阻塞登录响应
+      // 🔥 后台异步执行：角色同步和其他预加载（不阻塞响应）
       if (input.roles && input.roles.length > 0) {
-        // 立即返回，在后台执行（不等待完成）
         syncUserRolesToDatabase(existingUser.user_id, input.roles).catch((error) => {
           console.error('⚠️ [UserSync] 异步角色同步失败:', error)
         })
       }
 
-      // 🔥 异步预加载其他用户登录数据到 Redis（不阻塞响应）
+      // 异步预加载其他登录数据（会话列表等）
       import('../cache/userLoginCache').then(({ preloadUserLoginData }) => {
         preloadUserLoginData(userData.user_id, input.auth0_id).catch((error) => {
-          console.error('⚠️ [UserSync] 异步预加载失败:', error)
+          console.warn('⚠️ [UserSync] 异步预加载失败:', error)
         })
       })
 
@@ -573,29 +560,16 @@ export async function upsertUserFromAuth0(input: {
       // 🔥 写入 Redis 缓存
       await setCached(cacheKey, data, CACHE_TTL.USER_INFO)
 
-      // 🔥 同步预加载用户配置到 Redis（确保配置缓存可用）
-      // 注册后首次登录的关键步骤：确保配置在后续请求之前已缓存
-      try {
-        const { preloadUserConfig } = await import('../cache/userLoginCache')
-        await preloadUserConfig(data.user_id)
-        console.warn(`✅ [UserSync] 关联用户配置已预加载到缓存: ${data.user_id.substring(0, 8)}...`)
-      }
-      catch (error) {
-        console.error('⚠️ [UserSync] 预加载用户配置失败:', error)
-        // 不阻塞，继续执行
-      }
-
-      // 🔥 异步同步角色到 user_roles 表（不阻塞响应）
+      // 🔥 后台异步执行：角色同步和预加载
       if (input.roles && input.roles.length > 0) {
         syncUserRolesToDatabase(emailUser.user_id, input.roles).catch((error) => {
           console.error('⚠️ [UserSync] 异步角色同步失败:', error)
         })
       }
 
-      // 🔥 异步预加载其他用户登录数据到 Redis（不阻塞响应）
       import('../cache/userLoginCache').then(({ preloadUserLoginData }) => {
         preloadUserLoginData(data.user_id, input.auth0_id).catch((error) => {
-          console.error('⚠️ [UserSync] 异步预加载失败:', error)
+          console.warn('⚠️ [UserSync] 异步预加载失败:', error)
         })
       })
 
@@ -641,29 +615,27 @@ export async function upsertUserFromAuth0(input: {
     // 🔥 写入 Redis 缓存
     await setCached(cacheKey, data, CACHE_TTL.USER_INFO)
 
-    // 🔥 同步预加载用户配置到 Redis（确保配置缓存可用）
-    // 注册后首次登录的关键步骤：确保配置在后续请求之前已缓存
+    // 🔥 新用户创建：同步创建配置（避免后续查询竞态问题）
     try {
-      const { preloadUserConfig } = await import('../cache/userLoginCache')
-      await preloadUserConfig(data.user_id)
-      console.warn(`✅ [UserSync] 新用户配置已预加载到缓存: ${data.user_id.substring(0, 8)}...`)
+      const { createUserConfig } = await import('../db/configService')
+      await createUserConfig(data.user_id)
+      console.warn(`✅ [UserSync] 新用户配置已创建: ${data.user_id.substring(0, 8)}...`)
     }
-    catch (error) {
-      console.error('⚠️ [UserSync] 预加载用户配置失败:', error)
-      // 不阻塞，继续执行
+    catch (error: any) {
+      console.warn('⚠️ [UserSync] 创建配置失败（可能已存在）:', error.message)
     }
 
-    // 🔥 异步同步角色到 user_roles 表（不阻塞响应）
+    // 🔥 后台异步执行：角色同步
     if (input.roles && input.roles.length > 0) {
       syncUserRolesToDatabase(data.user_id, input.roles).catch((error) => {
         console.error('⚠️ [UserSync] 异步角色同步失败:', error)
       })
     }
 
-    // 🔥 异步预加载其他用户登录数据到 Redis（不阻塞响应）
+    // 异步预加载其他登录数据
     import('../cache/userLoginCache').then(({ preloadUserLoginData }) => {
       preloadUserLoginData(data.user_id, input.auth0_id).catch((error) => {
-        console.error('⚠️ [UserSync] 异步预加载失败:', error)
+        console.warn('⚠️ [UserSync] 异步预加载失败:', error)
       })
     })
 

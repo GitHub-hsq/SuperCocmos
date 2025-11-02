@@ -40,14 +40,14 @@ export async function getMessagesFromCache(
     }
 
     const messages = JSON.parse(cached) as Message[]
-    
+
     // 🔥 确保消息按时间排序（防止缓存中的消息顺序混乱）
     messages.sort((a, b) => {
       const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
       const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
       return timeA - timeB
     })
-    
+
     logger.debug(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
     return messages
   }
@@ -72,14 +72,14 @@ export async function setMessagesToCache(
     }
 
     const key = getMessageCacheKey(conversationId)
-    
+
     // 🔥 确保消息按时间排序（防止保存时顺序混乱）
     const sortedMessages = [...messages].sort((a, b) => {
       const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
       const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
       return timeA - timeB
     })
-    
+
     const value = JSON.stringify(sortedMessages)
 
     await redis.setex(key, ttl, value)
@@ -228,14 +228,14 @@ export async function updateMessageStatusInCache(
             const foundIndex = updatedMessages.findIndex(msg => msg.id === messageId)
             if (foundIndex >= 0) {
               updatedMessages[foundIndex].status = status
-              
+
               // 🔥 确保消息按时间排序
               updatedMessages.sort((a, b) => {
                 const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
                 const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
                 return timeA - timeB
               })
-              
+
               await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(updatedMessages))
               logger.debug(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
               return true
@@ -259,7 +259,7 @@ export async function updateMessageStatusInCache(
     // 写回缓存（排序后的消息）
     await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
     logger.debug(`✅ [缓存] 更新消息状态: ${messageId}, status: ${status}`)
-    
+
     return true
   }
   catch (error) {

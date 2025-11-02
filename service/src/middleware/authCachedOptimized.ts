@@ -55,14 +55,22 @@ const auth0MiddlewareSlow = expressjwt({
 })
 
 /**
- * 从 Authorization header 提取 token
+ * 从 Authorization header 或 Cookie 提取 token
  */
 function extractToken(req: Request): string | null {
+  // 优先从 Authorization header 获取
   const authHeader = req.headers.authorization
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7) // 去掉 "Bearer "
   }
-  return authHeader.substring(7) // 去掉 "Bearer "
+
+  // 降级：从 Cookie 获取（用于退出登录等场景）
+  const cookieToken = (req as any).cookies?.access_token
+  if (cookieToken) {
+    return cookieToken
+  }
+
+  return null
 }
 
 /**

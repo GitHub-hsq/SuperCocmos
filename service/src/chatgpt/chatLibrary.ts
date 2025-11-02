@@ -71,9 +71,14 @@ export async function chatReplyProcessLibrary(options: LibraryChatOptions) {
         { role: 'user', content: message },
       ]
 
-      // 🔥 如果有系统消息，添加到消息列表开头
+      // 🔥 如果有系统消息，且历史消息的第一条不是 system 消息，才添加到消息列表开头
+      // 避免重复添加（新会话时 systemMessage 已经在 historyMessages 中）
       if (systemMessage) {
-        fullMessages.unshift({ role: 'system', content: systemMessage })
+        const firstMessage = historyMessages?.[0]
+        const hasSystemMessage = firstMessage?.role === 'system'
+        if (!hasSystemMessage) {
+          fullMessages.unshift({ role: 'system', content: systemMessage })
+        }
       }
 
       const apiUrl = `${apiBaseUrl}/chat/completions`

@@ -78,7 +78,7 @@ export async function logout() {
     // 即使后端调用失败，也继续清除本地存储
     console.error('❌ [Auth] 调用后端退出登录失败:', error)
   }
-  
+
   // 清除本地存储的 token
   localStorage.removeItem('token')
   localStorage.removeItem('user')

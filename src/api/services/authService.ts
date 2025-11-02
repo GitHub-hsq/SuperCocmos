@@ -70,6 +70,15 @@ export async function getCurrentUser() {
  * 登出
  */
 export async function logout() {
+  try {
+    // 🔥 调用后端 API 清除 Redis 缓存
+    await request.post<ApiResponse<null>>('/auth/logout')
+  }
+  catch (error) {
+    // 即使后端调用失败，也继续清除本地存储
+    console.error('❌ [Auth] 调用后端退出登录失败:', error)
+  }
+  
   // 清除本地存储的 token
   localStorage.removeItem('token')
   localStorage.removeItem('user')

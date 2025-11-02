@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpace, useLoadingBar, useMessage } from 'naive-ui'
+import { NButton, NCard, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpace, NSwitch, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, onMounted, reactive, watch } from 'vue'
 import { useConfigStore } from '@/store'
 
@@ -13,6 +13,7 @@ const formData = reactive({
   temperature: 0.7,
   topP: 0.9,
   maxTokens: 4096,
+  textIndentEnabled: false, // 🔥 文本缩进开关
 })
 
 // 从 store 加载数据
@@ -24,6 +25,7 @@ function loadData() {
     formData.temperature = chatConfig.parameters?.temperature || 0.7
     formData.topP = chatConfig.parameters?.topP || 0.9
     formData.maxTokens = chatConfig.parameters?.maxTokens || 4096
+    formData.textIndentEnabled = chatConfig.textIndentEnabled ?? false // 🔥 加载文本缩进开关
     console.warn('✅ [ChatConfigPanel] 配置已加载到表单')
   }
   else {
@@ -63,6 +65,7 @@ async function handleSave() {
       },
       systemPrompt: formData.systemPrompt,
       streamEnabled: true, // 默认启用打字机效果
+      textIndentEnabled: formData.textIndentEnabled, // 🔥 保存文本缩进开关
     })
     loadingBar.finish()
     ms.success('聊天配置已保存')
@@ -79,6 +82,7 @@ function handleReset() {
   formData.topP = 0.9
   formData.maxTokens = 4096
   formData.systemPrompt = '你是一个有帮助的AI助手。'
+  formData.textIndentEnabled = false // 🔥 重置文本缩进开关
   ms.info('已重置为默认值')
 }
 
@@ -202,6 +206,21 @@ function applyPreset(preset: typeof presets[0]) {
               • 1024: 简短回复<br>
               • 4096: 中等长度 (推荐)<br>
               • 16000+: 长文本、代码生成
+            </div>
+          </div>
+        </NFormItem>
+
+        <!-- 文本样式 -->
+        <NDivider title-placement="left">
+          📝 文本样式
+        </NDivider>
+
+        <NFormItem label="段落首行缩进" path="textIndentEnabled">
+          <div class="w-full">
+            <NSwitch v-model:value="formData.textIndentEnabled" />
+            <div class="text-xs text-gray-500 mt-1">
+              启用后，AI 回复的每个段落首行会缩进 2rem，类似传统文档排版<br>
+              💡 适合需要正式文档风格的场景
             </div>
           </div>
         </NFormItem>

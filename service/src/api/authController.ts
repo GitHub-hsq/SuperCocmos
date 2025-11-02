@@ -6,6 +6,8 @@
 import type { Request, Response } from 'express'
 import { findUserByAuth0Id } from '../db/supabaseUserService'
 import { getUserWithRoles } from '../db/userRoleService'
+import { clearUserLoginCache } from '../cache/userLoginCache'
+import { clearJWTCache } from '../cache/jwtCache'
 
 /**
  * 将 Access Token 写入 Cookie（用于 SSE 认证）
@@ -69,6 +71,79 @@ export async function handleAuth0Webhook(req: Request, res: Response) {
     return res.status(500).send({
       status: 'Fail',
       message: error?.message || String(error),
+      data: null,
+    })
+  }
+}
+
+/**
+ * 用户退出登录
+ * POST /api/auth/logout
+ * 清除用户相关的 Redis 缓存
+ */
+export async function logout(req: Request, res: Response) {
+  try {
+    const auth0Id = req.userId
+
+    if (!auth0Id) {
+      // 即使没有 userId，也返回成功（可能已经退出登录）
+      return res.json({
+        status: 'Success',
+        message: '退出登录成功',
+        data: null,
+      })
+    }
+
+    // 🔥 清除用户相关的所有 Redis 缓存
+    try {
+      // 获取 Supabase UUID（用于清除缓存）
+      const user = await findUserByAuth0Id(auth0Id)
+      if (user?.user_id) {
+        // 清除用户登录缓存（配置、角色、会话列表等）
+        // 同时传入 Auth0 ID 和 Supabase UUID，确保清除所有相关缓存
+        await clearUserLoginCache(user.user_id, auth0Id)
+        console.warn(`✅ [Auth] 用户 ${user.user_id} 退出登录，已清除所有缓存`)
+      }
+
+      // 清除 JWT 缓存（从多个位置尝试获取 token）
+      let token = req.headers.authorization?.replace('Bearer ', '')
+      // 如果 Authorization header 中没有，尝试从 Cookie 获取
+      if (!token && req.cookies?.access_token) {
+        token = req.cookies.access_token
+      }
+      if (token) {
+        await clearJWTCache(token)
+        console.warn(`✅ [Auth] 已清除 JWT 缓存`)
+      }
+      else {
+        console.warn(`⚠️ [Auth] 未找到 token，跳过清除 JWT 缓存`)
+      }
+    }
+    catch (cacheError: any) {
+      // 缓存清除失败不影响退出登录流程
+      console.error('⚠️ [Auth] 清除缓存失败（不影响退出登录）:', cacheError.message)
+    }
+
+    // 清除 Cookie（如果存在）
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    })
+
+    return res.json({
+      status: 'Success',
+      message: '退出登录成功',
+      data: null,
+    })
+  }
+  catch (error: any) {
+    console.error('❌ [Auth] 退出登录失败:', error.message)
+    // 即使出错也返回成功，避免影响前端退出流程
+    return res.json({
+      status: 'Success',
+      message: '退出登录成功',
       data: null,
     })
   }

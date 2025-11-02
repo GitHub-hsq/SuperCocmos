@@ -7,6 +7,7 @@ import MdMermaid from 'mermaid-it-markdown'
 import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
+import { useConfigStore } from '@/store'
 import { copyToClip } from '@/utils/copy'
 
 interface Props {
@@ -20,6 +21,12 @@ interface Props {
 const props = defineProps<Props>()
 
 const { isMobile } = useBasicLayout()
+const configStore = useConfigStore()
+
+// 🔥 检查是否启用文本缩进
+const textIndentEnabled = computed(() => {
+  return (configStore.chatConfig as Config.ChatConfig | null)?.textIndentEnabled ?? false
+})
 
 const textRef = ref<HTMLElement>()
 const wrapperRef = ref<HTMLElement>()
@@ -277,7 +284,7 @@ function calculateSingleLineThreshold() {
           <div class="thinking-text" v-text="text.replace('💭 思考中...\n', '')" />
         </div>
         <!-- 普通内容 -->
-        <div v-else-if="!asRawText" class="markdown-body" :class="{ 'markdown-body-generate': loading }" v-html="text" />
+        <div v-else-if="!asRawText" class="markdown-body" :class="{ 'markdown-body-generate': loading, 'text-indent-enabled': textIndentEnabled }" v-html="text" />
         <div v-else class="whitespace-pre-wrap text-base" v-text="text" />
       </div>
       <div v-else class="whitespace-pre-wrap text-base" v-text="text" />

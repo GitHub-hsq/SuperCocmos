@@ -54,6 +54,13 @@ router.get('/auth/user/:auth0_id', auth0Controller.getAuth0User)
 router.post('/webhooks/auth0', authController.handleAuth0Webhook)
 
 /**
+ * 用户退出登录
+ * POST /api/auth/logout
+ * 清除用户相关的 Redis 缓存
+ */
+router.post('/auth/logout', auth, requireAuth, authController.logout)
+
+/**
  * 获取当前登录用户信息
  * 需要 Auth0 认证
  */

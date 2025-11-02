@@ -33,9 +33,20 @@ const dropdownOptions = computed(() => {
 })
 
 // 处理下拉菜单点击
-function handleDropdownSelect(key: string) {
+async function handleDropdownSelect(key: string) {
   if (key === 'logout') {
-    // 🔥 清除所有用户相关的本地存储数据
+    // 🔥 先调用后端 API 清除 Redis 缓存（在清除本地存储之前）
+    // 此时 token 还存在，可以正常认证
+    try {
+      const { logout: logoutApi } = await import('@/api/services/authService')
+      await logoutApi()
+    }
+    catch (error) {
+      console.error('❌ [Profile] 调用退出登录 API 失败:', error)
+      // 即使 API 调用失败，也继续退出登录流程
+    }
+
+    // 🔥 清除所有用户相关的本地存储数据（在调用 API 之后）
     clearAllUserData()
 
     // 退出登录

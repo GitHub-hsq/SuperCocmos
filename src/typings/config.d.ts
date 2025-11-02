@@ -35,6 +35,9 @@ declare namespace Config {
 
     // 流式输出
     streamEnabled: boolean // 打字机效果
+
+    // 文本样式
+    textIndentEnabled?: boolean // 文本缩进开关（默认 false）
   }
 
   // ============================================

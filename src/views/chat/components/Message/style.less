@@ -1,9 +1,15 @@
 .markdown-body {
   background-color: transparent;
   font-size: 16px;
+  line-height: 1.8; // 🔥 设置消息框行高为 1.8
 
   p {
     white-space: pre-wrap;
+  }
+
+  // 🔥 当启用文本缩进时，段落首行缩进
+  &.text-indent-enabled p {
+    text-indent: 2rem;
   }
 
   ol {
@@ -122,6 +128,7 @@ html.dark {
       white-space: pre-wrap;
       color: var(--n-text-color);
       font-size: 16px;
+      line-height: 1.8; // 🔥 设置消息框行高为 1.8
     }
   }
 

@@ -232,39 +232,80 @@ export async function getUserConversations(
 
     // 1. 尝试从缓存获取
     if (shouldCache) {
-      const cacheKey = CONVERSATION_KEYS.userConversations(userId)
-      const cached = await getCached<Conversation[]>(cacheKey)
+      try {
+        const cacheKey = CONVERSATION_KEYS.userConversations(userId)
+        const cached = await getCached<Conversation[]>(cacheKey)
 
-      if (cached) {
-        return cached
+        if (cached) {
+          return cached
+        }
+      }
+      catch (cacheError: any) {
+        // 缓存读取失败不影响主流程，继续查询数据库
+        logger.debug(`⚠️ [ConversationCache] 缓存读取失败，继续查询数据库: ${cacheError.message}`)
       }
     }
 
     // 2. 从数据库查询
-    const { data, error } = await client
-      .from('conversations')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    let data: Conversation[] | null = null
+    let error: any = null
 
+    try {
+      const result = await client
+        .from('conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+
+      data = result.data
+      error = result.error
+    }
+    catch (fetchError: any) {
+      // 捕获网络错误或其他异常
+      error = fetchError
+      logger.error('❌ [Conversation] Supabase 查询异常:', {
+        message: fetchError?.message || String(fetchError),
+        userId: `${userId.substring(0, 8)}...`,
+        stack: fetchError?.stack,
+      })
+    }
+
+    // 如果查询失败，返回空数组
     if (error) {
-      console.error('❌ [Conversation] 获取用户对话列表失败:', error)
+      logger.warn('⚠️ [Conversation] 获取用户对话列表失败:', {
+        message: error?.message || String(error),
+        code: error?.code,
+        hint: error?.hint,
+        userId: `${userId.substring(0, 8)}...`,
+      })
       return []
     }
 
     const conversations = (data || []) as Conversation[]
 
-    // 3. 保存到缓存
-    if (shouldCache && conversations.length > 0) {
-      const cacheKey = CONVERSATION_KEYS.userConversations(userId)
-      await setCached(cacheKey, conversations, CACHE_TTL.USER_CONVERSATIONS)
+    // 3. 保存到缓存（包括空数组，避免重复失败请求）
+    if (shouldCache) {
+      try {
+        const cacheKey = CONVERSATION_KEYS.userConversations(userId)
+        // 即使为空数组也缓存，避免频繁查询空结果
+        await setCached(cacheKey, conversations, CACHE_TTL.USER_CONVERSATIONS)
+      }
+      catch (cacheError: any) {
+        // 缓存写入失败不影响主流程
+        logger.debug(`⚠️ [ConversationCache] 缓存写入失败: ${cacheError.message}`)
+      }
     }
 
     return conversations
   }
-  catch (error) {
-    console.error('❌ [Conversation] 获取用户对话列表异常:', error)
+  catch (error: any) {
+    // 最终兜底错误处理
+    logger.error('❌ [Conversation] 获取用户对话列表异常:', {
+      message: error?.message || String(error),
+      stack: error?.stack,
+      userId: userId?.substring ? `${userId.substring(0, 8)}...` : 'unknown',
+    })
     return []
   }
 }
@@ -294,18 +335,48 @@ export async function updateConversation(
       return false
     }
 
-    // 🔥 清除用户会话列表缓存
+    // 🔥 清除用户会话列表缓存（使用 try-catch 包装，避免影响主流程）
     if (conversation) {
-      const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
-      await deleteCached(cacheKey)
+      try {
+        const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
+        await deleteCached(cacheKey)
+        logger.debug(`✅ [ConversationCache] 已清除用户会话列表缓存: ${cacheKey}`)
+      }
+      catch (cacheError: any) {
+        // 缓存清除失败不影响主流程
+        console.warn('⚠️ [ConversationCache] 清除用户会话列表缓存失败:', cacheError.message)
+      }
     }
 
     // 🔥 清除会话权限验证缓存（所有用户）
-    const pattern = `conversation:auth:${conversationId}:*`
-    const keys = await redisClient.keys(pattern)
-    if (keys.length > 0) {
-      await redisClient.del(...keys)
-      logger.debug(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+    // 使用 Promise.race 添加超时保护，避免 keys 操作阻塞
+    try {
+      const pattern = `conversation:auth:${conversationId}:*`
+      logger.debug(`🔍 [ConversationCache] 开始扫描权限验证缓存: ${pattern}`)
+
+      // 设置 5 秒超时，避免 keys 操作阻塞
+      const keysPromise = redisClient.keys(pattern)
+      const timeoutPromise = new Promise<string[]>((resolve) => {
+        setTimeout(() => {
+          console.warn(`⚠️ [ConversationCache] Redis keys 操作超时（5秒），跳过缓存清理`)
+          resolve([])
+        }, 5000)
+      })
+
+      const keys = await Promise.race([keysPromise, timeoutPromise])
+
+      if (keys.length > 0) {
+        logger.debug(`🔍 [ConversationCache] 找到 ${keys.length} 个权限验证缓存键`)
+        await redisClient.del(...keys)
+        logger.debug(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+      }
+      else {
+        logger.debug('✅ [ConversationCache] 未找到需要清除的权限验证缓存')
+      }
+    }
+    catch (cacheError: any) {
+      // 缓存清除失败不影响主流程
+      console.warn('⚠️ [ConversationCache] 清除权限验证缓存失败:', cacheError.message)
     }
 
     logger.debug('✅ [Conversation] 更新对话成功:', conversationId)
@@ -325,9 +396,13 @@ export async function deleteConversation(
   client: SupabaseClient = supabase,
 ): Promise<boolean> {
   try {
+    logger.debug(`🗑️ [Conversation] 开始删除会话: ${conversationId}`)
+
     // 先查询会话以获取 user_id（用于清除缓存）
     const conversation = await getConversationById(conversationId, client)
+    logger.debug(`🔍 [Conversation] 查询到会话信息:`, conversation ? `user_id=${conversation.user_id}` : '未找到')
 
+    // 🔥 优先删除数据库记录（核心操作）
     const { error } = await client
       .from('conversations')
       .delete()
@@ -338,18 +413,50 @@ export async function deleteConversation(
       return false
     }
 
-    // 🔥 清除用户会话列表缓存
+    logger.debug('✅ [Conversation] 数据库删除成功，开始清理缓存')
+
+    // 🔥 清除用户会话列表缓存（使用 try-catch 包装，避免影响主流程）
     if (conversation) {
-      const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
-      await deleteCached(cacheKey)
+      try {
+        const cacheKey = CONVERSATION_KEYS.userConversations(conversation.user_id)
+        await deleteCached(cacheKey)
+        logger.debug(`✅ [ConversationCache] 已清除用户会话列表缓存: ${cacheKey}`)
+      }
+      catch (cacheError: any) {
+        // 缓存清除失败不影响主流程
+        console.warn('⚠️ [ConversationCache] 清除用户会话列表缓存失败:', cacheError.message)
+      }
     }
 
     // 🔥 清除会话权限验证缓存（所有用户）
-    const pattern = `conversation:auth:${conversationId}:*`
-    const keys = await redisClient.keys(pattern)
-    if (keys.length > 0) {
-      await redisClient.del(...keys)
-      logger.debug(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+    // 使用 Promise.race 添加超时保护，避免 keys 操作阻塞
+    try {
+      const pattern = `conversation:auth:${conversationId}:*`
+      logger.debug(`🔍 [ConversationCache] 开始扫描权限验证缓存: ${pattern}`)
+
+      // 设置 5 秒超时，避免 keys 操作阻塞
+      const keysPromise = redisClient.keys(pattern)
+      const timeoutPromise = new Promise<string[]>((resolve) => {
+        setTimeout(() => {
+          console.warn(`⚠️ [ConversationCache] Redis keys 操作超时（5秒），跳过缓存清理`)
+          resolve([])
+        }, 5000)
+      })
+
+      const keys = await Promise.race([keysPromise, timeoutPromise])
+
+      if (keys.length > 0) {
+        logger.debug(`🔍 [ConversationCache] 找到 ${keys.length} 个权限验证缓存键`)
+        await redisClient.del(...keys)
+        logger.debug(`✅ [ConversationCache] 已清除 ${keys.length} 个权限验证缓存`)
+      }
+      else {
+        logger.debug('✅ [ConversationCache] 未找到需要清除的权限验证缓存')
+      }
+    }
+    catch (cacheError: any) {
+      // 缓存清除失败不影响主流程
+      console.warn('⚠️ [ConversationCache] 清除权限验证缓存失败:', cacheError.message)
     }
 
     logger.debug('✅ [Conversation] 删除对话成功:', conversationId)

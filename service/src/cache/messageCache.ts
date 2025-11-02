@@ -40,6 +40,14 @@ export async function getMessagesFromCache(
     }
 
     const messages = JSON.parse(cached) as Message[]
+    
+    // 🔥 确保消息按时间排序（防止缓存中的消息顺序混乱）
+    messages.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
+      const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
+      return timeA - timeB
+    })
+    
     logger.debug(`✅ [缓存] 命中: ${conversationId}，消息数: ${messages.length}`)
     return messages
   }
@@ -64,10 +72,18 @@ export async function setMessagesToCache(
     }
 
     const key = getMessageCacheKey(conversationId)
-    const value = JSON.stringify(messages)
+    
+    // 🔥 确保消息按时间排序（防止保存时顺序混乱）
+    const sortedMessages = [...messages].sort((a, b) => {
+      const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
+      const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
+      return timeA - timeB
+    })
+    
+    const value = JSON.stringify(sortedMessages)
 
     await redis.setex(key, ttl, value)
-    logger.debug(`✅ [缓存] 写入: ${conversationId}，消息数: ${messages.length}`)
+    logger.debug(`✅ [缓存] 写入: ${conversationId}，消息数: ${sortedMessages.length}`)
     return true
   }
   catch (error) {
@@ -117,6 +133,13 @@ export async function appendMessageToCache(
       }
       messages.push(messageWithStatus)
     }
+
+    // 🔥 按 created_at 排序，确保消息顺序正确
+    messages.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
+      const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
+      return timeA - timeB
+    })
 
     // 🔥 移除20条限制，保留所有消息以确保数据完整性
     // 如果消息数量过多（超过100条），可以考虑清理旧消息，但当前先保留所有
@@ -205,6 +228,14 @@ export async function updateMessageStatusInCache(
             const foundIndex = updatedMessages.findIndex(msg => msg.id === messageId)
             if (foundIndex >= 0) {
               updatedMessages[foundIndex].status = status
+              
+              // 🔥 确保消息按时间排序
+              updatedMessages.sort((a, b) => {
+                const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
+                const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
+                return timeA - timeB
+              })
+              
               await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(updatedMessages))
               logger.debug(`✅ [缓存] 从数据库重新加载后更新消息状态: ${messageId}, status: ${status}`)
               return true
@@ -218,9 +249,17 @@ export async function updateMessageStatusInCache(
       return false
     }
 
-    // 写回缓存
+    // 🔥 确保消息按时间排序（防止更新后顺序混乱）
+    messages.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.timestamp || 0).getTime()
+      const timeB = new Date(b.created_at || b.timestamp || 0).getTime()
+      return timeA - timeB
+    })
+
+    // 写回缓存（排序后的消息）
     await redis.setex(key, MESSAGE_CACHE_TTL, JSON.stringify(messages))
     logger.debug(`✅ [缓存] 更新消息状态: ${messageId}, status: ${status}`)
+    
     return true
   }
   catch (error) {

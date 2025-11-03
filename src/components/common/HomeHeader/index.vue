@@ -24,6 +24,7 @@ const dropdownLeft = ref('0px')
 const firstDropdownRef = ref<HTMLElement | null>(null)
 const animationDirection = ref<'left' | 'right' | ''>('')
 const isAnimating = ref(false)
+const isScrolled = ref(false)
 
 const dropdownMenus = computed(() => ({
   products: [
@@ -208,22 +209,36 @@ function updateDropdownPosition() {
   }
 }
 
+function handleScroll() {
+  // 使用 requestAnimationFrame 优化性能
+  requestAnimationFrame(() => {
+    isScrolled.value = window.scrollY > 10
+  })
+}
+
 onMounted(() => {
   // 计算第一个dropdown的位置
   updateDropdownPosition()
 
   // 监听窗口resize事件
   window.addEventListener('resize', updateDropdownPosition)
+
+  // 监听滚动事件，使用 passive 提高性能
+  window.addEventListener('scroll', handleScroll, { passive: true })
+
+  // 初始检查
+  handleScroll()
 })
 
 onUnmounted(() => {
   // 移除事件监听器
   window.removeEventListener('resize', updateDropdownPosition)
+  window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
 <template>
-  <header class="home-header">
+  <header class="home-header" :class="{ 'is-scrolled': isScrolled }">
     <div class="header-container">
       <div class="header-content">
         <!-- Logo -->
@@ -322,14 +337,28 @@ onUnmounted(() => {
 
 <style scoped>
 .home-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 50;
   width: 100%;
   background: var(--bg-color);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid transparent;
   backdrop-filter: blur(10px);
   transition: all 0.3s;
+}
+
+.home-header.is-scrolled {
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.dark .home-header.is-scrolled {
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.98);
 }
 
 .header-container {

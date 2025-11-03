@@ -537,6 +537,7 @@ const techStackRow2 = [
   overflow-x: hidden;
   background: var(--bg-color);
   transition: background-color 0.3s;
+  padding-top: 64px; /* Header height */
 }
 
 :root {
@@ -593,7 +594,7 @@ const techStackRow2 = [
 /* Hero Section */
 .hero-section {
   position: relative;
-  min-height: calc(100vh - 165px);
+  min-height: calc(100vh - 64px); /* 100vh - header height */
   display: flex;
   align-items: center;
   justify-content: center;

@@ -165,6 +165,9 @@ export const useChatStore = defineStore('chat-store', {
         return
       }
 
+      // 🔥 检查是否删除的是当前激活的会话
+      const isDeletingActiveSession = historyToDelete.uuid === this.active
+
       // 🔥 如果有后端 UUID，先调用后端 API 删除数据库记录
       const backendUuid = historyToDelete.backendConversationId
       if (backendUuid) {
@@ -200,32 +203,29 @@ export const useChatStore = defineStore('chat-store', {
       // 🔥 更新会话列表缓存（删除了会话）
       updateCachedConversations(this.history)
 
+      // 🔥 如果删除的不是当前激活的会话，保持当前会话不变
+      if (!isDeletingActiveSession) {
+        if (import.meta.env.DEV) {
+          console.warn('🗑️ [ChatStore] 删除其他会话，保持当前会话不变')
+        }
+        return
+      }
+
+      // 🔥 如果删除的是当前激活的会话，导航到新建聊天
+      if (import.meta.env.DEV) {
+        console.warn('🗑️ [ChatStore] 删除当前激活的会话，导航到新建聊天')
+      }
+
+      // 如果没有会话了，导航到 /chat
       if (this.history.length === 0) {
         this.active = null
         this.reloadRoute()
         return
       }
 
-      if (index > 0 && index <= this.history.length) {
-        const uuid = this.history[index - 1].uuid
-        this.active = uuid
-        this.reloadRoute(uuid)
-        return
-      }
-
-      if (index === 0) {
-        if (this.history.length > 0) {
-          const uuid = this.history[0].uuid
-          this.active = uuid
-          this.reloadRoute(uuid)
-        }
-      }
-
-      if (index > this.history.length) {
-        const uuid = this.history[this.history.length - 1].uuid
-        this.active = uuid
-        this.reloadRoute(uuid)
-      }
+      // 如果还有其他会话，也导航到 /chat（新建聊天模式）
+      this.active = null
+      this.reloadRoute()
     },
 
     async setActive(uuid: string, skipRouteReload = false) {
@@ -931,16 +931,13 @@ export const useChatStore = defineStore('chat-store', {
           this.workflowStates.splice(workflowIndex, 1)
         }
 
-        // 如果删除的是当前会话，切换到第一个
+        // 🔥 如果删除的是当前激活的会话，导航到 /chat（新建聊天模式）
         if (this.active === uuid) {
-          if (this.history.length > 0) {
-            this.active = this.history[0].uuid
-            this.reloadRoute(this.history[0].uuid)
+          if (import.meta.env.DEV) {
+            console.warn('🗑️ [ChatStore] clearHistoryBackend: 删除当前激活的会话，导航到新建聊天')
           }
-          else {
-            this.active = null
-            this.reloadRoute()
-          }
+          this.active = null
+          this.reloadRoute()
         }
 
         // 🔥 更新偏好设置和会话列表缓存

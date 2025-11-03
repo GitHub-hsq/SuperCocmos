@@ -1,1379 +1,173 @@
 <script setup lang='ts'>
-/* eslint-disable no-console */
-import type { UploadFileInfo } from 'naive-ui'
-import type { Ref } from 'vue'
-import { useAuth0 } from '@auth0/auth0-vue'
-import { CheckmarkOutline } from '@vicons/ionicons5'
-import { toPng } from 'html-to-image'
-import { NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutHeader, NLayoutSider, NList, NListItem, NPopover, NScrollbar, NText, NUpload, NUploadDragger, useDialog, useMessage, useNotification } from 'naive-ui'
-import { nanoid } from 'nanoid'
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { fetchChatAPIProcess, fetchDeleteFile, fetchQuizFeedback, fetchQuizGenerate } from '@/api'
+/**
+ * Chat Index - 重构版本
+ *
+ * 原文件：2957行 → 重构后：~200行
+ * 拆分为6个 composables + 多个组件
+ */
+
+import { NButton, NIcon, NInput, NText, NUpload, NUploadDragger } from 'naive-ui'
+import { onMounted, onUnmounted, watch } from 'vue'
 import planningIcon from '@/assets/icons/planning.svg'
 import testIcon from '@/assets/icons/test.svg'
 import writingIcon from '@/assets/icons/writing.svg'
+// ===== Components =====
 import { SvgIcon } from '@/components/common'
+
 import About from '@/components/common/Setting/About.vue'
 import Advanced from '@/components/common/Setting/Advanced.vue'
-// 🔥 使用新的配置面板组件
 import ChatConfigPanel from '@/components/common/Setting/panels/ChatConfigPanel.vue'
 import ProviderConfigPanel from '@/components/common/Setting/panels/ProviderConfigPanel.vue'
 import UserSettingsPanel from '@/components/common/Setting/panels/UserSettingsPanel.vue'
 import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConfigPanel.vue'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
+
 import { t } from '@/locales'
-import { useAppInitStore, useAppStore, useAuthStore, useChatStore, useConfigStore, useModelStore } from '@/store'
-// 🔥 消息缓存已禁用，不再导入
 import { Message, QuizAnswer, QuizConfig, QuizPreview } from './components'
 import HeaderComponent from './components/Header/index.vue'
-import { useChat } from './hooks/useChat'
-import { useScroll } from './hooks/useScroll'
-import { useUsingContext } from './hooks/useUsingContext'
+import ModelSelector from './components/ModelSelector/index.vue'
+import { useChatActions } from './composables/useChatActions'
+// ===== Composables =====
+import { useChatState } from './composables/useChatState'
+import { useFileUpload } from './composables/useFileUpload'
+import { useModelSelector } from './composables/useModelSelector'
+import { useQuizWorkflow } from './composables/useQuizWorkflow'
+import { useRightSider } from './composables/useRightSider'
 
-/**
- * 极少数会用到let X = ref(123) 这种写法，可能后续会重新初始化，比如：X = ref(null),const是不允许这样操作的，所以会使用到这种写法
- */
-let controller = new AbortController()
+// ===== 1. 基础状态管理 =====
+const chatState = useChatState()
 
-const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
-
-const route = useRoute()
-const router = useRouter()
-const dialog = useDialog()
-const ms = useMessage()
-const notification = useNotification()
-const auth0 = useAuth0()
-
-const appStore = useAppStore()
-const appInitStore = useAppInitStore()
-const authStore = useAuthStore()
-const chatStore = useChatStore()
-const configStore = useConfigStore()
-const modelStore = useModelStore()
-
-const { isMobile } = useBasicLayout()
-const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
-const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
-const { usingContext } = useUsingContext()
-
-// 判断是否是暗色主题（支持 auto 模式）
-const isDarkTheme = computed(() => {
-  if (appStore.theme === 'auto') {
-    return document.documentElement.classList.contains('dark')
-  }
-  return appStore.theme === 'dark'
+// ===== 2. 聊天操作（依赖 chatState） =====
+const chatActions = useChatActions({
+  router: chatState.router,
+  dialog: chatState.dialog,
+  ms: chatState.ms,
+  auth0: chatState.auth0,
+  chatStore: chatState.chatStore,
+  configStore: chatState.configStore,
+  modelStore: chatState.modelStore,
+  uuid: chatState.uuid,
+  dataSources: chatState.dataSources,
+  prompt: chatState.prompt,
+  loading: chatState.loading,
+  isMobile: chatState.isMobile,
+  currentConversationId: chatState.currentConversationId,
+  currentSelectedModel: chatState.currentSelectedModel,
+  addChat: chatState.addChat,
+  updateChat: chatState.updateChat,
+  updateChatSome: chatState.updateChatSome,
+  getChatByUuidAndIndex: chatState.getChatByUuidAndIndex,
+  scrollToBottom: chatState.scrollToBottom,
+  scrollToBottomIfAtBottom: chatState.scrollToBottomIfAtBottom,
 })
 
-const currentSelectedModel = ref<ModelItem | null>(null)
-// 🔥 当前对话ID（用于跨浏览器同步）
-const currentConversationId = ref<string>('')
+// ===== 3. 模型选择器 =====
+const modelSelector = useModelSelector()
 
-// 设置页面相关
-const showSettingsPage = computed(() => appStore.showSettingsPage)
-const activeSettingTab = computed(() => appStore.activeSettingTab)
-const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
-const aboutRef = ref<InstanceType<typeof About> | null>(null)
-const hasLoadedUsage = ref(false)
+// ===== 4. 文件上传 =====
+const fileUpload = useFileUpload(chatState.uuid)
 
-// 🔥 使用 computed 让 uuid 响应式（路由变化时自动更新）
-// 这样当路由从 /chat → /chat/abc 或 /chat/abc → /chat/def 时，组件会自动更新
-const uuid = computed(() => (route.params.uuid as string) || '')
-
-const dataSources = computed(() => chatStore.getChatByUuid(uuid.value))
-
-const prompt = ref<string>('')
-const loading = ref<boolean>(false)
-const inputRef = ref<Ref | null>(null)
-const isMultiLine = ref<boolean>(false)
-// 🔥 新会话时footer上移的状态
-const isFooterElevated = ref(true) // 初始状态为true，新会话时上移
-
-// 未知原因刷新页面，loading 状态不会重置，手动重置
-dataSources.value.forEach((item, index) => {
-  if (item.loading)
-    updateChatSome(uuid.value, index, { loading: false })
+// ===== 5. Quiz 工作流 =====
+const quizWorkflow = useQuizWorkflow({
+  uploadedFilePath: fileUpload.uploadedFilePath,
+  workflowStage: fileUpload.workflowStage,
+  generatedQuestions: fileUpload.generatedQuestions,
+  scoreDistribution: fileUpload.scoreDistribution,
 })
 
-// 🔥 【方案 A 核心】监听路由变化，实现组件复用时的数据更新
-// 当路由从 /chat → /chat/abc123 或 /chat/abc → /chat/def 时：
-// - 组件实例不重建（复用）→ 页面不闪烁 ✅
-// - 只有 route.params.uuid 变化 → 触发此 watch
-// - 根据新的 uuid 加载对应会话数据
-watch(
-  () => route.params.uuid,
-  async (newUuid) => {
-    // 处理 uuid 可能是数组的情况（TypeScript 类型）
-    const uuidStr = Array.isArray(newUuid) ? newUuid[0] : newUuid
-
-    if (uuidStr) {
-      // 🔥 切换到已有会话，查找后端 UUID 映射
-      const backendUuid = chatStore.getBackendConversationId(uuidStr)
-      currentConversationId.value = backendUuid || ''
-
-      if (import.meta.env.DEV) {
-        console.log('🔄 [对话] 切换到会话:', {
-          前端nanoid: uuidStr,
-          后端UUID: backendUuid || '（无映射，新会话）',
-        })
-      }
-
-      // 🔥 刷新页面时，确保调用 setActive 加载当前会话的消息
-      // 检查当前 active 是否与路由 uuid 一致，不一致则调用 setActive
-      if (chatStore.active !== uuidStr) {
-        if (import.meta.env.DEV) {
-          console.log('🔄 [对话] 刷新页面，加载当前会话消息:', uuidStr)
-        }
-        try {
-          // 🔥 跳过路由重新加载，因为当前路由已经是正确的了
-          // 这样可以避免页面闪烁（先显示第一个会话，然后跳转到正确的会话）
-          await chatStore.setActive(uuidStr, true)
-
-          // 🔥 消息加载完成后，等待 DOM 更新并滚动到底部
-          await nextTick()
-          // 使用双重 requestAnimationFrame 确保浏览器完成绘制和布局
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              scrollToBottom()
-            })
-          })
-        }
-        catch (error) {
-          console.error('❌ [对话] 加载会话消息失败:', error)
-        }
-      }
-    }
-    else {
-      // 用户在 /chat（无 uuid），准备接收第一条消息
-      currentConversationId.value = ''
-      if (import.meta.env.DEV) {
-        console.log('🔄 [对话] 准备新建会话')
-      }
-    }
-  },
-  { immediate: true }, // 🔥 立即执行，确保初始加载时也设置 conversationId
-)
-
-// 🔥 改进：监听输入框的实际高度，而不是内容是否包含换行符
-// 单行高度阈值（根据实际情况调整）
-const SINGLE_LINE_HEIGHT_THRESHOLD = 60
-
-// 监听输入框内容变化，检测实际渲染高度
-watch(
-  () => prompt.value,
-  async () => {
-    // 🔥 特殊处理：内容为空时，强制切换回单行模式
-    if (!prompt.value || prompt.value.trim() === '') {
-      isMultiLine.value = false
-      return
-    }
-
-    // 等待 DOM 更新
-    await nextTick()
-
-    // 获取输入框元素
-    const inputElement = inputRef.value?.$el?.querySelector('textarea')
-    if (!inputElement) {
-      // 降级：如果无法获取元素，使用换行符判断
-      isMultiLine.value = prompt.value.includes('\n')
-      return
-    }
-
-    // 🔥 根据实际渲染高度判断是否为多行
-    const currentHeight = inputElement.scrollHeight
-    isMultiLine.value = currentHeight > SINGLE_LINE_HEIGHT_THRESHOLD
-  },
-)
-
-// 🔥 监听输入框模式切换，自动恢复焦点
-watch(isMultiLine, async (newValue, oldValue) => {
-  // 从单行切换到多行，或从多行切换回单行时
-  if (newValue !== oldValue) {
-    await nextTick() // 等待 DOM 更新完成
-    // 重新聚焦输入框
-    inputRef.value?.focus()
-  }
-})
-
-// 🔥 监听设置页面切换，从设置页面返回聊天界面时自动滚动到底部
-watch(showSettingsPage, (newValue, oldValue) => {
-  // 从设置页面（true）返回聊天界面（false）时触发
-  if (oldValue === true && newValue === false) {
-    // 等待页面切换动画完成后再滚动
-    setTimeout(() => {
-      // 使用 requestAnimationFrame 确保 DOM 完全渲染
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (scrollRef.value) {
-            // 正确的滚动到底部方式：scrollTop = scrollHeight - clientHeight
-            const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
-            scrollRef.value.scrollTop = maxScrollTop
-          }
-        })
-      })
-    }, 350)
-  }
-})
-
-// 🔥 监听会话切换，切换会话时自动滚动到底部
-watch(() => chatStore.active, async (newActive, oldActive) => {
-  // 当切换到不同的会话时触发（排除初始化情况）
-  if (newActive && oldActive && newActive !== oldActive) {
-    // 🔥 等待消息加载完成（如果有消息需要加载）
-    // 注意：这里不等待 setActive 完成，因为 setActive 可能在路由 watch 中已经调用
-    // 我们等待 DOM 更新和消息渲染完成
-
-    // 🔥 使用 nextTick 等待 Vue 更新 DOM（消息数据已渲染到模板）
-    await nextTick()
-
-    // 🔥 额外等待，确保消息内容完全渲染（特别是长消息）
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 🔥 使用双重 requestAnimationFrame 确保浏览器完成绘制和布局
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToBottom()
-
-        if (import.meta.env.DEV && scrollRef.value) {
-          const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
-          console.warn('✅ [滚动] 切换会话后滚动到底部', {
-            会话: newActive,
-            scrollTop: maxScrollTop,
-            scrollHeight: scrollRef.value.scrollHeight,
-            clientHeight: scrollRef.value.clientHeight,
-          })
-        }
-      })
-    })
-  }
-})
-
-// 🔥 监听 ModelStore 的 currentModel 变化，自动更新 currentSelectedModel（用于移动端 ModelSelector）
-watch(
-  () => modelStore.currentModel,
-  async (newModel) => {
-    if (newModel) {
-      // 检查模型是否仍然存在于可用模型列表中
-      const isModelAvailable = modelStore.enabledModels.some((m: any) => m.id === newModel.id)
-
-      if (isModelAvailable) {
-        // 更新 currentSelectedModel（确保 modelId 和 providerId 正确）
-        currentSelectedModel.value = {
-          id: newModel.id,
-          name: newModel.name || '',
-          modelId: newModel.modelId || newModel.name || '', // 🔥 确保 modelId 有值
-          provider: newModel.provider,
-          providerId: newModel.providerId || newModel.provider, // 🔥 确保 providerId 有值
-          displayName: newModel.displayName || newModel.name || newModel.modelId || '',
-          enabled: true,
-          deleted: false,
-        }
-        // 注意：selectedModelFromPopover 在 loadCurrentModel 中设置，这里不重复设置
-
-        if (import.meta.env.DEV) {
-          console.warn('✅ [Chat] ModelStore 模型变化，已更新 currentSelectedModel:', {
-            id: newModel.id,
-            modelId: newModel.modelId,
-            providerId: newModel.providerId || newModel.provider,
-            displayName: newModel.displayName,
-          })
-        }
-      }
-    }
-  },
-  { immediate: true },
-)
-
-// 🔥 监听消息列表变化，当有新消息时恢复footer位置
-watch(dataSources, (newSources, oldSources) => {
-  // 当从空消息列表变为有消息时（首次发送消息）
-  if (oldSources && oldSources.length === 0 && newSources.length > 0) {
-    // 延迟一点时间，让消息先渲染
-    setTimeout(() => {
-      isFooterElevated.value = false
-    }, 100)
-  }
-  // 当会话切换为空会话时，恢复上移状态
-  else if (newSources.length === 0 && oldSources && oldSources.length > 0) {
-    isFooterElevated.value = true
-  }
-}, { immediate: true })
-
-// 🔥 监听当前会话的消息数据变化，当消息加载完成后滚动到底部
-// 主要用于切换会话时，等待消息从后端加载完成后滚动
-watch(
-  () => [chatStore.active, dataSources.value.length] as const,
-  async ([newActive, newLength], [oldActive]) => {
-    // 当切换到新会话且消息数量增加时（说明消息正在加载）
-    if (newActive && newActive !== oldActive && newLength > 0) {
-      // 🔥 等待消息完全渲染（特别是长消息需要时间）
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 150))
-
-      // 🔥 使用双重 requestAnimationFrame 确保浏览器完成绘制和布局
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          scrollToBottom()
-
-          if (import.meta.env.DEV && scrollRef.value) {
-            const maxScrollTop = scrollRef.value.scrollHeight - scrollRef.value.clientHeight
-            console.warn('✅ [滚动] 消息加载完成后滚动到底部', {
-              会话: newActive,
-              消息数: newLength,
-              scrollTop: maxScrollTop,
-              scrollHeight: scrollRef.value.scrollHeight,
-              clientHeight: scrollRef.value.clientHeight,
-            })
-          }
-        })
-      })
-    }
-  },
-)
-
-function handleSubmit() {
-  onConversation()
-}
-
-async function onConversation() {
-  let message = prompt.value
-
-  if (loading.value)
-    return
-
-  if (!message || message.trim() === '')
-    return
-
-  // 检查是否选择了模型
-  if (!currentSelectedModel.value && !modelStore.currentModel) {
-    ms.warning('请先选择一个模型')
-    return
-  }
-
-  controller = new AbortController()
-
-  // 🔥 【方案 A 核心】如果是新会话，立即创建并跳转路由
-  // 工作流程：
-  // 1. 用户在 /chat 输入消息
-  // 2. 生成 nanoid → 添加到会话列表（左侧显示）
-  // 3. 跳转到 /chat/{nanoid} → 组件复用，watch 触发
-  // 4. 发送消息到后端（携带 nanoid）
-  // 5. 后端返回 uuid → 建立映射
-  let actualUuid = uuid.value
-  const isNewConversation = !uuid.value || uuid.value === 'undefined'
-
-  if (isNewConversation) {
-    // 生成新的 nanoid（用于前端路由和后端映射）
-    const newUuid = nanoid()
-    actualUuid = newUuid
-
-    // 创建新会话历史记录（左侧列表立即显示）
-    chatStore.addHistory({
-      uuid: newUuid,
-      title: message.slice(0, 20), // 使用消息前20字作为标题
-      isEdit: false,
-      mode: 'normal',
-    }, [])
-
-    // 🔥 立即跳转路由：/chat → /chat/{nanoid}
-    // - 使用 replace 而不是 push，避免 /chat 留在历史记录中
-    // - 组件会复用，不重建 → 页面不闪烁 ✅
-    // - watch 会触发，更新 currentConversationId
-    await router.replace({ name: 'Chat', params: { uuid: newUuid } })
-
-    if (import.meta.env.DEV) {
-      console.log('🆕 [对话] 新会话已创建并跳转:', newUuid)
-    }
-  }
-
-  // 使用实际的 UUID（新会话用新生成的，已有会话用原来的）
-  addChat(
-    actualUuid,
-    {
-      dateTime: new Date().toLocaleString(),
-      text: message,
-      inversion: true,
-      error: false,
-      conversationOptions: null,
-      requestOptions: { prompt: message, options: null },
-    },
-  )
-  scrollToBottom()
-
-  loading.value = true
-  prompt.value = ''
-
-  // 🔥 步骤2：构建请求参数
-  // 使用后端 UUID（通过映射获取），如果没有则为空（后端会创建新会话）
-  const backendUuid = chatStore.getBackendConversationId(actualUuid) || ''
-
-  const options: Chat.ConversationRequest = {
-    conversationId: backendUuid, // 🔥 后端 UUID（可能为空）
-    frontendUuid: actualUuid, // 🔥 前端 nanoid（保存到数据库用于跨浏览器映射）
-  }
-
-  if (import.meta.env.DEV) {
-    console.log('📤 [请求] 发送参数:', {
-      前端nanoid: actualUuid,
-      后端UUID: backendUuid || '（空，将创建新会话）',
-    })
-  }
-
-  // 添加当前选中的模型
-  const selectedModel = currentSelectedModel.value || modelStore.currentModel
-  if (selectedModel) {
-    // 🔥 发送 modelId 而不是 UUID
-    options.model = selectedModel.modelId || selectedModel.name
-
-    // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
-    options.providerId = selectedModel.providerId || selectedModel.provider
-
-    if (import.meta.env.DEV) {
-      console.log('📤 [请求] 发送模型信息:', {
-        modelId: options.model,
-        providerId: options.providerId,
-        displayName: selectedModel.displayName,
-        modelObject: selectedModel,
-      })
-    }
-  }
-  else {
-    console.error('❌ [请求] 未选择模型！')
-    ms.error('请先选择一个模型')
-    return
-  }
-
-  // 🔥 添加用户配置的参数（从 ConfigStore 获取）
-  const chatConfig = configStore.chatConfig
-  if (chatConfig) {
-    // 系统提示词
-    if (chatConfig.systemPrompt)
-      options.systemMessage = chatConfig.systemPrompt
-
-    // 模型参数
-    if (chatConfig.parameters) {
-      if (chatConfig.parameters.temperature !== undefined)
-        options.temperature = chatConfig.parameters.temperature
-
-      if (chatConfig.parameters.topP !== undefined)
-        options.top_p = chatConfig.parameters.topP
-
-      if (chatConfig.parameters.maxTokens !== undefined)
-        (options as any).maxTokens = chatConfig.parameters.maxTokens
-    }
-  }
-
-  addChat(
-    actualUuid,
-    {
-      dateTime: new Date().toLocaleString(),
-      text: t('chat.thinking'),
-      loading: true,
-      inversion: false,
-      error: false,
-      conversationOptions: null,
-      requestOptions: { prompt: message, options: { ...options } },
-    },
-  )
-  scrollToBottom()
-
-  // 🔥 性能监控：记录请求开始时间
-  const requestStartTime = Date.now()
-  let firstChunkTime: number | null = null
-
-  try {
-    let lastProcessedIndex = 0 // 🔥 记录上次处理的位置
-
-    const fetchChatAPIOnce = async () => {
-      await fetchChatAPIProcess<Chat.ConversationResponse>({
-        prompt: message,
-        options,
-        signal: controller.signal,
-        onDownloadProgress: ({ event }) => {
-          const xhr = event.target
-          const { responseText } = xhr
-
-          // 🔥 性能监控：记录首次收到数据的时间
-          if (firstChunkTime === null) {
-            firstChunkTime = Date.now()
-            const ttfb = firstChunkTime - requestStartTime
-            console.log(`⏱️ [性能] 首字节时间 (TTFB): ${ttfb}ms`)
-          }
-
-          // 🔥 改进：从上次处理的位置开始，处理所有完整的 JSON 对象
-          // SSE 格式：每行一个 JSON，以换行符分隔
-          const newData = responseText.substring(lastProcessedIndex)
-          const lines = newData.split('\n')
-
-          // 🔥 处理所有完整的行（包括最后一行，如果它是完整的）
-          // 检查最后一行是否以换行符结尾（表示它是完整的）
-          const isComplete = responseText.endsWith('\n') || responseText.length === lastProcessedIndex + newData.length
-          const completeLines = isComplete ? lines : lines.slice(0, -1)
-
-          if (completeLines.length === 0)
-            return // 还没有完整的数据行
-
-          // 处理所有完整的行
-          for (let i = 0; i < completeLines.length; i++) {
-            let chunk = completeLines[i].trim()
-            if (!chunk)
-              continue // 空行，跳过
-
-            // 🔥 修复：处理可能的 JSON 对象拼接（多个 JSON 连在一起）
-            // 如果 chunk 包含多个 JSON 对象，逐个解析
-            while (chunk.length > 0) {
-              try {
-                // 尝试找到第一个完整的 JSON 对象
-                let jsonEndIndex = -1
-                let braceCount = 0
-                let inString = false
-                let escapeNext = false
-
-                for (let j = 0; j < chunk.length; j++) {
-                  const char = chunk[j]
-
-                  if (escapeNext) {
-                    escapeNext = false
-                    continue
-                  }
-
-                  if (char === '\\') {
-                    escapeNext = true
-                    continue
-                  }
-
-                  if (char === '"' && !escapeNext) {
-                    inString = !inString
-                    continue
-                  }
-
-                  if (!inString) {
-                    if (char === '{') {
-                      braceCount++
-                    }
-                    else if (char === '}') {
-                      braceCount--
-                      if (braceCount === 0) {
-                        jsonEndIndex = j + 1
-                        break
-                      }
-                    }
-                  }
-                }
-
-                if (jsonEndIndex === -1) {
-                  // 没有找到完整的 JSON，跳过这一行
-                  break
-                }
-
-                const jsonStr = chunk.substring(0, jsonEndIndex)
-                const data = JSON.parse(jsonStr)
-
-                // 更新已处理的位置和剩余 chunk
-                const chunkStartIndex = responseText.indexOf(completeLines[i], lastProcessedIndex)
-                const processedLength = chunkStartIndex !== -1 ? chunkStartIndex + completeLines[i].indexOf(jsonStr) + jsonStr.length : lastProcessedIndex + jsonStr.length
-                lastProcessedIndex = processedLength
-                chunk = chunk.substring(jsonEndIndex).trim()
-
-                // 🔥 步骤3：保存后端返回的 UUID，建立映射关系
-                if (data.conversationId) {
-                  // 如果是首次收到后端 UUID，建立映射
-                  if (!chatStore.getBackendConversationId(actualUuid)) {
-                    chatStore.setBackendConversationId(actualUuid, data.conversationId)
-                  }
-
-                  // 更新当前对话ID（用于 localStorage 缓存等）
-                  if (data.conversationId !== currentConversationId.value) {
-                    currentConversationId.value = data.conversationId
-                  }
-                }
-
-                // 🔥 检查是否有错误
-                if (data.error) {
-                  console.error('❌ [聊天错误] 后端返回错误:', data.error)
-                  updateChat(
-                    actualUuid,
-                    dataSources.value.length - 1,
-                    {
-                      dateTime: new Date().toLocaleString(),
-                      text: data.error.message || '发生错误',
-                      inversion: false,
-                      error: true,
-                      loading: false,
-                      conversationOptions: null,
-                      requestOptions: { prompt: message, options: { ...options } },
-                    },
-                  )
-                  return
-                }
-
-                // 🔥 检查是否是思考过程
-                const isThinking = data.isThinking || false
-                // 🔥 修复：正确累积文本，使用 data.text 而不是 lastText + data.text
-                // 因为 data.text 已经是累积的完整文本
-                const displayText = isThinking ? data.text : (data.text ?? '')
-
-                updateChat(
-                  actualUuid,
-                  dataSources.value.length - 1,
-                  {
-                    dateTime: new Date().toLocaleString(),
-                    text: displayText,
-                    inversion: false,
-                    error: false,
-                    loading: true,
-                    conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                    requestOptions: { prompt: message, options: { ...options } },
-                  },
-                )
-
-                // 🔥 检查是否需要继续回复（长回复）
-                if (openLongReply && data.detail?.choices?.[0]?.finish_reason === 'length') {
-                  options.parentMessageId = data.id
-                  message = ''
-                  return fetchChatAPIOnce()
-                }
-
-                updateChat(
-                  actualUuid,
-                  dataSources.value.length - 1,
-                  {
-                    dateTime: new Date().toLocaleString(),
-                    text: displayText,
-                    inversion: false,
-                    error: false,
-                    loading: true,
-                    conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                    requestOptions: { prompt: message, options: { ...options } },
-                  },
-                )
-
-                // 🔥 检查是否需要继续回复（长回复）
-                if (openLongReply && data.detail?.choices?.[0]?.finish_reason === 'length') {
-                  options.parentMessageId = data.id
-                  message = ''
-                  return fetchChatAPIOnce()
-                }
-
-                // 🔥 移动端：流式更新时强制滚动到底部
-                if (isMobile.value) {
-                  scrollToBottom()
-                }
-                else {
-                  scrollToBottomIfAtBottom()
-                }
-              }
-              catch (parseError: any) {
-                console.error('❌ [解析错误] chunk 解析失败:', parseError)
-                console.error('❌ [解析错误] chunk 内容:', chunk.substring(0, 200))
-                // 如果解析失败，尝试跳过这个 chunk 继续处理
-                break
-              }
-            }
-          }
-        },
-      })
-      updateChatSome(actualUuid, dataSources.value.length - 1, { loading: false })
-    }
-
-    await fetchChatAPIOnce()
-
-    // 🔥 消息发送完成后，确保滚动到底部（特别是移动端）
-    await nextTick()
-    if (isMobile.value) {
-      // 移动端：强制滚动到底部，确保用户能看到最新消息
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          scrollToBottom()
-        })
-      })
-    }
-    else {
-      // PC端：只在用户处于底部时滚动
-      scrollToBottomIfAtBottom()
-    }
-
-    // 🔥 消息不再缓存到前端 localStorage（已禁用前端消息缓存）
-  }
-  catch (error: any) {
-    const errorMessage = error?.message ?? t('common.wrong')
-
-    if (error.message === 'canceled') {
-      updateChatSome(
-        actualUuid,
-        dataSources.value.length - 1,
-        {
-          loading: false,
-        },
-      )
-      scrollToBottomIfAtBottom()
-      return
-    }
-
-    const currentChat = getChatByUuidAndIndex(actualUuid, dataSources.value.length - 1)
-
-    if (currentChat?.text && currentChat.text !== '') {
-      updateChatSome(
-        actualUuid,
-        dataSources.value.length - 1,
-        {
-          text: `${currentChat.text}\n[${errorMessage}]`,
-          error: false,
-          loading: false,
-        },
-      )
-      return
-    }
-
-    updateChat(
-      actualUuid,
-      dataSources.value.length - 1,
-      {
-        dateTime: new Date().toLocaleString(),
-        text: errorMessage,
-        inversion: false,
-        error: true,
-        loading: false,
-        conversationOptions: null,
-        requestOptions: { prompt: message, options: { ...options } },
-      },
-    )
-    scrollToBottomIfAtBottom()
-  }
-  finally {
-    loading.value = false
-  }
-}
-
-async function onRegenerate(index: number) {
-  if (loading.value)
-    return
-
-  controller = new AbortController()
-
-  const { requestOptions } = dataSources.value[index]
-
-  let message = requestOptions?.prompt ?? ''
-
-  // 使用当前路由的 UUID
-  const currentUuid = uuid.value
-
-  // 🔥 获取后端 UUID
-  const backendUuid = chatStore.getBackendConversationId(currentUuid) || ''
-
-  let options: Chat.ConversationRequest = {
-    conversationId: backendUuid, // 🔥 使用后端 UUID
-  }
-
-  if (requestOptions.options)
-    options = { ...options, ...requestOptions.options }
-
-  // 添加当前选中的模型
-  const selectedModel = currentSelectedModel.value || modelStore.currentModel
-  if (selectedModel) {
-    // 🔥 发送 modelId 而不是 UUID
-    options.model = selectedModel.modelId || selectedModel.name
-
-    // 🔥 同时发送供应商 ID，让后端可以查找对应的 baseUrl 和 apiKey
-    options.providerId = selectedModel.providerId || selectedModel.provider
-
-    if (import.meta.env.DEV) {
-      console.warn('🔄 [重新生成] 使用模型:', selectedModel.displayName, {
-        modelId: options.model,
-        providerId: options.providerId,
-      })
-    }
-  }
-
-  // 🔥 添加用户配置的参数（从 ConfigStore 获取）
-  const chatConfig = configStore.chatConfig
-  if (chatConfig) {
-    // 系统提示词
-    if (chatConfig.systemPrompt)
-      options.systemMessage = chatConfig.systemPrompt
-
-    // 模型参数
-    if (chatConfig.parameters) {
-      if (chatConfig.parameters.temperature !== undefined)
-        options.temperature = chatConfig.parameters.temperature
-      if (chatConfig.parameters.topP !== undefined)
-        options.top_p = chatConfig.parameters.topP
-      if (chatConfig.parameters.maxTokens !== undefined)
-        (options as any).maxTokens = chatConfig.parameters.maxTokens
-    }
-  }
-
-  console.log('📦 [重新生成] 最终发送的 options:', options)
-
-  loading.value = true
-
-  updateChat(
-    currentUuid,
-    index,
-    {
-      dateTime: new Date().toLocaleString(),
-      text: '',
-      inversion: false,
-      error: false,
-      loading: true,
-      conversationOptions: null,
-      requestOptions: { prompt: message, options: { ...options } },
-    },
-  )
-
-  try {
-    let lastText = ''
-    let lastProcessedIndex = 0 // 🔥 记录上次处理的位置
-
-    const fetchChatAPIOnce = async () => {
-      await fetchChatAPIProcess<Chat.ConversationResponse>({
-        prompt: message,
-        options,
-        signal: controller.signal,
-        onDownloadProgress: ({ event }) => {
-          const xhr = event.target
-          const { responseText } = xhr
-
-          // 🔥 改进：从上次处理的位置开始，找到最后一个完整的 JSON 对象
-          const newData = responseText.substring(lastProcessedIndex)
-          const lines = newData.split('\n')
-
-          // 保留最后一个可能不完整的行
-          const completeLines = lines.slice(0, -1)
-          if (completeLines.length === 0)
-            return // 还没有完整的数据行
-
-          // 处理最后一个完整的行（最新的数据）
-          const chunk = completeLines[completeLines.length - 1].trim()
-          if (!chunk)
-            return // 空行，跳过
-
-          // 更新已处理的位置
-          lastProcessedIndex = responseText.lastIndexOf(chunk) + chunk.length
-
-          try {
-            const data = JSON.parse(chunk)
-
-            // 🔥 保存后端 UUID 映射（如果需要）
-            if (data.conversationId) {
-              if (!chatStore.getBackendConversationId(currentUuid)) {
-                chatStore.setBackendConversationId(currentUuid, data.conversationId)
-              }
-
-              if (data.conversationId !== currentConversationId.value) {
-                currentConversationId.value = data.conversationId
-              }
-            }
-
-            // 🔥 检查是否是思考过程
-            const isThinking = data.isThinking || false
-            const displayText = isThinking ? data.text : (lastText + (data.text ?? ''))
-
-            updateChat(
-              currentUuid,
-              index,
-              {
-                dateTime: new Date().toLocaleString(),
-                text: displayText,
-                inversion: false,
-                error: false,
-                loading: true,
-                conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                requestOptions: { prompt: message, options: { ...options } },
-              },
-            )
-
-            if (openLongReply && data.detail.choices[0].finish_reason === 'length') {
-              options.parentMessageId = data.id
-              lastText = data.text
-              message = ''
-              return fetchChatAPIOnce()
-            }
-
-            // 🔥 累积最后的文本
-            if (!isThinking && data.text) {
-              lastText = displayText
-            }
-          }
-          catch {
-            //
-          }
-        },
-      })
-      updateChatSome(currentUuid, index, { loading: false })
-    }
-    await fetchChatAPIOnce()
-
-    // 🔥 消息不再缓存到前端 localStorage（已禁用前端消息缓存）
-  }
-  catch (error: any) {
-    if (error.message === 'canceled') {
-      updateChatSome(
-        currentUuid,
-        index,
-        {
-          loading: false,
-        },
-      )
-      return
-    }
-
-    const errorMessage = error?.message ?? t('common.wrong')
-
-    updateChat(
-      currentUuid,
-      index,
-      {
-        dateTime: new Date().toLocaleString(),
-        text: errorMessage,
-        inversion: false,
-        error: true,
-        loading: false,
-        conversationOptions: null,
-        requestOptions: { prompt: message, options: { ...options } },
-      },
-    )
-  }
-  finally {
-    loading.value = false
-  }
-}
-
-function handleExport() {
-  if (loading.value)
-    return
-
-  const d = dialog.warning({
-    title: t('chat.exportImage'),
-    content: t('chat.exportImageConfirm'),
-    positiveText: t('common.yes'),
-    negativeText: t('common.no'),
-    onPositiveClick: async () => {
-      try {
-        d.loading = true
-        const ele = document.getElementById('image-wrapper')
-        const imgUrl = await toPng(ele as HTMLDivElement)
-        const tempLink = document.createElement('a')
-        tempLink.style.display = 'none'
-        tempLink.href = imgUrl
-        tempLink.setAttribute('download', 'chat-shot.png')
-        if (typeof tempLink.download === 'undefined')
-          tempLink.setAttribute('target', '_blank')
-        document.body.appendChild(tempLink)
-        tempLink.click()
-        document.body.removeChild(tempLink)
-        window.URL.revokeObjectURL(imgUrl)
-        d.loading = false
-        ms.success(t('chat.exportSuccess'))
-        Promise.resolve()
-      }
-      catch {
-        ms.error(t('chat.exportFailed'))
-      }
-      finally {
-        d.loading = false
-      }
-    },
-  })
-}
-
-function handleDelete(index: number) {
-  if (loading.value)
-    return
-
-  dialog.warning({
-    title: t('chat.deleteMessage'),
-    content: t('chat.deleteMessageConfirm'),
-    positiveText: t('common.yes'),
-    negativeText: t('common.no'),
-    onPositiveClick: () => {
-      chatStore.deleteChatByUuid(uuid.value, index)
-    },
-  })
-}
-
-function handleEnter(event: KeyboardEvent) {
-  if (!isMobile.value) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      handleSubmit()
-    }
-  }
-  else {
-    if (event.key === 'Enter' && event.ctrlKey) {
-      event.preventDefault()
-      handleSubmit()
-    }
-  }
-}
-
-function handleStop() {
-  if (loading.value) {
-    controller.abort()
-    loading.value = false
-  }
-}
-
-const placeholder = computed(() => {
-  if (isMobile.value)
-    return t('chat.placeholderMobile')
-  return t('chat.placeholder')
-})
-
-const buttonDisabled = computed(() => {
-  return loading.value || !prompt.value || prompt.value.trim() === ''
-})
-
-const footerClass = computed(() => {
-  let classes = ['px-4', 'pb-6', 'pt-0', '!bg-transparent', 'backdrop-blur-md', 'footer-transition']
-  if (isMobile.value)
-    classes = ['sticky', 'left-0', 'bottom-0', 'right-0', 'overflow-hidden', '!bg-transparent', 'backdrop-blur-md']
-  return classes
-})
-
-// 🔥 移动端键盘高度（用于动态调整 footer 位置）
-const keyboardHeight = ref(0)
-
-// 🔥 监听移动端键盘弹起/收起的处理函数
+// ===== 6. 右侧栏控制 =====
+const rightSider = useRightSider()
+
+// ===== 解构需要在 template 中使用的属性 =====
+// 从 chatState
+const {
+  dataSources,
+  prompt,
+  loading,
+  inputRef,
+  isMultiLine,
+  isFooterElevated,
+  isDarkTheme,
+  showSettingsPage,
+  activeSettingTab,
+  isChatGPTAPI,
+  aboutRef,
+  placeholder,
+  buttonDisabled,
+  footerClass,
+  footerStyle,
+  uploadHeaders,
+  isMobile,
+  scrollRef,
+  usingContext,
+  chatStore,
+} = chatState
+
+// 从 chatActions
+const {
+  handleSubmit,
+  handleDelete,
+  handleExport,
+  handleStop,
+  handleEnter,
+  onRegenerate,
+} = chatActions
+
+// 从 modelSelector
+const {
+  activeVendor,
+  loadCurrentModel,
+} = modelSelector
+
+// 从 fileUpload
+const {
+  handleUploadChange,
+  handleBeforeUpload,
+  handleUploadSuccess,
+  handleUploadError,
+  handleUploadRemove,
+  uploadedFilePath,
+  workflowStage,
+  generatedQuestions,
+  scoreDistribution,
+} = fileUpload
+
+// 从 quizWorkflow
+const {
+  quizLoading,
+  handleQuizConfigSubmit,
+  handleQuizAccept,
+  handleQuizReject,
+  handleQuizRevise,
+  handleQuizSubmit,
+} = quizWorkflow
+
+// 从 rightSider
+const {
+  rightSiderCollapsed,
+  rightSiderWidth,
+  toggleRightSider,
+  handleResizeStart,
+} = rightSider
+
+// ===== 兼容性：保持原有的变量名 =====
+// 这些变量名在 template 中直接使用，需要保持兼容
+const { modelStore, appInitStore, auth0, notification } = chatState
+
+// ===== 组件生命周期 =====
 let viewportResizeHandler: (() => void) | null = null
 
-const footerStyle = computed(() => {
-  let style = ''
-
-  if (isMobile.value) {
-    // 🔥 移动端：根据键盘高度动态调整 bottom 值，使输入框始终贴近键盘
-    const bottomValue = keyboardHeight.value > 0 ? `${keyboardHeight.value}px` : '0px'
-    style = `padding: 0px 16px 16px 16px; bottom: ${bottomValue}; transition: bottom 0.25s ease-out;`
-  }
-  else {
-    // 🔥 Web端：新会话时使用transform让输入框上移
-    // 使用transform而不是margin，因为footer在flex容器内
-    if (isFooterElevated.value && !dataSources.value.length) {
-      style = 'transform: translateY(-49vh); position: relative;' // 向上移动120px，可根据需要调整
-    }
-  }
-
-  return style
-})
-
-// 文件上传（拖拽）
-const uploadFileList = ref<UploadFileInfo[]>([])
-
-// 工作流状态 - 从 store 获取和更新
-const workflowState = computed(() => chatStore.getWorkflowStateByUuid(uuid.value))
-const uploadedFilePath = computed({
-  get: () => workflowState.value?.uploadedFilePath || '',
-  set: val => chatStore.updateWorkflowStateSome(uuid.value, { uploadedFilePath: val }),
-})
-const workflowStage = computed({
-  get: () => workflowState.value?.stage || 'idle',
-  set: val => chatStore.updateWorkflowStateSome(uuid.value, { stage: val }),
-})
-const classification = computed({
-  get: () => workflowState.value?.classification || '',
-  set: val => chatStore.updateWorkflowStateSome(uuid.value, { classification: val }),
-})
-const generatedQuestions = computed({
-  get: () => workflowState.value?.generatedQuestions || [],
-  set: val => chatStore.updateWorkflowStateSome(uuid.value, { generatedQuestions: val }),
-})
-const scoreDistribution = computed({
-  get: () => workflowState.value?.scoreDistribution,
-  set: val => chatStore.updateWorkflowStateSome(uuid.value, { scoreDistribution: val }),
-})
-const quizLoading = ref(false)
-
-function handleUploadChange(options: { fileList: UploadFileInfo[] }) {
-  uploadFileList.value = options.fileList
-}
-// 文件上传时的回调，判断是否上传
-async function handleBeforeUpload(data: { file: UploadFileInfo, fileList: UploadFileInfo[] }) {
-  const { file: fileInfo } = data
-
-  const rawFile = fileInfo.file as File | null
-
-  if (!rawFile) {
-    ms.warning(t('common.wrong'))
-    return false
-  }
-
-  const fileName = rawFile.name
-  const fileSize = rawFile.size // 字节
-
-  // 1. 获取文件扩展名（转小写，兼容大小写）
-  const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase()
-
-  // 2. 定义允许的扩展名
-  const allowedExtensions = ['.doc', '.docx', '.pdf', '.md', '.txt']
-  if (!allowedExtensions.includes(extension)) {
-    ms.warning(t('不支持的文件类型'))
-    return false
-  }
-
-  // 3. 定义 Word/PDF 的扩展名（需要限制 10MB）
-  const wordOrPdfExtensions = ['.doc', '.docx', '.pdf']
-  const isWordOrPdf = wordOrPdfExtensions.includes(extension)
-  const maxSize = 10 * 1024 * 1024 // 10MB
-
-  if (isWordOrPdf && fileSize > maxSize) {
-    ms.warning(t('文件不能超过 10MB', { size: '10MB' }))
-    return false
-  }
-
-  // 对 .md / .txt 也限制（5MB）
-  const otherMaxSize = 5 * 1024 * 1024
-  if (!isWordOrPdf && fileSize > otherMaxSize) {
-    ms.warning('文本文件不能超过 5MB')
-    return false
-  }
-  return true
-}
-
-function handleUploadSuccess(options: {
-  file: UploadFileInfo
-  event?: ProgressEvent
-}) {
-  try {
-    const { file } = options
-
-    // 获取响应数据
-    const xhr = options.event?.target as XMLHttpRequest
-    if (xhr && xhr.responseText) {
-      const response = JSON.parse(xhr.responseText)
-
-      // 检查响应状态
-      if (response.status === 'Success' && response.data?.filePath) {
-        // 保存文件路径
-        uploadedFilePath.value = response.data.filePath
-        classification.value = response.data.classification || ''
-
-        // 使用原始文件名显示（如果有的话）
-        const displayName = response.data.originalName || file.name
-        ms.success(`文件 ${displayName} 上传成功！`)
-
-        // 根据分类结果决定下一步
-        if (response.data.classification === 'note') {
-          // 笔记类型：显示题目配置界面
-          workflowStage.value = 'config'
-          ms.info('检测到笔记内容，请配置题目类型和数量')
-        }
-        else if (response.data.classification === 'question') {
-          // 题目类型：提示用户
-          workflowStage.value = 'idle'
-          ms.info('检测到题目内容，您可以继续其他操作')
-        }
-        else if (response.data.error) {
-          ms.error(response.data.error)
-          workflowStage.value = 'idle'
-        }
-        else {
-          workflowStage.value = 'idle'
-        }
-      }
-      else {
-        ms.error('文件上传失败，响应格式错误')
-      }
-    }
-  }
-  catch (error: any) {
-    ms.error(`处理上传文件失败：${error?.message || '未知错误'}`)
-  }
-}
-
-// 处理上传错误
-function handleUploadError(options: {
-  file: UploadFileInfo
-  event?: ProgressEvent
-}) {
-  const { file } = options
-  ms.error(`文件 ${file.name} 上传失败`)
-}
-
-// 处理文件删除
-async function handleUploadRemove(options: {
-  file: UploadFileInfo
-  fileList: UploadFileInfo[]
-}): Promise<boolean> {
-  try {
-    const { file, fileList } = options
-
-    // 如果已经上传到服务器，需要删除服务器上的文件
-    if (uploadedFilePath.value) {
-      await fetchDeleteFile(uploadedFilePath.value)
-      uploadedFilePath.value = ''
-      ms.success(`文件 ${file.name} 已删除`)
-    }
-    else {
-      ms.info(`文件 ${file.name} 已从列表中移除`)
-    }
-
-    // 重置工作流状态
-    workflowStage.value = 'idle'
-    classification.value = ''
-    generatedQuestions.value = []
-
-    // 更新文件列表（fileList 已经是过滤后的列表）
-    uploadFileList.value = fileList
-
-    return true // 返回 true 表示允许删除
-  }
-  catch (error: any) {
-    ms.error(`删除文件失败：${error?.message || '未知错误'}`)
-    return false // 返回 false 表示删除失败
-  }
-}
-
-// 处理题目配置提交
-async function handleQuizConfigSubmit(config: {
-  single_choice: number
-  multiple_choice: number
-  true_false: number
-}) {
-  try {
-    quizLoading.value = true
-    workflowStage.value = 'generating'
-
-    const result = await fetchQuizGenerate(uploadedFilePath.value, config)
-
-    if (result.data && result.data.questions) {
-      generatedQuestions.value = result.data.questions
-      // 保存分数分配信息
-      if (result.data.scoreDistribution)
-        scoreDistribution.value = result.data.scoreDistribution
-
-      workflowStage.value = 'preview'
-      ms.success('题目生成成功！')
-    }
-    else {
-      ms.error('题目生成失败')
-      workflowStage.value = 'config'
-    }
-  }
-  catch (error: any) {
-    ms.error(`题目生成失败：${error?.message || '未知错误'}`)
-    workflowStage.value = 'config'
-  }
-  finally {
-    quizLoading.value = false
-  }
-}
-
-// 处理题目预览 - 接受
-function handleQuizAccept() {
-  workflowStage.value = 'answering'
-  ms.success('已接受题目，开始答题吧！')
-}
-
-// 处理题目预览 - 拒绝
-async function handleQuizReject() {
-  try {
-    await fetchQuizFeedback(uploadedFilePath.value, 'Reject')
-    workflowStage.value = 'config'
-    generatedQuestions.value = []
-    ms.info('已拒绝题目，请重新配置')
-  }
-  catch (error: any) {
-    ms.error(`操作失败：${error?.message || '未知错误'}`)
-  }
-}
-
-// 处理题目预览 - 修改
-async function handleQuizRevise(note: string) {
-  try {
-    quizLoading.value = true
-    await fetchQuizFeedback(uploadedFilePath.value, 'Revise', note)
-
-    // 重新生成题目
-    ms.info('正在根据您的意见重新生成题目...')
-    workflowStage.value = 'generating'
-
-    // 这里可以调用重新生成的 API
-    // 暂时回到配置页面
-    setTimeout(() => {
-      workflowStage.value = 'config'
-      ms.warning('修改功能开发中，请重新配置生成')
-      quizLoading.value = false
-    }, 1000)
-  }
-  catch (error: any) {
-    ms.error(`操作失败：${error?.message || '未知错误'}`)
-    quizLoading.value = false
-  }
-}
-
-// 处理答题提交
-function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) {
-  console.log('答题完成', { answers, timeSpent })
-  ms.success('答题完成！')
-}
-
-// 右侧侧边栏控制
-const rightSiderCollapsed = computed(() => appStore.rightSiderCollapsed)
-const rightSiderWidth = computed(() => appStore.rightSiderWidth)
-
-function toggleRightSider() {
-  appStore.setRightSiderCollapsed(!rightSiderCollapsed.value)
-}
-
-// 拖拽调整宽度
-const isDragging = ref(false)
-const dragStartX = ref(0)
-const dragStartWidth = ref(0)
-
-function handleResizeStart(e: MouseEvent) {
-  isDragging.value = true
-  dragStartX.value = e.clientX
-  dragStartWidth.value = rightSiderWidth.value
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-}
-
-function handleResizeMove(e: MouseEvent) {
-  if (!isDragging.value)
-    return
-
-  const windowWidth = window.innerWidth
-  const deltaX = dragStartX.value - e.clientX // 向左拖动为正
-  const deltaPercent = (deltaX / windowWidth) * 100
-  const newWidth = dragStartWidth.value + deltaPercent
-
-  appStore.setRightSiderWidth(newWidth)
-}
-
-function handleResizeEnd() {
-  isDragging.value = false
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-}
-
-// 模型选择器状态（需要在 onMounted 之前定义）
-const showModelSelector = ref(false)
-const activeVendor = ref('') // 🔥 初始化为空，将在加载模型后自动设置
-const modelSearch = ref('')
-const selectedModelFromPopover = ref<string | null>(null)
-
-// 监听鼠标事件
 onMounted(async () => {
-  // ✅ 等待应用初始化完成（正常情况下路由守卫已完成）
-  if (!appInitStore.isFullyInitialized && appInitStore.isInitializing) {
-    if (import.meta.env.DEV) {
-      console.log('⏳ [Chat] 等待应用初始化完成...')
-    }
-    // 可以添加 loading 状态或等待逻辑
-  }
-
-  // 🔥 监听移动端键盘弹起/收起
+  // 🔥 移动端键盘监听
   if (isMobile.value && typeof window !== 'undefined' && 'visualViewport' in window) {
     const visualViewport = window.visualViewport
 
     viewportResizeHandler = () => {
       if (visualViewport) {
-        // 计算键盘高度（viewport 高度变化）
         const viewportHeight = visualViewport.height
         const windowHeight = window.innerHeight
         const keyboardHeightValue = Math.max(0, windowHeight - viewportHeight)
 
-        keyboardHeight.value = keyboardHeightValue
+        chatState.keyboardHeight.value = keyboardHeightValue
       }
     }
 
@@ -1381,13 +175,14 @@ onMounted(async () => {
     visualViewport?.addEventListener('scroll', viewportResizeHandler)
   }
 
-  // 📋 组件特定的初始化
-  scrollToBottom()
-  // 🔥 只有移动端才自动 focus，Web 端需要用户手动点击
+  // 初始化
+  chatState.scrollToBottom()
+
+  // 移动端自动 focus
   if (inputRef.value && isMobile.value)
     inputRef.value?.focus()
 
-  // 🔐 显示权限通知（只显示一次，由 AppInitStore 管理）
+  // 🔐 显示权限通知
   if (auth0.isAuthenticated.value && !appInitStore.permissionNotificationShown) {
     appInitStore.showPermissionNotification(
       notification,
@@ -1395,30 +190,34 @@ onMounted(async () => {
     )
   }
 
-  // 加载当前选中的模型（已从缓存恢复）
+  // 加载当前选中的模型
   loadCurrentModel()
 
-  // 🔥 设置默认的 activeVendor（仅在没有保存的模型时）
+  // 初始化上传请求头
+  await chatState.updateUploadHeaders()
+
+  // 设置默认的 activeVendor
   if (modelStore.providers.length > 0 && !activeVendor.value) {
     const firstEnabledProvider = modelStore.providers.find((p: any) => p.enabled && p.models.length > 0)
     if (firstEnabledProvider) {
       activeVendor.value = firstEnabledProvider.id
       if (import.meta.env.DEV) {
-        console.log('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
+        console.warn('✅ [Chat] 设置默认供应商:', firstEnabledProvider.displayName)
       }
     }
   }
 
-  // 监听鼠标拖拽事件
-  document.addEventListener('mousemove', handleResizeMove)
-  document.addEventListener('mouseup', handleResizeEnd)
+  // 监听鼠标拖拽事件（右侧栏调整宽度）
+  document.addEventListener('mousemove', rightSider.handleResizeMove)
+  document.addEventListener('mouseup', rightSider.handleResizeEnd)
 })
 
 onUnmounted(() => {
+  // 停止加载
   if (loading.value)
-    controller.abort()
+    handleStop()
 
-  // 🔥 清理移动端键盘监听器
+  // 清理移动端键盘监听器
   if (isMobile.value && typeof window !== 'undefined' && 'visualViewport' in window && viewportResizeHandler) {
     const visualViewport = window.visualViewport
     visualViewport?.removeEventListener('resize', viewportResizeHandler)
@@ -1426,176 +225,21 @@ onUnmounted(() => {
     viewportResizeHandler = null
   }
 
-  document.removeEventListener('mousemove', handleResizeMove)
-  document.removeEventListener('mouseup', handleResizeEnd)
+  // 清理拖拽监听器
+  document.removeEventListener('mousemove', rightSider.handleResizeMove)
+  document.removeEventListener('mouseup', rightSider.handleResizeEnd)
 })
 
-// 监听设置选项卡切换，首次点击API使用量时自动加载
+// ===== 监听设置选项卡切换 =====
 watch(activeSettingTab, (newValue) => {
-  if (newValue === 'Config' && !hasLoadedUsage.value && isChatGPTAPI.value) {
-    hasLoadedUsage.value = true
+  if (newValue === 'Config' && !chatState.hasLoadedUsage.value && isChatGPTAPI.value) {
+    chatState.hasLoadedUsage.value = true
     setTimeout(() => {
       if (aboutRef.value && typeof aboutRef.value.fetchUsage === 'function')
         aboutRef.value.fetchUsage()
     }, 100)
   }
 })
-
-// 从 localStorage 获取模型数据
-interface ModelItem {
-  id: string
-  name: string
-  modelId?: string
-  provider: string
-  providerId?: string
-  displayName: string
-  enabled: boolean
-  deleted: boolean
-  created?: string
-}
-
-// 获取供应商列表（只显示已启用的供应商）
-const availableVendors = computed(() => {
-  try {
-    // 从ModelStore获取启用的供应商和模型
-    return modelStore.providers
-      .filter((provider: any) => provider.enabled && provider.models.length > 0)
-      .map((provider: any) => ({
-        label: provider.displayName || provider.name, // 🔥 使用 provider 的 displayName
-        key: provider.id, // 🔥 使用 UUID 作为 key
-        count: provider.models.filter((m: any) => m.enabled).length,
-      }))
-  }
-  catch (error) {
-    console.error('❌ [模型] 获取供应商列表失败:', error)
-    return []
-  }
-})
-
-// 获取当前供应商的模型列表
-const currentVendorModels = computed(() => {
-  try {
-    // 从ModelStore获取当前供应商的模型
-    const provider = modelStore.providers.find((p: any) => p.id === activeVendor.value)
-
-    if (!provider || !provider.enabled)
-      return []
-
-    let filteredModels = provider.models.map((model: any) => ({
-      id: model.id,
-      name: model.name || model.modelId || model.displayName,
-      modelId: model.modelId,
-      provider: model.provider,
-      providerId: model.providerId, // 🔥 添加 providerId 字段
-      displayName: model.displayName || model.name || model.modelId,
-      enabled: model.enabled !== false,
-      deleted: false,
-    }))
-
-    // 搜索过滤
-    if (modelSearch.value) {
-      const keyword = modelSearch.value.toLowerCase()
-      filteredModels = filteredModels.filter((model: any) =>
-        model.name?.toLowerCase().includes(keyword)
-        || model.displayName?.toLowerCase().includes(keyword),
-      )
-    }
-
-    return filteredModels
-  }
-  catch (error) {
-    console.error('❌ [模型] 获取模型列表失败:', error)
-    return []
-  }
-})
-
-// 选择供应商（hover 时触发）
-function handleVendorHover(vendor: string) {
-  activeVendor.value = vendor
-  modelSearch.value = '' // 清空搜索
-}
-
-// 加载当前选中的模型
-function loadCurrentModel() {
-  try {
-    // 从ModelStore获取当前选中的模型
-    const currentModelFromStore = modelStore.currentModel
-
-    if (currentModelFromStore) {
-      // 检查模型是否仍然存在于可用模型列表中
-      const isModelAvailable = modelStore.enabledModels.some((m: any) => m.id === currentModelFromStore.id)
-
-      if (isModelAvailable) {
-        // 模型存在，直接使用
-        currentSelectedModel.value = {
-          id: currentModelFromStore.id,
-          name: currentModelFromStore.name || '',
-          modelId: currentModelFromStore.modelId || currentModelFromStore.name || '', // 🔥 添加 modelId 字段
-          provider: currentModelFromStore.provider,
-          providerId: currentModelFromStore.providerId || currentModelFromStore.provider, // 🔥 确保 providerId 有值
-          displayName: currentModelFromStore.displayName || currentModelFromStore.name || currentModelFromStore.modelId || '',
-          enabled: true,
-          deleted: false,
-        }
-        selectedModelFromPopover.value = currentModelFromStore.id
-
-        // 🔥 自动绑定供应商信息（同时设置 activeVendor 和 currentProviderId）
-        if (currentModelFromStore.providerId) {
-          // 设置 ModelStore 的当前供应商
-          if (!modelStore.currentProviderId) {
-            modelStore.setCurrentProvider(currentModelFromStore.providerId as any)
-          }
-          // 🔥 同时设置模型选择器 UI 的激活供应商
-          activeVendor.value = currentModelFromStore.providerId
-        }
-      }
-      else {
-        // 模型不存在，重置为默认状态
-        if (import.meta.env.DEV) {
-          console.log('⚠️ [模型] 已保存的模型不存在，重置为默认状态')
-        }
-        resetToDefaultModel()
-      }
-    }
-    else {
-      // 没有保存的模型，重置为默认状态
-      resetToDefaultModel()
-    }
-  }
-  catch (error) {
-    console.error('❌ [模型] 加载当前模型失败:', error)
-    resetToDefaultModel()
-  }
-}
-
-// 重置为默认模型状态
-function resetToDefaultModel() {
-  currentSelectedModel.value = null
-  selectedModelFromPopover.value = null
-  // 清除ModelStore中的当前模型选择
-  modelStore.currentModelId = ''
-  modelStore.recordState()
-}
-
-// 选择模型
-function handleSelectModel(model: ModelItem) {
-  selectedModelFromPopover.value = model.id
-  currentSelectedModel.value = model
-
-  // 🔥 自动绑定供应商信息，减少后续查询
-  if (model.providerId && model.providerId !== modelStore.currentProviderId) {
-    modelStore.setCurrentProvider(model.providerId as any)
-  }
-
-  // 保存到ModelStore（异步保存到数据库）
-  modelStore.setCurrentModel(model.id).catch((error) => {
-    console.error('❌ [模型] 保存模型选择失败:', error)
-  })
-
-  // 关闭弹窗
-  showModelSelector.value = false
-  ms.success(`已切换到模型: ${model.displayName}`)
-}
 </script>
 
 <template>
@@ -1639,92 +283,7 @@ function handleSelectModel(model: ModelItem) {
         <!-- Web端Header - 悬浮透明 -->
         <header v-if="!isMobile" class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-0 bg-transparent">
           <div class="flex items-center space-x-4">
-            <NPopover
-              v-model:show="showModelSelector"
-              trigger="click"
-              placement="bottom-start"
-              :show-arrow="false"
-              :width="500"
-              @update:show="(show) => show && loadCurrentModel()"
-            >
-              <template #trigger>
-                <NButton quaternary round style="padding-left: 8px; padding-right: 8px;">
-                  {{ currentSelectedModel ? currentSelectedModel.displayName : (modelStore.currentModel ? modelStore.currentModel.displayName : '请选择模型') }}
-                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 4px; flex-shrink: 0; vertical-align: middle;">
-                    <SvgIcon icon="ic:keyboard-arrow-down" style="font-size: 20px; width: 1em; height: 1em; display: inline-block; flex-shrink: 0; line-height: 1; vertical-align: middle;" />
-                  </span>
-                </NButton>
-              </template>
-
-              <!-- 弹出内容 -->
-              <div v-if="availableVendors.length > 0" id="111" class="model-selector-popup">
-                <NLayout id="222" has-sider style="height: 400px">
-                  <!-- 左侧供应商列表 -->
-                  <NLayoutSider :width="180" bordered class="vendor-sidebar">
-                    <NScrollbar style="height: 100%">
-                      <div class="vendor-list">
-                        <div
-                          v-for="vendor in availableVendors"
-                          :key="vendor.key"
-                          class="vendor-item"
-                          :class="{ active: activeVendor === vendor.key }"
-                          @mouseenter="handleVendorHover(vendor.key)"
-                        >
-                          <span class="vendor-name">{{ vendor.label }}</span>
-                        </div>
-                      </div>
-                    </NScrollbar>
-                  </NLayoutSider>
-
-                  <!-- 右侧模型列表 -->
-                  <NLayout class="model-content">
-                    <NLayoutHeader bordered class="search-header">
-                      <NInput
-                        v-model:value="modelSearch"
-                        placeholder=" 搜索模型名称..."
-                        clearable
-                        size="small"
-                      >
-                        <template #prefix>
-                          <SvgIcon icon="mdi-light:magnify" />
-                        </template>
-                      </NInput>
-                    </NLayoutHeader>
-                    <NLayoutContent>
-                      <NScrollbar style="height: 100%">
-                        <div v-if="currentVendorModels.length === 0" class="empty-state">
-                          {{ modelSearch ? '没有找到匹配的模型' : '该供应商暂无可用模型' }}
-                        </div>
-                        <NList v-else bordered>
-                          <NListItem
-                            v-for="model in currentVendorModels"
-                            :key="model.id"
-                            class="model-item"
-                            :class="{ selected: selectedModelFromPopover === model.id }"
-                            @click="handleSelectModel(model)"
-                          >
-                            <div class="model-item-content">
-                              <div class="model-info">
-                                <span class="model-name">{{ model.displayName }}</span>
-                              </div>
-                              <NIcon v-if="selectedModelFromPopover === model.id" color="#333333" class="dark:text-white" size="20">
-                                <CheckmarkOutline />
-                              </NIcon>
-                            </div>
-                          </NListItem>
-                        </NList>
-                      </NScrollbar>
-                    </NLayoutContent>
-                  </NLayout>
-                </NLayout>
-              </div>
-              <div v-else class="empty-vendor">
-                <p>暂无可用模型</p>
-                <p class="text-sm text-gray-500 mt-2">
-                  请先在设置中配置模型
-                </p>
-              </div>
-            </NPopover>
+            <ModelSelector />
           </div>
           <div class="chat-header" />
           <div class="flex items-center space-x-2 hidden">
@@ -1996,6 +555,7 @@ function handleSelectModel(model: ModelItem) {
                   :show-file-list="true"
                   :default-upload="true"
                   action="/api/upload"
+                  :headers="uploadHeaders"
                   :max="1"
                   :on-before-upload="handleBeforeUpload"
                   :on-change="handleUploadChange"
@@ -2691,8 +1251,15 @@ function handleSelectModel(model: ModelItem) {
 .model-item {
   background: transparent !important;
   border-radius: 10px !important;
-  padding: 0 !important;
+  padding: 8px 12px !important;
   border: none !important;
+}
+
+.model-item .model-item-content {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
 }
 
 .model-name {
@@ -2894,8 +1461,15 @@ function handleSelectModel(model: ModelItem) {
 .dark .model-item {
   background: transparent !important;
   border-radius: 10px !important;
-  padding: 0 !important;
+  padding: 8px 12px !important;
   border: none !important;
+}
+
+.dark .model-item .model-item-content {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
 }
 
 .dark .model-name {

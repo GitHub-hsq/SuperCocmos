@@ -12,10 +12,9 @@ const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 
-// 🔥 只在有 active 会话时才导航，否则保持在 /chat
-if (chatStore.active) {
-  router.replace({ name: 'Chat', params: { uuid: chatStore.active } })
-}
+// 🔥 不需要自动导航，路由由 URL 和 useChatState 的 route watcher 控制
+// 这样刷新页面时，如果 URL 是 /chat（无 UUID），就保持在新建聊天模式
+// 如果 URL 是 /chat/:uuid，route watcher 会自动加载该会话
 
 const { isMobile } = useBasicLayout()
 

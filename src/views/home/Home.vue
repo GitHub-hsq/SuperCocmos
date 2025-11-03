@@ -246,7 +246,6 @@ const techStackRow2 = [
           </div>
         </div>
       </div>
-
     </section>
 
     <!-- Features Section -->

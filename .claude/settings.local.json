@@ -51,7 +51,10 @@
       "Bash(bash -i -c \"type work\")",
       "Bash(bash -i -c \"work && pwd\")",
       "Bash(pnpm build:*)",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "Bash(\"/mnt/c/Works/SuperCocmos/src/views/chat/index.template.tmp\")",
+      "Bash(\"/mnt/c/Works/SuperCocmos/src/views/chat/index.new.vue\")",
+      "Bash(pnpm lint:fix:*)"
     ],
     "deny": [],
     "ask": []

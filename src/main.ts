@@ -19,6 +19,16 @@ async function bootstrap() {
 
   const app = createApp(App)
 
+  // 🔇 忽略 Naive UI 内部的 TransitionGroup mode 警告
+  app.config.warnHandler = (msg, instance, trace) => {
+    // 忽略 TransitionGroup 的 mode 属性警告（Naive UI 内部问题）
+    if (msg.includes('Extraneous non-props attributes') && msg.includes('mode')) {
+      return
+    }
+    // 其他警告正常显示
+    console.warn(msg, instance, trace)
+  }
+
   setupAssets()
   setupScrollbarStyle()
 

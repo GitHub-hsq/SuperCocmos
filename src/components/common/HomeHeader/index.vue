@@ -184,7 +184,7 @@ function handleMenuEnter(key: string) {
   activeDropdown.value = key
 }
 
-function handleMenuLeave(key: string) {
+function handleMenuLeave(_key: string) {
   leaveTimeout = setTimeout(() => {
     activeDropdown.value = null
     hoveredDropdown.value = null

@@ -217,6 +217,59 @@ export default {
     cancel: 'Cancel',
   },
   home: {
+    nav: {
+      products: 'Products',
+      solutions: 'Solutions',
+      resources: 'Resources',
+      features: 'Features',
+      pricing: 'Pricing',
+      faq: 'FAQ',
+      getStarted: 'Get Started',
+      dropdowns: {
+        products: {
+          aiChat: {
+            title: 'AI Chat Assistant',
+            description: 'Intelligent conversations, instant responses',
+          },
+          codeAnalysis: {
+            title: 'Code Analysis',
+            description: 'Deep understanding of code structure',
+          },
+          knowledgeBase: {
+            title: 'Knowledge Base',
+            description: 'Build private knowledge system',
+          },
+        },
+        solutions: {
+          developers: {
+            title: 'Developer Tools',
+            description: 'Boost development efficiency',
+          },
+          teams: {
+            title: 'Team Collaboration',
+            description: 'Efficient teamwork',
+          },
+          enterprise: {
+            title: 'Enterprise Solutions',
+            description: 'Customized solutions',
+          },
+        },
+        resources: {
+          documentation: {
+            title: 'Documentation',
+            description: 'Detailed API documentation',
+          },
+          tutorials: {
+            title: 'Tutorials',
+            description: 'Quick start guides',
+          },
+          community: {
+            title: 'Community',
+            description: 'Join developer community',
+          },
+        },
+      },
+    },
     hero: {
       title: 'SuperCocmos — AI-Powered Code & Knowledge Hub',
       subtitle: 'Integrate Your Projects, Docs & AI Assistant',
@@ -330,8 +383,8 @@ export default {
       },
     },
     trust: {
-      title: 'Trusted by Developers and Teams',
-      subtitle: 'Compatible with mainstream development tools and platforms',
+      title: 'Tech Stack',
+      subtitle: 'Built with modern technologies',
     },
     faq: {
       title: 'Frequently Asked Questions',

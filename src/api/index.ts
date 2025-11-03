@@ -218,6 +218,39 @@ export function testModelConnection<T = any>(id: string) {
   })
 }
 
+// 获取供应商的可用模型列表（直接调用供应商的 /v1/models 接口）
+export async function fetchProviderModels(baseUrl: string, apiKey: string): Promise<{ id: string, object: string, created: number, owned_by: string }[]> {
+  try {
+    // 确保 baseUrl 以 /v1 结尾
+    const normalizedBaseUrl = baseUrl.endsWith('/v1') ? baseUrl : baseUrl.endsWith('/') ? `${baseUrl}v1` : `${baseUrl}/v1`
+    const modelsUrl = `${normalizedBaseUrl}/models`
+
+    const axios = (await import('axios')).default
+    const response = await axios.get(modelsUrl, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000, // 10秒超时
+    })
+
+    // 处理 OpenAI 兼容格式的响应
+    if (response.data?.data && Array.isArray(response.data.data)) {
+      return response.data.data
+    }
+    // 如果直接返回数组
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+
+    return []
+  }
+  catch (error: any) {
+    console.error('获取供应商模型列表失败:', error)
+    throw new Error(error.response?.data?.error?.message || error.message || '获取模型列表失败')
+  }
+}
+
 // 认证相关 API
 export function fetchLogin(data: LoginRequest) {
   return post<ApiResponse<LoginResponse>>({

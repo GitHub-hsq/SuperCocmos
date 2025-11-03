@@ -3,7 +3,7 @@ import type { DataTableColumns } from 'naive-ui'
 import type { Role } from '@/api/services/roleService'
 import { NButton, NCheckbox, NCheckboxGroup, NDataTable, NForm, NFormItem, NInput, NModal, NPopconfirm, NSpace, NSwitch, NTag, useMessage } from 'naive-ui'
 import { computed, h, ref, watch } from 'vue'
-import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviders, testModelConnection, updateModel, updateProvider } from '@/api'
+import { addModel, addProvider, toggleModelEnabled as apiToggleModelEnabled, deleteModel, deleteProvider, fetchProviderModels, fetchProviders, testModelConnection, updateModel, updateProvider } from '@/api'
 import { getAllModelsWithRoles, getAllRoles } from '@/api/services/roleService'
 import { SvgIcon } from '@/components/common'
 import { useModelStore } from '@/store'
@@ -75,6 +75,23 @@ const addProviderForm = ref({
 // 编辑供应商对话框
 const showEditProvider = ref(false)
 const editProviderForm = ref<ProviderItem | null>(null)
+
+// ========== 供应商模型列表相关 ==========
+// 从供应商获取的模型列表（用于批量添加）
+interface ProviderModelItem {
+  id: string // 模型ID
+  displayName: string // 显示名称（可编辑）
+  selected: boolean // 是否选中
+  owned_by?: string
+  created?: number
+  object?: string
+}
+
+const providerModelsList = ref<ProviderModelItem[]>([])
+const loadingProviderModels = ref(false)
+const editingDisplayNameIndex = ref<number | null>(null)
+const editingDisplayNameValue = ref('')
+const testingProviderModelIndex = ref<number | null>(null)
 
 // ========== 模型相关 ==========
 // 新增模型对话框
@@ -166,6 +183,30 @@ function handleRoleUpdateSuccess() {
   message.success('角色权限更新成功')
 }
 
+// ========== 供应商模型列表相关计算属性 ==========
+// 获取选中的模型数量
+const selectedModelsCount = computed(() => {
+  return providerModelsList.value.filter(m => m.selected).length
+})
+
+// 是否全选
+const isAllModelsSelected = computed(() => {
+  return providerModelsList.value.length > 0 && providerModelsList.value.every(m => m.selected)
+})
+
+// 是否部分选中
+const isIndeterminate = computed(() => {
+  const selectedCount = selectedModelsCount.value
+  return selectedCount > 0 && selectedCount < providerModelsList.value.length
+})
+
+// 全选/取消全选
+function toggleAllModelsSelection(selected: boolean) {
+  providerModelsList.value.forEach((model) => {
+    model.selected = selected
+  })
+}
+
 // 模型子表格列定义
 const modelColumns: DataTableColumns<ModelItem> = [
   {
@@ -234,6 +275,119 @@ const modelColumns: DataTableColumns<ModelItem> = [
           }, { default: () => '权限' }),
           h(NPopconfirm, {
             onPositiveClick: () => handleDeleteModel(row.id, row.providerId),
+          }, {
+            trigger: () => h(NButton, {
+              size: 'small',
+              type: 'error',
+            }, { default: () => '删除' }),
+            default: () => '确定要删除这个模型吗？',
+          }),
+        ],
+      })
+    },
+  },
+]
+
+// 供应商模型列表表格列定义（用于对话框中的模型列表）
+const providerModelColumns: DataTableColumns<ProviderModelItem> = [
+  {
+    title: () => {
+      return h(NCheckbox, {
+        checked: isAllModelsSelected.value,
+        indeterminate: isIndeterminate.value,
+        onUpdateChecked: (checked: boolean) => {
+          toggleAllModelsSelection(checked)
+        },
+      })
+    },
+    key: 'selected',
+    width: 50,
+    render: (_row: ProviderModelItem, index: number) => {
+      return h(NCheckbox, {
+        checked: providerModelsList.value[index]?.selected || false,
+        onUpdateChecked: (checked: boolean) => {
+          if (providerModelsList.value[index]) {
+            providerModelsList.value[index].selected = checked
+          }
+        },
+      })
+    },
+  },
+  {
+    title: '模型ID',
+    key: 'id',
+    ellipsis: { tooltip: true },
+    width: 250,
+    minWidth: 200,
+  },
+  {
+    title: '显示名称',
+    key: 'displayName',
+    width: 300,
+    minWidth: 200,
+    render: (row, index) => {
+      if (editingDisplayNameIndex.value === index) {
+        return h('div', { class: 'flex items-center gap-2' }, [
+          h(NInput, {
+            'value': editingDisplayNameValue.value,
+            'onUpdate:value': (val: string) => { editingDisplayNameValue.value = val },
+            'onKeydown': (e: KeyboardEvent) => {
+              if (e.key === 'Enter') {
+                saveDisplayName(index)
+              }
+              else if (e.key === 'Escape') {
+                cancelEditDisplayName()
+              }
+            },
+            'autofocus': true,
+            'size': 'small',
+          }),
+          h(NButton, {
+            size: 'small',
+            type: 'primary',
+            onClick: () => saveDisplayName(index),
+          }, { default: () => '保存' }),
+          h(NButton, {
+            size: 'small',
+            onClick: () => cancelEditDisplayName(),
+          }, { default: () => '取消' }),
+        ])
+      }
+      return h('div', {
+        class: 'cursor-pointer hover:text-blue-600',
+        onClick: () => startEditDisplayName(index),
+      }, row.displayName)
+    },
+  },
+  {
+    title: '提供商',
+    key: 'owned_by',
+    width: 150,
+    ellipsis: { tooltip: true },
+    render: row => row.owned_by || '-',
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 180,
+    fixed: 'right',
+    render: (row, index) => {
+      const isEdit = !!editProviderForm.value
+      const form = isEdit ? editProviderForm.value : addProviderForm.value
+      return h(NSpace, { size: 'small' }, {
+        default: () => [
+          h(NButton, {
+            size: 'small',
+            type: 'info',
+            loading: testingProviderModelIndex.value === index,
+            onClick: () => {
+              if (form) {
+                testProviderModelConnection(index, row.id, form.baseUrl, form.apiKey)
+              }
+            },
+          }, { default: () => '测试连通' }),
+          h(NPopconfirm, {
+            onPositiveClick: () => removeProviderModel(index),
           }, {
             trigger: () => h(NButton, {
               size: 'small',
@@ -427,6 +581,8 @@ function openAddProvider() {
     baseUrl: '',
     apiKey: '',
   }
+  providerModelsList.value = []
+  editingDisplayNameIndex.value = null
   showAddProvider.value = true
 }
 
@@ -438,10 +594,58 @@ async function handleAddProvider() {
   }
 
   try {
+    // 先创建供应商
     const response = await addProvider(addProviderForm.value)
 
     if (response.status === 'Success') {
-      message.success('供应商添加成功')
+      // 获取 providerId，响应数据结构：{ status: 'Success', data: { id: '...', ... } }
+      const providerId = response.data?.id
+
+      // 如果有获取到的模型列表，批量添加模型
+      if (providerModelsList.value.length > 0 && providerId) {
+        const freeRole = allRoles.value.find(r => r.role_name === 'Free' || r.role_id === 5)
+        const defaultRoleIds = freeRole ? [freeRole.role_id] : []
+
+        // 只添加选中的模型
+        const selectedModels = providerModelsList.value.filter(m => m.selected)
+
+        if (selectedModels.length === 0) {
+          message.warning('请至少选择一个模型')
+          return
+        }
+
+        // 批量添加模型
+        let successCount = 0
+        let failCount = 0
+
+        for (const model of selectedModels) {
+          try {
+            await addModel({
+              modelId: model.id,
+              displayName: model.displayName,
+              enabled: true,
+              providerId,
+              roleIds: defaultRoleIds,
+            })
+            successCount++
+          }
+          catch (error: any) {
+            console.error(`添加模型 ${model.id} 失败:`, error)
+            failCount++
+          }
+        }
+
+        if (successCount > 0) {
+          message.success(`供应商添加成功，已添加 ${successCount} 个模型${failCount > 0 ? `，${failCount} 个失败` : ''}`)
+        }
+        else {
+          message.warning('供应商添加成功，但批量添加模型失败')
+        }
+      }
+      else {
+        message.success('供应商添加成功')
+      }
+
       showAddProvider.value = false
       // 🔥 强制刷新，确保聊天界面的模型列表同步更新
       await loadProviders(true)
@@ -459,6 +663,8 @@ async function handleAddProvider() {
 // 编辑供应商
 function editProvider(provider: ProviderItem) {
   editProviderForm.value = { ...provider }
+  providerModelsList.value = []
+  editingDisplayNameIndex.value = null
   showEditProvider.value = true
 }
 
@@ -473,6 +679,7 @@ async function handleEditProvider() {
   }
 
   try {
+    // 先更新供应商
     const response = await updateProvider(editProviderForm.value.id, {
       name: editProviderForm.value.name,
       baseUrl: editProviderForm.value.baseUrl,
@@ -480,7 +687,51 @@ async function handleEditProvider() {
     })
 
     if (response.status === 'Success') {
-      message.success('供应商更新成功')
+      // 如果有获取到的模型列表，批量添加模型
+      if (providerModelsList.value.length > 0) {
+        const freeRole = allRoles.value.find(r => r.role_name === 'Free' || r.role_id === 5)
+        const defaultRoleIds = freeRole ? [freeRole.role_id] : []
+
+        // 只添加选中的模型
+        const selectedModels = providerModelsList.value.filter(m => m.selected)
+
+        if (selectedModels.length === 0) {
+          message.warning('请至少选择一个模型')
+          return
+        }
+
+        // 批量添加模型
+        let successCount = 0
+        let failCount = 0
+
+        for (const model of selectedModels) {
+          try {
+            await addModel({
+              modelId: model.id,
+              displayName: model.displayName,
+              enabled: true,
+              providerId: editProviderForm.value.id,
+              roleIds: defaultRoleIds,
+            })
+            successCount++
+          }
+          catch (error: any) {
+            console.error(`添加模型 ${model.id} 失败:`, error)
+            failCount++
+          }
+        }
+
+        if (successCount > 0) {
+          message.success(`供应商更新成功，已添加 ${successCount} 个模型${failCount > 0 ? `，${failCount} 个失败` : ''}`)
+        }
+        else {
+          message.warning('供应商更新成功，但批量添加模型失败')
+        }
+      }
+      else {
+        message.success('供应商更新成功')
+      }
+
       showEditProvider.value = false
       // 🔥 强制刷新，确保聊天界面的模型列表同步更新
       await loadProviders(true)
@@ -512,6 +763,109 @@ async function handleDeleteProvider(id: string) {
   catch (error: any) {
     console.error('删除供应商失败:', error)
     message.error(error.response?.data?.message || error.message || '删除失败')
+  }
+}
+
+// ========== 供应商模型列表操作 ==========
+// 获取供应商的可用模型列表
+async function fetchProviderModelsList(isEdit: boolean = false) {
+  const form = isEdit ? editProviderForm.value : addProviderForm.value
+  if (!form || !form.baseUrl || !form.apiKey) {
+    message.warning('请先填写 Base URL 和 API Key')
+    return
+  }
+
+  loadingProviderModels.value = true
+  try {
+    const models = await fetchProviderModels(form.baseUrl, form.apiKey)
+    const providerName = form.name || 'Unknown'
+
+    // 转换为 ProviderModelItem 格式，默认显示名称为 "供应商名-模型ID"
+    providerModelsList.value = models.map(model => ({
+      id: model.id,
+      displayName: `${providerName}-${model.id}`,
+      selected: true, // 默认全部选中
+      owned_by: model.owned_by,
+      created: model.created,
+      object: model.object,
+    }))
+
+    message.success(`成功获取 ${models.length} 个模型`)
+  }
+  catch (error: any) {
+    console.error('获取供应商模型列表失败:', error)
+    message.error(error.message || '获取模型列表失败')
+    providerModelsList.value = []
+  }
+  finally {
+    loadingProviderModels.value = false
+  }
+}
+
+// 开始编辑显示名称
+function startEditDisplayName(index: number) {
+  editingDisplayNameIndex.value = index
+  editingDisplayNameValue.value = providerModelsList.value[index].displayName
+}
+
+// 保存编辑的显示名称
+function saveDisplayName(index: number) {
+  if (editingDisplayNameValue.value.trim()) {
+    providerModelsList.value[index].displayName = editingDisplayNameValue.value.trim()
+  }
+  editingDisplayNameIndex.value = null
+  editingDisplayNameValue.value = ''
+}
+
+// 取消编辑显示名称
+function cancelEditDisplayName() {
+  editingDisplayNameIndex.value = null
+  editingDisplayNameValue.value = ''
+}
+
+// 删除供应商模型列表中的模型
+function removeProviderModel(index: number) {
+  providerModelsList.value.splice(index, 1)
+  if (editingDisplayNameIndex.value === index) {
+    editingDisplayNameIndex.value = null
+  }
+  else if (editingDisplayNameIndex.value !== null && editingDisplayNameIndex.value > index) {
+    editingDisplayNameIndex.value--
+  }
+}
+
+// 测试供应商模型连通性
+async function testProviderModelConnection(index: number, modelId: string, baseUrl: string, apiKey: string) {
+  testingProviderModelIndex.value = index
+  try {
+    // 确保 baseUrl 以 /v1 结尾
+    const normalizedBaseUrl = baseUrl.endsWith('/v1') ? baseUrl : baseUrl.endsWith('/') ? `${baseUrl}v1` : `${baseUrl}/v1`
+    const testUrl = `${normalizedBaseUrl}/chat/completions`
+
+    const axios = (await import('axios')).default
+    const startTime = Date.now()
+
+    await axios.post(testUrl, {
+      model: modelId,
+      messages: [{ role: 'user', content: 'Hello' }],
+      max_tokens: 10,
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    })
+
+    const responseTime = Date.now() - startTime
+    message.success(`测试成功 (${responseTime}ms)`)
+  }
+  catch (error: any) {
+    console.error('测试模型连接失败:', error)
+    message.error(error.response?.data?.error?.message || error.message || '测试失败')
+  }
+  finally {
+    testingProviderModelIndex.value = null
   }
 }
 
@@ -774,7 +1128,7 @@ watch(() => props.visible, async (visible) => {
       v-model:show="showAddProvider"
       title="新增供应商"
       preset="card"
-      style="width: 600px; max-width: 90vw;"
+      style="width: 900px; max-width: 90vw;"
     >
       <NForm
         :model="addProviderForm"
@@ -801,6 +1155,53 @@ watch(() => props.visible, async (visible) => {
             placeholder="输入API密钥"
           />
         </NFormItem>
+
+        <!-- 获取可用模型 -->
+        <NFormItem label="可用模型">
+          <div class="space-y-3 w-full">
+            <div class="flex items-center gap-3">
+              <NButton
+                type="primary"
+                :loading="loadingProviderModels"
+                @click="fetchProviderModelsList(false)"
+              >
+                <template #icon>
+                  <SvgIcon icon="ri:download-line" />
+                </template>
+                获取可用模型
+              </NButton>
+              <div v-if="providerModelsList.length > 0" class="flex items-center gap-2">
+                <NCheckbox
+                  :checked="isAllModelsSelected"
+                  :indeterminate="isIndeterminate"
+                  @update:checked="toggleAllModelsSelection"
+                >
+                  全选
+                </NCheckbox>
+                <span class="text-sm text-gray-600 dark:text-gray-400">
+                  已选择 {{ selectedModelsCount }} / {{ providerModelsList.length }} 个模型
+                </span>
+              </div>
+            </div>
+            <div v-if="providerModelsList.length > 0" class="text-sm text-gray-600 dark:text-gray-400">
+              点击确认后将自动添加选中的模型到供应商
+            </div>
+          </div>
+        </NFormItem>
+
+        <!-- 模型列表表格 -->
+        <NFormItem v-if="providerModelsList.length > 0" label="模型列表">
+          <div class="w-full">
+            <NDataTable
+              :columns="providerModelColumns"
+              :data="providerModelsList"
+              :bordered="true"
+              size="small"
+              max-height="400"
+              :scroll-x="800"
+            />
+          </div>
+        </NFormItem>
       </NForm>
 
       <template #footer>
@@ -820,7 +1221,7 @@ watch(() => props.visible, async (visible) => {
       v-model:show="showEditProvider"
       title="编辑供应商"
       preset="card"
-      style="width: 600px; max-width: 90vw;"
+      style="width: 900px; max-width: 90vw;"
     >
       <NForm
         v-if="editProviderForm"
@@ -847,6 +1248,53 @@ watch(() => props.visible, async (visible) => {
             show-password-on="click"
             placeholder="输入API密钥"
           />
+        </NFormItem>
+
+        <!-- 获取可用模型 -->
+        <NFormItem label="可用模型">
+          <div class="space-y-3 w-full">
+            <div class="flex items-center gap-3">
+              <NButton
+                type="primary"
+                :loading="loadingProviderModels"
+                @click="fetchProviderModelsList(true)"
+              >
+                <template #icon>
+                  <SvgIcon icon="ri:download-line" />
+                </template>
+                获取可用模型
+              </NButton>
+              <div v-if="providerModelsList.length > 0" class="flex items-center gap-2">
+                <NCheckbox
+                  :checked="isAllModelsSelected"
+                  :indeterminate="isIndeterminate"
+                  @update:checked="toggleAllModelsSelection"
+                >
+                  全选
+                </NCheckbox>
+                <span class="text-sm text-gray-600 dark:text-gray-400">
+                  已选择 {{ selectedModelsCount }} / {{ providerModelsList.length }} 个模型
+                </span>
+              </div>
+            </div>
+            <div v-if="providerModelsList.length > 0" class="text-sm text-gray-600 dark:text-gray-400">
+              点击确认后将自动添加选中的模型到供应商
+            </div>
+          </div>
+        </NFormItem>
+
+        <!-- 模型列表表格 -->
+        <NFormItem v-if="providerModelsList.length > 0" label="模型列表">
+          <div class="w-full">
+            <NDataTable
+              :columns="providerModelColumns"
+              :data="providerModelsList"
+              :bordered="true"
+              size="small"
+              max-height="400"
+              :scroll-x="800"
+            />
+          </div>
         </NFormItem>
       </NForm>
 

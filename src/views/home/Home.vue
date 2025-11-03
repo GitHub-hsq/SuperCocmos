@@ -4,6 +4,7 @@ import { NButton, NCollapse, NCollapseItem } from 'naive-ui'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import HomeHeader from '@/components/common/HomeHeader/index.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -184,16 +185,34 @@ const faqs = computed(() => [
   },
 ])
 
-const partnerLogos = [
-  { name: 'GitHub', icon: 'i-carbon-logo-github' },
-  { name: 'Notion', icon: 'i-simple-icons-notion' },
-  { name: 'Vercel', icon: 'i-simple-icons-vercel' },
-  { name: 'OpenAI', icon: 'i-simple-icons-openai' },
+const techStackRow1 = [
+  { name: 'Vue 3', icon: '📦' },
+  { name: 'TypeScript', icon: '📦' },
+  { name: 'Vite', icon: '📦' },
+  { name: 'Naive UI', icon: '📦' },
+  { name: 'Tailwind CSS', icon: '📦' },
+  { name: 'Pinia', icon: '📦' },
+  { name: 'Vue Router', icon: '📦' },
+  { name: 'Vue i18n', icon: '📦' },
+]
+
+const techStackRow2 = [
+  { name: 'Auth0', icon: '📦' },
+  { name: 'Markdown-it', icon: '📦' },
+  { name: 'Highlight.js', icon: '📦' },
+  { name: 'Mermaid', icon: '📦' },
+  { name: 'Katex', icon: '📦' },
+  { name: 'Axios', icon: '📦' },
+  { name: 'ESLint', icon: '📦' },
+  { name: 'Husky', icon: '📦' },
 ]
 </script>
 
 <template>
   <div class="home-wrapper">
+    <!-- Header -->
+    <HomeHeader />
+
     <!-- Hero Section -->
     <section class="hero-section">
       <div class="hero-content">
@@ -228,10 +247,6 @@ const partnerLogos = [
         </div>
       </div>
 
-      <!-- Scroll Indicator -->
-      <div class="scroll-indicator">
-        <div class="scroll-arrow" />
-      </div>
     </section>
 
     <!-- Features Section -->
@@ -363,7 +378,7 @@ const partnerLogos = [
       </div>
     </section>
 
-    <!-- Trust/Partners Section -->
+    <!-- Tech Stack Section -->
     <section class="trust-section">
       <div class="container">
         <div class="section-header">
@@ -374,20 +389,40 @@ const partnerLogos = [
             {{ t('home.trust.subtitle') }}
           </p>
         </div>
-        <div class="partners-grid">
-          <div
-            v-for="partner in partnerLogos"
-            :key="partner.name"
-            class="partner-logo"
-          >
-            <span class="partner-name">{{ partner.name }}</span>
+        <div class="tech-stack-container">
+          <!-- First Row - Scroll Left -->
+          <div class="tech-stack-row scroll-left">
+            <div class="tech-stack-track">
+              <div
+                v-for="(tech, index) in [...techStackRow1, ...techStackRow1]"
+                :key="`row1-${index}`"
+                class="tech-card"
+              >
+                <span class="tech-icon">{{ tech.icon }}</span>
+                <span class="tech-name">{{ tech.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Second Row - Scroll Right -->
+          <div class="tech-stack-row scroll-right">
+            <div class="tech-stack-track">
+              <div
+                v-for="(tech, index) in [...techStackRow2, ...techStackRow2]"
+                :key="`row2-${index}`"
+                class="tech-card"
+              >
+                <span class="tech-icon">{{ tech.icon }}</span>
+                <span class="tech-name">{{ tech.name }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
     <!-- FAQ Section -->
-    <section class="faq-section">
+    <section id="faq" class="faq-section">
       <div class="container">
         <div class="section-header">
           <h2 class="section-title">
@@ -558,7 +593,7 @@ const partnerLogos = [
 /* Hero Section */
 .hero-section {
   position: relative;
-  min-height: 100vh;
+  min-height: calc(100vh - 165px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -570,7 +605,7 @@ const partnerLogos = [
   position: relative;
   z-index: 1;
   text-align: center;
-  padding: 120px 24px 80px;
+  padding: 80px 24px;
 }
 
 .hero-text {
@@ -624,41 +659,17 @@ const partnerLogos = [
   letter-spacing: 0.5px;
 }
 
+.dark .cta-primary {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.dark .cta-primary:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
 .cta-secondary {
   color: var(--text-primary);
-}
-
-.scroll-indicator {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1;
-}
-
-.scroll-arrow {
-  width: 24px;
-  height: 24px;
-  border-left: 2px solid var(--text-secondary);
-  border-bottom: 2px solid var(--text-secondary);
-  transform: rotate(-45deg);
-  animation: bounce 2s infinite;
-}
-
-@keyframes bounce {
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
-    transform: translateY(0) rotate(-45deg);
-  }
-  40% {
-    transform: translateY(10px) rotate(-45deg);
-  }
-  60% {
-    transform: translateY(5px) rotate(-45deg);
-  }
 }
 
 /* Features Section */
@@ -872,44 +883,89 @@ const partnerLogos = [
   border-radius: 24px;
 }
 
-/* Trust/Partners Section */
+/* Tech Stack Section */
 .trust-section {
   padding: 80px 0;
   background: var(--bg-secondary);
+  overflow: hidden;
 }
 
-.partners-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 32px;
-  max-width: 900px;
-  margin: 0 auto;
+.tech-stack-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 40px;
+  background: transparent;
 }
 
-.partner-logo {
+.tech-stack-row {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.tech-stack-track {
+  display: flex;
+  gap: 20px;
+  width: fit-content;
+}
+
+.scroll-left .tech-stack-track {
+  animation: scroll-left 30s linear infinite;
+}
+
+.scroll-right .tech-stack-track {
+  animation: scroll-right 30s linear infinite;
+}
+
+.tech-stack-row:hover .tech-stack-track {
+  animation-play-state: paused;
+}
+
+.tech-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
+  gap: 12px;
+  padding: 16px 24px;
+  background: transparent;
+  border: none;
+  white-space: nowrap;
   transition: all 0.3s;
 }
 
-.partner-logo:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+.tech-card:hover {
+  transform: translateY(-2px);
 }
 
-.dark .partner-logo:hover {
-  box-shadow: 0 8px 16px rgba(255, 255, 255, 0.05);
+.tech-icon {
+  font-size: 24px;
 }
 
-.partner-name {
-  font-size: 20px;
+.tech-name {
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes scroll-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 
 /* FAQ Section */
@@ -923,11 +979,30 @@ const partnerLogos = [
   margin: 0 auto;
 }
 
+.faq-container :deep(.n-collapse-item) {
+  margin-bottom: 8px;
+}
+
+.faq-container :deep(.n-collapse-item__header) {
+  padding: 16px 24px;
+  border-radius: 24px;
+  transition: background-color 0.3s;
+}
+
+.faq-container :deep(.n-collapse-item__header:hover) {
+  background-color: #f9f9f9;
+}
+
+.dark .faq-container :deep(.n-collapse-item__header:hover) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
 .faq-answer {
   font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.6;
   margin: 0;
+  padding: 0 24px;
 }
 
 /* Footer */
@@ -1024,8 +1099,12 @@ const partnerLogos = [
     grid-template-columns: 1fr;
   }
 
-  .partners-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .tech-card {
+    padding: 12px 18px;
+  }
+
+  .tech-name {
+    font-size: 14px;
   }
 
   .footer-grid {

@@ -224,6 +224,59 @@ export default {
     cancel: '取消',
   },
   home: {
+    nav: {
+      products: '产品',
+      solutions: '解决方案',
+      resources: '资源',
+      features: '功能特性',
+      pricing: '价格方案',
+      faq: '常见问题',
+      getStarted: '立即登录',
+      dropdowns: {
+        products: {
+          aiChat: {
+            title: 'AI 对话助手',
+            description: '智能对话，即时响应',
+          },
+          codeAnalysis: {
+            title: '代码分析',
+            description: '深度理解代码结构',
+          },
+          knowledgeBase: {
+            title: '知识库管理',
+            description: '构建私有知识体系',
+          },
+        },
+        solutions: {
+          developers: {
+            title: '开发者工具',
+            description: '提升开发效率',
+          },
+          teams: {
+            title: '团队协作',
+            description: '高效协同工作',
+          },
+          enterprise: {
+            title: '企业方案',
+            description: '定制化解决方案',
+          },
+        },
+        resources: {
+          documentation: {
+            title: '开发文档',
+            description: '详细的API文档',
+          },
+          tutorials: {
+            title: '教程指南',
+            description: '快速上手指南',
+          },
+          community: {
+            title: '社区支持',
+            description: '加入开发者社区',
+          },
+        },
+      },
+    },
     hero: {
       title: 'SuperCocmos — AI 助力的代码与知识中心',
       subtitle: '让你的项目、文档与智能助理融为一体',
@@ -337,8 +390,8 @@ export default {
       },
     },
     trust: {
-      title: '被开发者和团队信赖',
-      subtitle: '兼容主流开发工具与平台',
+      title: '技术支持',
+      subtitle: '基于现代化的技术栈构建',
     },
     faq: {
       title: '常见问题',

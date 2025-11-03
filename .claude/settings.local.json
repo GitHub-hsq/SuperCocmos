@@ -42,7 +42,14 @@
       "Bash(git push:*)",
       "Bash(git rm:*)",
       "WebFetch(domain:www.naiveui.com)",
-      "WebFetch(domain:upstash.com)"
+      "WebFetch(domain:upstash.com)",
+      "Bash(echo:*)",
+      "Bash(~/.bashrc)",
+      "Bash(source ~/.bashrc)",
+      "Bash(alias:*)",
+      "Bash(bash -c \"source ~/.bashrc && type work\")",
+      "Bash(bash -i -c \"type work\")",
+      "Bash(bash -i -c \"work && pwd\")"
     ],
     "deny": [],
     "ask": []

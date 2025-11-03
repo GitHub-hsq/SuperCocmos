@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import { useAuth0 } from '@auth0/auth0-vue'
 import { NButton } from 'naive-ui'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useAuth0 } from '@auth0/auth0-vue'
 import Logo from '@/assets/icons/Logo.vue'
 import ChatIcon from '@/components/icons/ChatIcon.vue'
 import ChevronIcon from '@/components/icons/ChevronIcon.vue'
@@ -228,7 +228,7 @@ onUnmounted(() => {
       <div class="header-content">
         <!-- Logo -->
         <div class="header-logo">
-          <Logo :icon-color="'currentColor'" custom-class="logo-icon" />
+          <Logo icon-color="currentColor" custom-class="logo-icon" />
           <span class="logo-text">SuperCocmos</span>
         </div>
 
@@ -367,7 +367,6 @@ onUnmounted(() => {
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 32px;
   flex: 1;
   justify-content: flex-start;
   padding-left: 32px;

@@ -236,7 +236,7 @@ onUnmounted(() => {
         <nav class="header-nav">
           <!-- Dropdown menus -->
           <div
-            v-for="(menu, key, menuIndex) in dropdownMenus"
+            v-for="(_, key, menuIndex) in dropdownMenus"
             :key="key"
             :ref="menuIndex === 0 ? (el: any) => { firstDropdownRef = el } : undefined"
             class="nav-dropdown"
@@ -261,8 +261,8 @@ onUnmounted(() => {
               v-if="activeDropdown"
               class="dropdown-menu"
               :style="{ left: dropdownLeft }"
-              @mouseenter="handleMenuEnter(activeDropdown)"
-              @mouseleave="handleMenuLeave(activeDropdown)"
+              @mouseenter="handleMenuEnter(activeDropdown!)"
+              @mouseleave="handleMenuLeave(activeDropdown!)"
             >
               <Transition
                 :name="`slide-${animationDirection}`"

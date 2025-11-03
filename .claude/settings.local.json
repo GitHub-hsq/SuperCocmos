@@ -49,7 +49,9 @@
       "Bash(alias:*)",
       "Bash(bash -c \"source ~/.bashrc && type work\")",
       "Bash(bash -i -c \"type work\")",
-      "Bash(bash -i -c \"work && pwd\")"
+      "Bash(bash -i -c \"work && pwd\")",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm install:*)"
     ],
     "deny": [],
     "ask": []

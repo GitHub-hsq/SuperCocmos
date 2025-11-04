@@ -1,6 +1,26 @@
 {
   "alwaysThinkingEnabled": true,
-  "autoApplyEdits": true,
-  "startupMessage": "🚀 SuperCosmos AI Assistant\n欢迎使用 SuperCosmos 智能系统！\n输入 /help 查看可用命令",
-  "theme": "dark"
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/skill-activation-prompt.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-tracker.sh"
+          }
+        ]
+      }
+    ]
+  }
 }

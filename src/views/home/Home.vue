@@ -186,25 +186,25 @@ const faqs = computed(() => [
 ])
 
 const techStackRow1 = [
-  { name: 'Vue 3', icon: '📦' },
-  { name: 'TypeScript', icon: '📦' },
-  { name: 'Vite', icon: '📦' },
-  { name: 'Naive UI', icon: '📦' },
-  { name: 'Tailwind CSS', icon: '📦' },
-  { name: 'Pinia', icon: '📦' },
+  { name: 'Vue 3', icon: 'logos:vue' },
+  { name: 'TypeScript', icon: 'vscode-icons:file-type-typescript' },
+  { name: 'Vite', icon: 'devicon:vitejs' },
+  { name: 'Naive UI', icon: 'logos:naiveui' },
+  { name: 'Tailwind CSS', icon: 'logos:tailwindcss-icon' },
+  { name: 'Pinia', icon: 'logos:pinia' },
   { name: 'Vue Router', icon: '📦' },
   { name: 'Vue i18n', icon: '📦' },
 ]
 
 const techStackRow2 = [
-  { name: 'Auth0', icon: '📦' },
-  { name: 'Markdown-it', icon: '📦' },
+  { name: 'Auth0', icon: 'logos:auth0-icon' },
+  { name: 'Markdown-it', icon: 'vscode-icons:file-type-markdown' },
   { name: 'Highlight.js', icon: '📦' },
   { name: 'Mermaid', icon: '📦' },
   { name: 'Katex', icon: '📦' },
-  { name: 'Axios', icon: '📦' },
-  { name: 'ESLint', icon: '📦' },
-  { name: 'Husky', icon: '📦' },
+  { name: 'Axios', icon: 'devicon-plain:axios-wordmark' },
+  { name: 'ESLint', icon: 'devicon:eslint' },
+  { name: 'Husky', icon: 'vscode-icons:folder-type-husky-opened' },
 ]
 </script>
 

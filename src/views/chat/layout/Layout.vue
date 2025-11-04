@@ -1,15 +1,12 @@
 <script setup lang='ts'>
 import { NLayout, NLayoutContent } from 'naive-ui'
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useAppStore, useAuthStore, useChatStore } from '@/store'
+import { useAppStore, useAuthStore } from '@/store'
 import Permission from './Permission.vue'
 import Sider from './sider/index.vue'
 
-const router = useRouter()
 const appStore = useAppStore()
-const chatStore = useChatStore()
 const authStore = useAuthStore()
 
 // 🔥 不需要自动导航，路由由 URL 和 useChatState 的 route watcher 控制

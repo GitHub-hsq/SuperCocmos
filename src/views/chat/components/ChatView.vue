@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Ref } from 'vue'
 import { NButton, NIcon, NInput, NText, NUpload, NUploadDragger } from 'naive-ui'
+import { nextTick, ref, watch } from 'vue'
 import planningIcon from '@/assets/icons/planning.svg'
 import testIcon from '@/assets/icons/test.svg'
 import writingIcon from '@/assets/icons/writing.svg'
@@ -21,11 +21,10 @@ interface Props {
   placeholder: string
   buttonDisabled: boolean
   loading: boolean
-  isMultiLine: boolean
   footerClass: any
   footerStyle: any
   scrollRef: any
-  inputRef: Ref<any>
+  inputRef?: any // 可选的 ref 对象，包含组件实例
   uploadHeaders: Record<string, string>
   chatStore: any
   rightSiderCollapsed: boolean
@@ -37,7 +36,7 @@ interface Props {
   quizLoading: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 // Emits 定义
 const emit = defineEmits<{
@@ -61,6 +60,61 @@ const emit = defineEmits<{
   (e: 'quizRevise', note: string): void
   (e: 'quizSubmit', answers: Record<number, string[]>, timeSpent: number): void
 }>()
+// 本地状态：监测输入框高度
+const inputWrapperRef = ref<HTMLElement | null>(null)
+const isMultiLine = ref(false)
+const SINGLE_LINE_HEIGHT_THRESHOLD = 60
+
+// 监听输入框内容变化，检测高度
+watch(
+  () => props.prompt,
+  async () => {
+    // 内容为空时，强制切换回单行模式
+    if (!props.prompt || props.prompt.trim() === '') {
+      isMultiLine.value = false
+      return
+    }
+
+    // 等待 DOM 更新
+    await nextTick()
+
+    // 检测包装 div 的高度
+    if (inputWrapperRef.value) {
+      const currentHeight = inputWrapperRef.value.offsetHeight
+      isMultiLine.value = currentHeight > SINGLE_LINE_HEIGHT_THRESHOLD
+    }
+  },
+)
+
+// 监听输入框模式切换，自动恢复焦点和光标位置
+watch(isMultiLine, async (newValue, oldValue) => {
+  if (newValue !== oldValue) {
+    // 等待 v-if 重新渲染 DOM
+    await nextTick()
+
+    // 直接从 inputWrapperRef 中查找 textarea 并聚焦
+    if (inputWrapperRef.value) {
+      const textarea = inputWrapperRef.value.querySelector('.n-input__textarea-el')
+        || inputWrapperRef.value.querySelector('textarea')
+
+      if (textarea instanceof HTMLTextAreaElement) {
+        textarea.focus()
+        // 将光标移到末尾
+        const length = textarea.value.length
+        textarea.setSelectionRange(length, length)
+      }
+    }
+  }
+})
+
+// 设置 inputRef 的函数
+function setInputRef(el: any) {
+  // 检查 props.inputRef 是否是一个有效的 ref 对象
+  if (props.inputRef && typeof props.inputRef === 'object' && 'value' in props.inputRef) {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.inputRef.value = el
+  }
+}
 
 // 处理事件转发
 function handleExport() {
@@ -262,10 +316,11 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
           <footer :class="footerClass" :style="footerStyle">
             <div class="w-full max-w-screen-xl m-auto" :style="isMobile ? '' : 'padding: 0 10%'">
               <!-- 多行布局：上下结构 -->
-              <div v-if="isMultiLine" class="relative chat-input-wrapper chat-input-wrapper-multiline">
+              <div v-if="isMultiLine" ref="inputWrapperRef" class="relative chat-input-wrapper chat-input-wrapper-multiline">
                 <!-- 输入框 - 最上层 -->
                 <div class="relative z-10 w-full mb-[35px]">
                   <NInput
+                    :ref="setInputRef"
                     :value="prompt"
                     type="textarea"
                     :placeholder="placeholder"
@@ -314,7 +369,7 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
               </div>
 
               <!-- 单行布局：左中右结构 -->
-              <div v-else class="chat-input-wrapper">
+              <div v-else ref="inputWrapperRef" class="chat-input-wrapper">
                 <div class="flex items-center px-1 w-full h-full">
                   <!-- 左侧附件按钮 -->
                   <button class="chat-icon-btn attachment-btn flex-shrink-0">
@@ -325,6 +380,7 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
                   <div class="flex-1">
                     <NInput
                       id="12312312"
+                      :ref="setInputRef"
                       :value="prompt"
                       type="textarea"
                       :placeholder="placeholder"

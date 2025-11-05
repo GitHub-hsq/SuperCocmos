@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui'
-import { useNovelStore } from '@/store'
 import { SvgIcon } from '@/components/common'
+import { useNovelStore } from '@/store'
 import ChapterContent from './ChapterContent.vue'
 import NovelIntroduction from './NovelIntroduction.vue'
 import VolumeIntroduction from './VolumeIntroduction.vue'

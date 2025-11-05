@@ -15,6 +15,7 @@ import ProviderConfigPanel from '@/components/common/Setting/panels/ProviderConf
 import UserSettingsPanel from '@/components/common/Setting/panels/UserSettingsPanel.vue'
 import WorkflowConfigPanel from '@/components/common/Setting/panels/WorkflowConfigPanel.vue'
 import { useAppStore, useNovelStore } from '@/store'
+import CreateNovelView from '@/views/novel/components/CreateNovelView.vue'
 import NovelDetailView from '@/views/novel/components/NovelDetailView.vue'
 import NovelListView from '@/views/novel/components/NovelListView.vue'
 
@@ -83,7 +84,6 @@ const {
   prompt,
   loading,
   inputRef,
-  isMultiLine,
   isFooterElevated,
   isDarkTheme,
   showSettingsPage,
@@ -286,7 +286,6 @@ watch(activeSettingTab, (newValue) => {
       :placeholder="placeholder"
       :button-disabled="buttonDisabled"
       :loading="loading"
-      :is-multi-line="isMultiLine"
       :footer-class="footerClass"
       :footer-style="footerStyle"
       :scroll-ref="scrollRef"
@@ -322,8 +321,11 @@ watch(activeSettingTab, (newValue) => {
 
     <!-- 小说页面 - 小说模式 -->
     <template v-else-if="workMode === 'novel'">
+      <!-- 创建视图 -->
+      <CreateNovelView v-if="novelStore.showCreateForm" />
+
       <!-- 列表视图 -->
-      <NovelListView v-if="novelStore.showNovelList" />
+      <NovelListView v-else-if="novelStore.showNovelList" />
 
       <!-- 详情视图 -->
       <NovelDetailView v-else />

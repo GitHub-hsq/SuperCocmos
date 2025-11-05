@@ -104,9 +104,19 @@ const currentMenuContent = computed(() => {
 })
 
 function scrollToSection(href: string) {
-  const element = document.querySelector(href)
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth' })
+  // Validate that href is a valid selector (not just '#')
+  if (!href || href === '#' || href.length <= 1) {
+    return
+  }
+
+  try {
+    const element = document.querySelector(href)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+  catch (error) {
+    console.warn(`Invalid selector: ${href}`, error)
   }
 }
 
@@ -194,6 +204,12 @@ function handleMenuLeave(_key: string) {
 function handleMenuItemClick(href: string) {
   activeDropdown.value = null
   hoveredDropdown.value = null
+
+  // Ignore placeholder links
+  if (href === '#') {
+    return
+  }
+
   if (href.startsWith('#')) {
     scrollToSection(href)
   }

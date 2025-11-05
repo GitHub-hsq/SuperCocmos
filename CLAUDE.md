@@ -1,0 +1,2 @@
+- 我自己来执行lint:fix;和type-check；
+- 使用中文来回答。

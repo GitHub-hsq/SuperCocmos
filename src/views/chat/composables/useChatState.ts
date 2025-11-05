@@ -11,7 +11,6 @@
  */
 
 import type { UploadFileInfo } from 'naive-ui'
-import type { Ref } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useDialog, useMessage, useNotification } from 'naive-ui'
 import { computed, nextTick, ref, watch } from 'vue'
@@ -64,8 +63,7 @@ export function useChatState() {
   const dataSources = computed(() => chatStore.getChatByUuid(uuid.value))
   const prompt = ref<string>('')
   const loading = ref<boolean>(false)
-  const inputRef = ref<Ref | null>(null)
-  const isMultiLine = ref<boolean>(false)
+  const inputRef = ref<any>(null) // NInput 组件实例
   const isFooterElevated = ref(true) // 新会话时footer上移的状态
   const currentConversationId = ref<string>('') // 当前对话ID（用于跨浏览器同步）
   const currentSelectedModel = ref<ModelItem | null>(null)
@@ -259,43 +257,6 @@ export function useChatState() {
     { immediate: true },
   )
 
-  // 🔥 监听输入框的实际高度，判断是否多行
-  const SINGLE_LINE_HEIGHT_THRESHOLD = 60
-
-  watch(
-    () => prompt.value,
-    async () => {
-      // 特殊处理：内容为空时，强制切换回单行模式
-      if (!prompt.value || prompt.value.trim() === '') {
-        isMultiLine.value = false
-        return
-      }
-
-      // 等待 DOM 更新
-      await nextTick()
-
-      // 获取输入框元素
-      const inputElement = inputRef.value?.$el?.querySelector('textarea')
-      if (!inputElement) {
-        // 降级：如果无法获取元素，使用换行符判断
-        isMultiLine.value = prompt.value.includes('\n')
-        return
-      }
-
-      // 根据实际渲染高度判断是否为多行
-      const currentHeight = inputElement.scrollHeight
-      isMultiLine.value = currentHeight > SINGLE_LINE_HEIGHT_THRESHOLD
-    },
-  )
-
-  // 🔥 监听输入框模式切换，自动恢复焦点
-  watch(isMultiLine, async (newValue, oldValue) => {
-    if (newValue !== oldValue) {
-      await nextTick()
-      inputRef.value?.focus()
-    }
-  })
-
   // 🔥 监听设置页面切换，从设置页面返回聊天界面时自动滚动到底部
   watch(showSettingsPage, (newValue, oldValue) => {
     if (oldValue === true && newValue === false) {
@@ -444,7 +405,6 @@ export function useChatState() {
     prompt,
     loading,
     inputRef,
-    isMultiLine,
     isFooterElevated,
     currentConversationId,
     currentSelectedModel,

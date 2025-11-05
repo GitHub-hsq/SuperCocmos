@@ -11,6 +11,7 @@ interface NovelState {
 
   // 视图状态
   showNovelList: boolean // true: 显示列表, false: 显示详情
+  showCreateForm: boolean // true: 显示创建表单
   selectedViewType: 'novel' | 'volume' | 'chapter' // 右侧显示的内容类型
   selectedVolumeId: string | null
   selectedChapterId: string | null
@@ -26,6 +27,7 @@ export const useNovelStore = defineStore('novel', {
     isLoading: false,
 
     showNovelList: true,
+    showCreateForm: false,
     selectedViewType: 'novel',
     selectedVolumeId: null,
     selectedChapterId: null,
@@ -166,11 +168,24 @@ export const useNovelStore = defineStore('novel', {
     // 返回列表
     backToList() {
       this.showNovelList = true
+      this.showCreateForm = false
       this.currentNovel = null
       this.volumes = []
       this.chapters = []
       this.selectedVolumeId = null
       this.selectedChapterId = null
+    },
+
+    // 显示创建表单
+    showCreateNovelForm() {
+      this.showCreateForm = true
+      this.showNovelList = false
+    },
+
+    // 隐藏创建表单，返回列表
+    hideCreateNovelForm() {
+      this.showCreateForm = false
+      this.showNovelList = true
     },
 
     // 选择卷（从树点击）

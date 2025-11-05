@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { NButton, NSpin } from 'naive-ui'
-import { ref } from 'vue'
 import { useNovelStore } from '@/store'
-import CreateNovelDialog from './CreateNovelDialog.vue'
 import NovelCard from './NovelCard.vue'
 
 const novelStore = useNovelStore()
-const showCreateDialog = ref(false)
 
 function handleCreateNovel() {
-  showCreateDialog.value = true
+  novelStore.showCreateNovelForm()
 }
 </script>
 
@@ -53,9 +50,6 @@ function handleCreateNovel() {
         </div>
       </div>
     </NSpin>
-
-    <!-- 新建小说对话框 -->
-    <CreateNovelDialog v-model:show="showCreateDialog" />
   </div>
 </template>
 

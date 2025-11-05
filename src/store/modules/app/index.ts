@@ -1,4 +1,4 @@
-import type { AppState, Language, Theme } from './helper'
+import type { AppState, Language, Theme, WorkMode } from './helper'
 import { defineStore } from 'pinia'
 import { store } from '@/store/helper'
 import { getLocalSetting, setLocalSetting } from './helper'
@@ -43,6 +43,11 @@ export const useAppStore = defineStore('app-store', {
 
     setActiveSettingTab(tab: string) {
       this.activeSettingTab = tab
+      this.recordState()
+    },
+
+    setWorkMode(mode: WorkMode) {
+      this.workMode = mode
       this.recordState()
     },
 

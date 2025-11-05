@@ -2,20 +2,22 @@
 import type { CSSProperties } from 'vue'
 import { NButton, NLayoutSider, NPopover } from 'naive-ui'
 import { nanoid } from 'nanoid'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import SuperCocmosIcon from '@/assets/icons/Logo.vue'
 import { SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { useAppStore, useAuthStore, useChatStore } from '@/store'
+import { useAppStore, useAuthStore, useChatStore, useNovelStore } from '@/store'
 import Profile from '@/views/chat/components/User/Profile.vue'
+import NovelTree from '@/views/novel/components/NovelTree.vue'
 import List from './List.vue'
 
 const router = useRouter()
 const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
+const novelStore = useNovelStore()
 
 const { isMobile } = useBasicLayout()
 
@@ -24,6 +26,7 @@ const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 // 计算属性：从 store 获取设置页面状态
 const showSettingsPage = computed(() => appStore.showSettingsPage)
 const activeSettingTab = computed(() => appStore.activeSettingTab)
+const workMode = computed(() => appStore.workMode)
 
 // 判断是否为管理员
 const isAdmin = computed(() => {
@@ -133,14 +136,33 @@ function handleModeChange(mode: 'noteToQuestion' | 'noteToStory') {
     appStore.setSiderCollapsed(true)
 }
 
+// 切换到小说创作模式
+function handleGoToNovel() {
+  appStore.setWorkMode('novel')
+  // 加载小说数据
+  novelStore.fetchUserNovels()
+  if (isMobile.value)
+    appStore.setSiderCollapsed(true)
+}
+
+// 返回聊天模式
+function handleBackToChat() {
+  appStore.setWorkMode('chat')
+  if (isMobile.value)
+    appStore.setSiderCollapsed(true)
+}
+
 // 切换到设置页面
-function handleShowSettings() {
+async function handleShowSettings() {
   // 如果侧边栏是收起的，先展开
   if (collapsed.value) {
     appStore.setSiderCollapsed(false)
   }
-  appStore.setShowSettingsPage(true)
+  // 🔥 先设置 activeSettingTab，再显示设置页面，避免渲染时序问题
   appStore.setActiveSettingTab('General')
+  // 使用 nextTick 确保状态更新完成后再显示设置页面
+  await nextTick()
+  appStore.setShowSettingsPage(true)
 }
 
 // 返回菜单
@@ -227,9 +249,12 @@ watch(
                 </div>
                 <button
                   class="sider-toggle-btn"
-                  @click="handleUpdateCollapsed"
+                  @click="workMode === 'novel' ? handleBackToChat() : handleUpdateCollapsed()"
                 >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="icon">
+                  <!-- 小说模式：返回箭头 -->
+                  <SvgIcon v-if="workMode === 'novel'" icon="ri:arrow-left-line" class="text-xl" />
+                  <!-- 聊天模式：折叠图标 -->
+                  <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="icon">
                     <path d="M6.83496 3.99992C6.38353 4.00411 6.01421 4.0122 5.69824 4.03801C5.31232 4.06954 5.03904 4.12266 4.82227 4.20012L4.62207 4.28606C4.18264 4.50996 3.81498 4.85035 3.55859 5.26848L3.45605 5.45207C3.33013 5.69922 3.25006 6.01354 3.20801 6.52824C3.16533 7.05065 3.16504 7.71885 3.16504 8.66301V11.3271C3.16504 12.2712 3.16533 12.9394 3.20801 13.4618C3.25006 13.9766 3.33013 14.2909 3.45605 14.538L3.55859 14.7216C3.81498 15.1397 4.18266 15.4801 4.62207 15.704L4.82227 15.79C5.03904 15.8674 5.31234 15.9205 5.69824 15.9521C6.01398 15.9779 6.383 15.986 6.83398 15.9902L6.83496 3.99992ZM18.165 11.3271C18.165 12.2493 18.1653 12.9811 18.1172 13.5702C18.0745 14.0924 17.9916 14.5472 17.8125 14.9648L17.7295 15.1415C17.394 15.8 16.8834 16.3511 16.2568 16.7353L15.9814 16.8896C15.5157 17.1268 15.0069 17.2285 14.4102 17.2773C13.821 17.3254 13.0893 17.3251 12.167 17.3251H7.83301C6.91071 17.3251 6.17898 17.3254 5.58984 17.2773C5.06757 17.2346 4.61294 17.1508 4.19531 16.9716L4.01855 16.8896C3.36014 16.5541 2.80898 16.0434 2.4248 15.4169L2.27051 15.1415C2.03328 14.6758 1.93158 14.167 1.88281 13.5702C1.83468 12.9811 1.83496 12.2493 1.83496 11.3271V8.66301C1.83496 7.74072 1.83468 7.00898 1.88281 6.41985C1.93157 5.82309 2.03329 5.31432 2.27051 4.84856L2.4248 4.57317C2.80898 3.94666 3.36012 3.436 4.01855 3.10051L4.19531 3.0175C4.61285 2.83843 5.06771 2.75548 5.58984 2.71281C6.17898 2.66468 6.91071 2.66496 7.83301 2.66496H12.167C13.0893 2.66496 13.821 2.66468 14.4102 2.71281C15.0069 2.76157 15.5157 2.86329 15.9814 3.10051L16.2568 3.25481C16.8833 3.63898 17.394 4.19012 17.7295 4.84856L17.8125 5.02531C17.9916 5.44285 18.0745 5.89771 18.1172 6.41985C18.1653 7.00898 18.165 7.74072 18.165 8.66301V11.3271ZM8.16406 15.995H12.167C13.1112 15.995 13.7794 15.9947 14.3018 15.9521C14.8164 15.91 15.1308 15.8299 15.3779 15.704L15.5615 15.6015C15.9797 15.3451 16.32 14.9774 16.5439 14.538L16.6299 14.3378C16.7074 14.121 16.7605 13.8478 16.792 13.4618C16.8347 12.9394 16.835 12.2712 16.835 11.3271V8.66301C16.835 7.71885 16.8347 7.05065 16.792 6.52824C16.7605 6.14232 16.7073 5.86904 16.6299 5.65227L16.5439 5.45207C16.32 5.01264 15.9796 4.64498 15.5615 4.3886L15.3779 4.28606C15.1308 4.16013 14.8165 4.08006 14.3018 4.03801C13.7794 3.99533 13.1112 3.99504 12.167 3.99504H8.16406C8.16407 3.99667 8.16504 3.99829 8.16504 3.99992L8.16406 15.995Z" />
                   </svg>
                 </button>
@@ -248,8 +273,8 @@ watch(
               </template>
             </div>
 
-            <!-- 导航列表（展开状态） -->
-            <div v-show="!collapsed" class="nav-bg flex flex-col flex-1 min-h-0 overflow-hidden">
+            <!-- 导航列表（展开状态） - 聊天模式 -->
+            <div v-if="workMode === 'chat'" v-show="!collapsed" class="nav-bg flex flex-col flex-1 min-h-0 overflow-hidden">
               <div class="px-4 py-2 flex-shrink-0">
                 <!-- 新建聊天 -->
                 <div class="nav-item" @click="handleAdd">
@@ -271,16 +296,15 @@ watch(
                   <span class="nav-item-text">{{ $t('chat.modeNoteToQuestion') }}</span>
                 </div>
 
-                <!-- 笔记转故事 -->
+                <!-- 小说创作 -->
                 <div
                   class="nav-item"
-                  :class="{ 'nav-item-active': chatStore.chatMode === 'noteToStory' }"
-                  @click="handleModeChange('noteToStory')"
+                  @click="handleGoToNovel"
                 >
                   <span class="nav-item-icon">
-                    <SvgIcon icon="ri:book-open-line" />
+                    <SvgIcon icon="ri:quill-pen-line" />
                   </span>
-                  <span class="nav-item-text">{{ $t('chat.modeNoteToStory') }}</span>
+                  <span class="nav-item-text">小说创作</span>
                 </div>
 
                 <!-- 历史记录 -->
@@ -301,6 +325,14 @@ watch(
               </div>
             </div>
 
+            <!-- 导航列表（展开状态） - 小说模式 -->
+            <div v-else-if="workMode === 'novel'" v-show="!collapsed" class="nav-bg flex flex-col flex-1 min-h-0 overflow-hidden">
+              <!-- 小说树 -->
+              <div class="flex-1 min-h-0 overflow-hidden">
+                <NovelTree />
+              </div>
+            </div>
+
             <!-- 收起状态 -->
             <div v-show="collapsed" class="flex justify-center py-4">
               <NPopover
@@ -312,33 +344,50 @@ watch(
                 <template #trigger>
                   <button class="sider-icon-btn">
                     <SvgIcon
-                      :icon="chatStore.chatMode === 'noteToQuestion' ? 'ri:file-text-line' : chatStore.chatMode === 'noteToStory' ? 'ri:book-open-line' : 'ri:chat-3-line'"
+                      :icon="workMode === 'novel' ? 'ri:quill-pen-line' : chatStore.chatMode === 'noteToQuestion' ? 'ri:file-text-line' : 'ri:chat-3-line'"
                     />
                   </button>
                 </template>
                 <div class="flex flex-col space-y-2 p-2" style=" background-color: transparent;">
-                  <NButton
-                    :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
-                    block
-                    size="small"
-                    @click="handleModeChange('noteToQuestion')"
-                  >
-                    <template #icon>
-                      <SvgIcon icon="ri:file-text-line" />
-                    </template>
-                    {{ $t('chat.modeNoteToQuestion') }}
-                  </NButton>
-                  <NButton
-                    :type="chatStore.chatMode === 'noteToStory' ? 'primary' : 'default'"
-                    block
-                    size="small"
-                    @click="handleModeChange('noteToStory')"
-                  >
-                    <template #icon>
-                      <SvgIcon icon="ri:book-open-line" />
-                    </template>
-                    {{ $t('chat.modeNoteToStory') }}
-                  </NButton>
+                  <!-- 聊天模式选项 -->
+                  <template v-if="workMode === 'chat'">
+                    <NButton
+                      :type="chatStore.chatMode === 'noteToQuestion' ? 'primary' : 'default'"
+                      block
+                      size="small"
+                      @click="handleModeChange('noteToQuestion')"
+                    >
+                      <template #icon>
+                        <SvgIcon icon="ri:file-text-line" />
+                      </template>
+                      {{ $t('chat.modeNoteToQuestion') }}
+                    </NButton>
+                    <NButton
+                      type="default"
+                      block
+                      size="small"
+                      @click="handleGoToNovel"
+                    >
+                      <template #icon>
+                        <SvgIcon icon="ri:quill-pen-line" />
+                      </template>
+                      小说创作
+                    </NButton>
+                  </template>
+                  <!-- 小说模式选项 -->
+                  <template v-else>
+                    <NButton
+                      type="default"
+                      block
+                      size="small"
+                      @click="handleBackToChat"
+                    >
+                      <template #icon>
+                        <SvgIcon icon="ri:arrow-left-line" />
+                      </template>
+                      返回聊天
+                    </NButton>
+                  </template>
                 </div>
               </NPopover>
             </div>

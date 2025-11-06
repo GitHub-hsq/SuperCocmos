@@ -1322,7 +1322,6 @@ app.set('trust proxy', 1)
 // 确保在所有 API 路由之后添加
 const distPath = join(process.cwd(), 'dist')
 if (existsSync(distPath)) {
-  logger.info('✅ [启动] 检测到 dist 目录，启用静态文件服务')
   app.use(express.static(distPath, { index: false })) // 禁用默认 index.html，使用 catch-all 路由
 
   // Catch-all 路由：所有非 API 路由都返回 index.html（支持 History 模式）
@@ -1351,8 +1350,6 @@ if (existsSync(distPath)) {
   })
 }
 else {
-  logger.warn('⚠️  [启动] 未检测到 dist 目录，请先运行 pnpm build 构建前端')
-
   // 即使在 Vercel 环境中也提供基本的错误响应
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) {
@@ -1391,13 +1388,11 @@ async function initDatabase() {
       const { preloadModelsWithRolesToRedis } = await import('./cache/modelCache')
       await preloadModelsWithRolesToRedis()
 
-      logger.info('✅ [Redis缓存] 全局数据预加载完成（供应商、模型、角色、models_with_roles视图）')
+      logger.info('[Redis缓存] 全局数据预加载完成（供应商、模型、角色、models_with_roles视图）')
     }
     catch (error) {
       console.error('⚠️ [启动] 预加载缓存失败，将使用数据库查询:', error)
     }
-
-    logger.info('✅ [启动] 数据库初始化完成')
   }
   catch (error: any) {
     console.error('❌ [启动] 数据库初始化失败:', error.message)

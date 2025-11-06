@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { logger } from '../utils/logger'
 
 // ============================================
 // 类型定义
@@ -37,13 +38,27 @@ export interface ProviderWithModels extends Omit<Provider, 'deleted_at'> {
  * 获取所有供应商及其模型（使用视图）
  */
 export async function getAllProvidersWithModels(): Promise<ProviderWithModels[]> {
+  const queryStart = performance.now()
+
   try {
     const { data, error } = await supabase
       .from('providers_with_models')
       .select('*')
 
-    if (error)
+    const queryDuration = performance.now() - queryStart
+
+    if (error) {
+      logger.error(`Supabase查询失败 (providers_with_models): ${error.message} (${queryDuration.toFixed(0)}ms)`)
       throw error
+    }
+
+    // 🔥 只记录慢查询，减少日志
+    if (queryDuration > 2000) {
+      logger.warn(`[SLOW] Supabase查询 (providers_with_models): ${queryDuration.toFixed(0)}ms, ${data?.length || 0} 条`)
+    }
+    else if (queryDuration > 500) {
+      logger.info(`[PERF] Supabase查询 (providers_with_models): ${queryDuration.toFixed(0)}ms, ${data?.length || 0} 条`)
+    }
 
     // 转换数据库字段名到后端格式（视图使用驼峰命名，需要转换为下划线）
     return (data || []).map((item: any) => ({
@@ -65,8 +80,9 @@ export async function getAllProvidersWithModels(): Promise<ProviderWithModels[]>
       updated_at: item.provider_updated_at,
     }))
   }
-  catch (error) {
-    console.error('获取供应商列表失败:', error)
+  catch (error: any) {
+    const queryDuration = performance.now() - queryStart
+    logger.error(`获取供应商列表失败: ${error.message} (${queryDuration.toFixed(0)}ms)`)
     throw error
   }
 }

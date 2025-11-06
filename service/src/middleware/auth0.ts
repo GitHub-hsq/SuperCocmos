@@ -71,10 +71,10 @@ async function checkAuth0Connection() {
     return
   try {
     await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
-    console.warn(`✅ [Auth0 Health] 连接正常: ${AUTH0_DOMAIN}`)
+    // 🔥 简化日志：不再输出 Auth0 Health 检查信息
   }
   catch (err: any) {
-    console.warn(`⚠️ [Auth0 Health] 连接异常: ${err.message}`)
+    // 🔥 简化日志：静默处理连接失败
   }
 }
 
@@ -85,11 +85,11 @@ async function preloadJWKSKeys() {
   if (!AUTH0_DOMAIN)
     return
   try {
-    const keys = await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
-    console.warn(`✅ [Auth0 JWKS] 预加载成功 (${keys.keys?.length || 0} 个密钥)`)
+    await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
+    // 🔥 简化日志：不再输出 JWKS 预加载信息
   }
   catch (err: any) {
-    console.warn(`⚠️ [Auth0 JWKS] 预加载失败: ${err.message}`)
+    // 🔥 简化日志：静默处理预加载失败
   }
 }
 

@@ -13,7 +13,7 @@ import type { Request, Response } from 'express'
 import { findUserByAuth0Id, upsertUserFromAuth0 } from '../db/supabaseUserService'
 import { getUserWithRolesByAuth0Id } from '../db/userRoleService'
 import { addPerfCheckpoint } from '../middleware/performanceLogger'
-import { logger } from '../utils/logger'
+import { logger, measurePerformance } from '../utils/logger'
 
 /**
  * 应用初始化接口
@@ -58,25 +58,29 @@ export async function initializeApp(req: Request, res: Response) {
       })
     }
 
-    logger.info(`🚀 [Init] 开始应用初始化: ${auth0_id.substring(0, 20)}...`)
+    logger.info(`[Init] 开始应用初始化: ${email}`)
 
     // 🔥 步骤 1: 先同步用户（必须完成，确保用户在数据库中存在）
-    const syncStart = performance.now()
-    let user = null
-    try {
-      user = await upsertUserFromAuth0({
-        auth0_id,
-        email,
-        username: username || email.split('@')[0],
-        avatar_url,
-        email_verified,
-      })
-    }
-    catch (error: any) {
-      logger.error('❌ [Init] 用户同步失败:', error.message)
-      // 尝试从数据库查询已存在的用户
-      user = await findUserByAuth0Id(auth0_id)
-    }
+    const user = await measurePerformance(
+      '用户同步 (upsertUserFromAuth0)',
+      async () => {
+        try {
+          return await upsertUserFromAuth0({
+            auth0_id,
+            email,
+            username: username || email.split('@')[0],
+            avatar_url,
+            email_verified,
+          })
+        }
+        catch (error: any) {
+          logger.error(`[Init] 用户同步失败，尝试查询已存在用户: ${error.message}`)
+          // 尝试从数据库查询已存在的用户
+          return await findUserByAuth0Id(auth0_id)
+        }
+      },
+      2000, // 超过2秒视为慢操作
+    )
 
     if (!user) {
       logger.error('❌ [Init] 用户同步失败且用户不存在')
@@ -87,68 +91,55 @@ export async function initializeApp(req: Request, res: Response) {
       })
     }
 
-    const syncDuration = performance.now() - syncStart
-    addPerfCheckpoint(req, `User Sync: ${syncDuration.toFixed(0)}ms`)
-    logger.info(`✅ [Init] 用户同步成功: ${user.user_id.substring(0, 8)}... (${syncDuration.toFixed(0)}ms)`)
+    // 用户同步成功由 measurePerformance 自动记录
 
     // 🔥 步骤 2: 用户同步完成后，并行加载配置、会话列表和角色
-    const parallelStartTime = performance.now()
     const userId = user.user_id
 
-    const [configResult, conversationsResult, rolesResult] = await Promise.allSettled([
-      // 2.1 获取用户配置
-      (async () => {
-        try {
-          const configStart = performance.now()
-          const { getUserConfig } = await import('../db/configService')
-          const config = await getUserConfig(userId)
-          const configDuration = performance.now() - configStart
-          addPerfCheckpoint(req, `Config Load: ${configDuration.toFixed(0)}ms`)
-          logger.info(`✅ [Init] 配置加载成功 (${configDuration.toFixed(0)}ms)`)
-          return config
-        }
-        catch (error: any) {
-          logger.error('❌ [Init] 配置加载失败:', error.message)
-          return null
-        }
-      })(),
+    const [configResult, conversationsResult, rolesResult] = await measurePerformance(
+      '并行加载 (配置+会话+角色)',
+      async () => {
+        return await Promise.allSettled([
+          // 2.1 获取用户配置
+          measurePerformance('获取用户配置', async () => {
+            try {
+              const { getUserConfig } = await import('../db/configService')
+              return await getUserConfig(userId)
+            }
+            catch (error: any) {
+              logger.error(`[Init] 配置加载失败: ${error.message}`)
+              return null
+            }
+          }, 1000),
 
-      // 2.2 获取会话列表
-      (async () => {
-        try {
-          const conversationsStart = performance.now()
-          const { getUserConversations } = await import('../db/conversationService')
-          const conversations = await getUserConversations(userId, { limit: 50, offset: 0 })
-          const conversationsDuration = performance.now() - conversationsStart
-          addPerfCheckpoint(req, `Conversations Load: ${conversationsDuration.toFixed(0)}ms`)
-          logger.info(`✅ [Init] 会话列表加载成功: ${conversations?.length || 0} 条 (${conversationsDuration.toFixed(0)}ms)`)
-          return conversations || []
-        }
-        catch (error: any) {
-          logger.error('❌ [Init] 会话列表加载失败:', error.message)
-          return []
-        }
-      })(),
+          // 2.2 获取会话列表
+          measurePerformance('获取会话列表', async () => {
+            try {
+              const { getUserConversations } = await import('../db/conversationService')
+              const conversations = await getUserConversations(userId, { limit: 50, offset: 0 })
+              return conversations || []
+            }
+            catch (error: any) {
+              logger.error(`[Init] 会话列表加载失败: ${error.message}`)
+              return []
+            }
+          }, 1000),
 
-      // 2.3 获取用户角色
-      (async () => {
-        try {
-          const rolesStart = performance.now()
-          const userWithRoles = await getUserWithRolesByAuth0Id(auth0_id)
-          const rolesDuration = performance.now() - rolesStart
-          addPerfCheckpoint(req, `Roles Load: ${rolesDuration.toFixed(0)}ms`)
-          logger.info(`✅ [Init] 角色加载成功: ${userWithRoles?.roles?.length || 0} 个 (${rolesDuration.toFixed(0)}ms)`)
-          return userWithRoles
-        }
-        catch (error: any) {
-          logger.error('❌ [Init] 角色加载失败:', error.message)
-          return null
-        }
-      })(),
-    ])
-
-    const parallelDuration = performance.now() - parallelStartTime
-    logger.info(`⚡ [Init] 并行加载完成 (${parallelDuration.toFixed(0)}ms)`)
+          // 2.3 获取用户角色
+          measurePerformance('获取用户角色', async () => {
+            try {
+              const userWithRoles = await getUserWithRolesByAuth0Id(auth0_id)
+              return userWithRoles
+            }
+            catch (error: any) {
+              logger.error(`[Init] 角色加载失败: ${error.message}`)
+              return null
+            }
+          }, 1000),
+        ])
+      },
+      3000, // 并行加载超过3秒视为慢操作
+    )
 
     // 处理结果
     const config = configResult.status === 'fulfilled' ? configResult.value : null
@@ -163,7 +154,7 @@ export async function initializeApp(req: Request, res: Response) {
     const totalDuration = performance.now() - totalStartTime
     addPerfCheckpoint(req, `Total: ${totalDuration.toFixed(0)}ms`)
 
-    logger.info(`🎉 [Init] 初始化完成: 总耗时 ${totalDuration.toFixed(0)}ms`)
+    logger.info(`[Init] 初始化完成: ${totalDuration.toFixed(0)}ms, ${conversations.length} 个会话`)
 
     return res.json({
       status: 'Success',
@@ -186,17 +177,12 @@ export async function initializeApp(req: Request, res: Response) {
         },
         config: config || null,
         conversations: conversations || [],
-        performance: {
-          userSync: `${syncDuration.toFixed(0)}ms`,
-          parallel: `${parallelDuration.toFixed(0)}ms`,
-          total: `${totalDuration.toFixed(0)}ms`,
-        },
       },
     })
   }
   catch (error: any) {
     const totalDuration = performance.now() - totalStartTime
-    logger.error(`❌ [Init] 初始化失败 (${totalDuration.toFixed(0)}ms):`, error.message)
+    logger.error(`[Init] 初始化失败 (${totalDuration.toFixed(0)}ms): ${error.message}`)
 
     return res.status(500).json({
       status: 'Fail',

@@ -36,10 +36,10 @@ const redisClientModule = useUpstash
     }
 
 if (useUpstash) {
-  console.warn('✅ [Redis] 检测到 Upstash 配置，使用 Upstash Redis REST API')
+  console.warn('[Redis] OK - 检测到 Upstash 配置，使用 Upstash Redis REST API')
 }
 else {
-  console.warn('✅ [Redis] 使用 ioredis（本地开发模式）')
+  console.warn('[Redis] OK - 使用 ioredis（本地开发模式）')
 }
 
 // 导出常量引用（避免 mutable exports）

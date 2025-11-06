@@ -1,66 +1,73 @@
 /**
- * 日志工具
- * 根据环境变量控制日志输出级别
+ * Pino 日志工具
+ * 提供结构化、高性能的日志输出
  */
 
-const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'debug')
+import pino from 'pino'
+
 const NODE_ENV = process.env.NODE_ENV || 'development'
+// 🔥 优化：开发环境也使用 info 级别，减少冗余日志
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 
-// 只在开发环境或设置为 debug 时输出详细日志
-const isDebugMode = NODE_ENV === 'development' || LOG_LEVEL === 'debug'
-const isInfoMode = LOG_LEVEL === 'info' || LOG_LEVEL === 'debug'
-const isWarnMode = LOG_LEVEL !== 'error' && LOG_LEVEL !== 'silent'
-const isErrorMode = LOG_LEVEL !== 'silent'
+// 检测是否为 Windows 环境
+const isWindows = process.platform === 'win32'
 
-/**
- * 调试日志（仅在开发环境或 debug 模式）
- */
-function debug(...args: any[]) {
-  if (isDebugMode) {
-    console.warn('[DEBUG]', ...args)
-  }
-}
-
-/**
- * 信息日志（生产环境默认不输出）
- */
-function info(...args: any[]) {
-  if (isInfoMode) {
-    console.warn('[INFO]', ...args)
-  }
-}
-
-/**
- * 警告日志（生产环境默认输出）
- */
-function warn(...args: any[]) {
-  if (isWarnMode) {
-    console.warn('[WARN]', ...args)
-  }
-}
-
-/**
- * 错误日志（始终输出）
- */
-function error(...args: any[]) {
-  if (isErrorMode) {
-    console.error('[ERROR]', ...args)
-  }
-}
+// 创建 Pino logger
+export const logger = pino({
+  level: LOG_LEVEL,
+  transport: NODE_ENV === 'development'
+    ? {
+        target: 'pino-pretty',
+        options: {
+          colorize: !isWindows, // Windows 下禁用颜色
+          translateTime: 'HH:MM:ss',
+          ignore: 'pid,hostname,env',
+          singleLine: true, // 单行输出，避免格式问题
+          messageFormat: '{msg}',
+          // Windows 下使用 ASCII 字符
+          customColors: isWindows ? undefined : 'info:blue,warn:yellow,error:red',
+        },
+      }
+    : undefined,
+  formatters: {
+    level: (label: string) => {
+      return { level: label.toUpperCase() }
+    },
+  },
+  base: {
+    env: NODE_ENV,
+  },
+})
 
 /**
- * 成功日志（仅在开发环境或 debug 模式）
+ * 性能监测装饰器
+ * 用于监测函数执行时间
  */
-function success(...args: any[]) {
-  if (isDebugMode) {
-    console.warn('[OK]', ...args)
-  }
-}
+export function measurePerformance<T>(
+  name: string,
+  fn: () => Promise<T>,
+  slowThreshold = 1000,
+): Promise<T> {
+  const start = performance.now()
 
-export const logger = {
-  debug,
-  info,
-  warn,
-  error,
-  success,
+  return fn().then(
+    (result) => {
+      const duration = performance.now() - start
+
+      if (duration > slowThreshold) {
+        logger.warn(`[SLOW] ${name}: ${duration.toFixed(0)}ms`)
+      }
+      else if (duration > 500) {
+        logger.info(`[PERF] ${name}: ${duration.toFixed(0)}ms`)
+      }
+      // 🔥 不输出快速操作的日志，减少冗余
+
+      return result
+    },
+    (error) => {
+      const duration = performance.now() - start
+      logger.error(`[ERROR] ${name} 失败: ${error.message} (${duration.toFixed(0)}ms)`)
+      throw error
+    },
+  )
 }

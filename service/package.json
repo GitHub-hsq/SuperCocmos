@@ -14,8 +14,8 @@
     "node": "20.x"
   },
   "scripts": {
-    "start": "esno ./src/index.ts",
-    "dev": "esno watch ./src/index.ts",
+    "start": "chcp 65001 > NUL && esno ./src/index.ts",
+    "dev": "chcp 65001 > NUL && esno watch ./src/index.ts",
     "prod": "node ./build/index.mjs",
     "build": "tsup",
     "clean": "rimraf build",
@@ -53,6 +53,8 @@
     "nanoid": "^5.1.6",
     "node-fetch": "^3.3.0",
     "pdf-parse": "^1.1.1",
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.2",
     "socks-proxy-agent": "^7.0.0"
   },
   "devDependencies": {

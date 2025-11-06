@@ -92,10 +92,11 @@ export const useAppInitStore = defineStore('app-init', {
         const configStore = useConfigStore()
         const authStore = useAuthStore()
 
-        // 🔥 并行加载优化：使用统一初始化接口
+        // 🔥 并行加载优化：用户初始化 + 模型加载并行执行，互不阻塞
 
         // 🔐 步骤 1: 统一初始化（用户同步 + 配置加载 + 会话列表）
         const step1Promise = (async () => {
+          console.warn('⏱️ [AppInit] 开始用户初始化...')
           if (!auth0.isAuthenticated.value || !auth0.user.value) {
             this.permissionsLoaded = true
             this.configLoaded = true
@@ -129,7 +130,6 @@ export const useAppInitStore = defineStore('app-init', {
 
             const initDuration = performance.now() - initStartTime
             console.warn(`🎉 [AppInit] 统一初始化完成: ${initDuration.toFixed(0)}ms`)
-            console.warn(`📊 [AppInit] 性能数据:`, initResponse.data?.performance)
 
             if (initResponse.status === 'Success' && initResponse.data) {
               const { user: userData, config, conversations } = initResponse.data
@@ -237,11 +237,15 @@ export const useAppInitStore = defineStore('app-init', {
           }
         })()
 
-        // 📦 步骤 2: 加载模型列表
+        // 📦 步骤 2: 加载模型列表（并行执行，不阻塞用户初始化）
         const step2Promise = (async () => {
+          console.warn('⏱️ [AppInit] 开始加载模型列表...')
           if (!modelStore.isProvidersLoaded) {
             try {
+              const loadStart = performance.now()
               const success = await modelStore.loadModelsFromBackend()
+              const loadDuration = performance.now() - loadStart
+              console.warn(`✅ [AppInit] 模型列表加载${success ? '成功' : '失败'}: ${loadDuration.toFixed(0)}ms`)
               this.modelsLoaded = success
             }
             catch (error) {
@@ -253,11 +257,15 @@ export const useAppInitStore = defineStore('app-init', {
           }
           else {
             this.modelsLoaded = true
+            console.warn('✅ [AppInit] 模型列表已缓存，跳过加载')
           }
         })()
 
         // 🔥 等待所有并行任务完成（统一初始化 + 模型加载）
+        const parallelStart = performance.now()
         await Promise.all([step1Promise, step2Promise])
+        const parallelDuration = performance.now() - parallelStart
+        console.warn(`⚡ [AppInit] 并行任务全部完成: ${parallelDuration.toFixed(0)}ms`)
 
         // ⚙️ 🔥 步骤 5: 启动 SSE 连接（跨设备实时同步，依赖步骤1的 token）
         // 🔥 临时禁用：服务器部署后 SSE 连接不稳定，暂时禁用，保留代码以便后续恢复
@@ -281,6 +289,9 @@ export const useAppInitStore = defineStore('app-init', {
         // }
 
         this.isInitialized = true
+
+        const totalDuration = performance.now() - performance.now()
+        console.warn(`🎉 [AppInit] 应用初始化完成！准备进入主界面`)
 
         return { success: true }
       }

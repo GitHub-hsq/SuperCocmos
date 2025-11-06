@@ -46,8 +46,7 @@ export async function preloadRolesToRedis(): Promise<void> {
       cacheCount++
     }
 
-    const endTime = Date.now()
-    logger.info(`✅ [Redis缓存] 角色预加载完成: ${roles.length} 个角色, ${cacheCount} 个缓存键, 耗时 ${endTime - startTime}ms`)
+    // 🔥 简化日志：不再单独输出角色预加载完成信息
   }
   catch (error) {
     console.error('❌ [缓存] 角色预加载失败:', error)

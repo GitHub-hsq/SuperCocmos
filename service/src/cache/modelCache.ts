@@ -78,8 +78,7 @@ export async function preloadModelsToRedis(): Promise<void> {
       }
     }
 
-    const endTime = Date.now()
-    logger.info(`✅ [Redis缓存] 预加载完成: ${providerCount} 个供应商, ${modelCount} 个模型, 耗时 ${endTime - startTime}ms`)
+    // 🔥 简化日志：不再单独输出供应商/模型预加载完成信息
     if (cacheKeySamples.length > 0) {
       logger.debug(`📋 [Redis缓存] 缓存键样本:`, cacheKeySamples.slice(0, 3))
     }
@@ -200,8 +199,7 @@ export async function preloadModelsWithRolesToRedis(): Promise<void> {
     // 缓存整个列表
     await redis.setex(MODELS_WITH_ROLES_KEY, CACHE_TTL, JSON.stringify(models))
 
-    const endTime = Date.now()
-    logger.info(`✅ [Redis缓存] models_with_roles 预加载完成: ${models.length} 个模型, 耗时 ${endTime - startTime}ms`)
+    // 🔥 简化日志：不再单独输出 models_with_roles 预加载完成信息
   }
   catch (error) {
     console.error('❌ [缓存] models_with_roles 预加载失败:', error)

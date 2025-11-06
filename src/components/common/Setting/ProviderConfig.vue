@@ -1066,9 +1066,9 @@ watch(() => props.visible, async (visible) => {
 </script>
 
 <template>
-  <div class="p-4 space-y-4">
+  <div class="provider-config-container">
     <!-- 操作栏 -->
-    <div class="flex items-center justify-end">
+    <div class="flex items-center justify-end mb-4">
       <NSpace>
         <NButton
           type="primary"
@@ -1093,7 +1093,7 @@ watch(() => props.visible, async (visible) => {
     </div>
 
     <!-- 统计信息 -->
-    <div class="flex gap-4 text-sm">
+    <div class="flex gap-4 text-sm mb-4">
       <span class="text-neutral-600 dark:text-neutral-400">
         供应商: <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ providersList.length }}</span> 个
       </span>
@@ -1109,7 +1109,7 @@ watch(() => props.visible, async (visible) => {
     </div>
 
     <!-- 供应商列表表格 -->
-    <div class="overflow-auto" style="height: calc(100vh - 280px); min-height: 500px;">
+    <div class="table-container">
       <NDataTable
         v-model:expanded-row-keys="expandedRowKeys"
         :columns="providerColumns"
@@ -1119,7 +1119,10 @@ watch(() => props.visible, async (visible) => {
         size="small"
         :loading="loading"
         :row-key="(row: ProviderItem) => row.id"
+        :scroll-x="1200"
+        max-height="calc(100vh - 200px)"
         resizable
+        striped
       />
     </div>
 
@@ -1486,5 +1489,47 @@ watch(() => props.visible, async (visible) => {
 </template>
 
 <style scoped>
-/* 自定义样式 */
+.provider-config-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.table-container {
+  flex: 1;
+  overflow: visible; /* 让表格自己处理滚动 */
+}
+
+/* 固定表头 - Naive UI 会在设置 max-height 时自动处理 */
+:deep(.n-data-table-thead th) {
+  background-color: var(--n-th-color);
+}
+
+.dark :deep(.n-data-table-thead th) {
+  background-color: var(--n-th-color);
+}
+
+/* 优化滚动条样式 */
+:deep(.n-data-table-base-table-body)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:deep(.n-data-table-base-table-body)::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+:deep(.n-data-table-base-table-body)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.dark :deep(.n-data-table-base-table-body)::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark :deep(.n-data-table-base-table-body)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
 </style>

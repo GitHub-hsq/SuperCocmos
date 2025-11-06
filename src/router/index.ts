@@ -167,17 +167,17 @@ export function setupAuthGuard(auth0: Auth0VueClient) {
       if (isAuthenticated.value) {
         const appInitStore = useAppInitStore()
 
-        // 如果正在初始化或未初始化，等待完成（最多等待 15 秒）
+        // 如果正在初始化或未初始化，等待完成（最多等待 5 秒）
         if (!appInitStore.isInitialized) {
           console.warn('⏳ [Router] 等待应用初始化完成（包括用户同步）...')
           let waitCount = 0
-          const maxWait = 300 // 15秒 = 300 * 50ms
+          const maxWait = 100 // 🔥 优化: 5秒 = 100 * 50ms（原来是15秒）
           while (!appInitStore.isInitialized && waitCount < maxWait) {
             await new Promise(resolve => setTimeout(resolve, 50))
             waitCount++
 
-            // 🔥 每2秒输出一次日志，方便调试
-            if (waitCount % 40 === 0) {
+            // 🔥 每1秒输出一次日志，方便调试
+            if (waitCount % 20 === 0) {
               console.warn(`⏳ [Router] 仍在等待应用初始化... (${waitCount * 50}ms)`)
             }
           }
@@ -185,7 +185,7 @@ export function setupAuthGuard(auth0: Auth0VueClient) {
             console.warn('✅ [Router] 应用初始化完成，继续路由导航')
           }
           else {
-            console.warn('⚠️ [Router] 应用初始化超时（15秒），强制继续（可能用户同步失败，但允许继续）')
+            console.warn('⚠️ [Router] 应用初始化超时（5秒），强制继续（数据将在后台异步加载）')
           }
         }
 

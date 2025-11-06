@@ -7,14 +7,14 @@ import ProviderConfig from '../ProviderConfig.vue'
 </script>
 
 <template>
-  <div class="provider-config-panel">
+  <div class="provider-config-panel h-full">
     <ProviderConfig :visible="true" />
   </div>
 </template>
 
 <style scoped>
 .provider-config-panel {
-  max-width: 1200px;
   margin: 0 auto;
+  height: 100%;
 }
 </style>

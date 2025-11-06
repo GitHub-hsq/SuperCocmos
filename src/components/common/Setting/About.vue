@@ -3,7 +3,6 @@ import { NButton, NSpin, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { fetchAPIUsage } from '@/api'
 import { SvgIcon } from '@/components/common'
-import { useAuthStore } from '@/store'
 import pkg from '../../../../package.json'
 
 interface UsageData {
@@ -14,13 +13,10 @@ interface UsageData {
   [key: string]: any
 }
 
-const authStore = useAuthStore()
 const message = useMessage()
 
 const loadingUsage = ref(false)
 const usageData = ref<UsageData>()
-
-const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 
 // 千分位格式化
 function formatNumber(num: number | undefined): string {
@@ -76,7 +72,7 @@ defineExpose({
     </h2>
 
     <!-- API 使用量信息 -->
-    <div v-if="isChatGPTAPI" class="space-y-4">
+    <div class="space-y-4">
       <div class="flex items-center justify-between">
         <NButton
           size="small"
@@ -128,10 +124,6 @@ defineExpose({
           点击刷新按钮获取使用量信息
         </div>
       </NSpin>
-    </div>
-
-    <div v-else class="p-4 text-center text-neutral-500">
-      当前使用的不是 ChatGPT API 模式
     </div>
   </div>
 </template>

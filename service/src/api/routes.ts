@@ -15,6 +15,7 @@ import * as conversationController from './conversationController'
 import * as debugController from './debugController'
 import * as initController from './initController'
 import * as modelRoleController from './modelRoleController'
+import * as novelController from './novelController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
 import * as sseController from './sseController'
@@ -341,5 +342,87 @@ router.get('/events/stats', auth, requireAdmin, sseController.getSSEStatsHandler
  * 需要登录
  */
 router.delete('/debug/cache/conversation/:id', auth, requireAuth, debugController.clearConversationCache)
+
+// ==============================================
+// 小说工作流路由
+// ==============================================
+
+/**
+ * 创建新小说项目
+ * POST /api/novels
+ * Body: { title, genre?, theme?, idea? }
+ */
+router.post('/novels', auth, requireAuth, novelController.createNovel)
+
+/**
+ * 获取用户的所有小说
+ * GET /api/novels
+ */
+router.get('/novels', auth, requireAuth, novelController.getUserNovels)
+
+/**
+ * 获取小说详情（包含所有卷）
+ * GET /api/novels/:id
+ */
+router.get('/novels/:id', auth, requireAuth, novelController.getNovel)
+
+/**
+ * 更新小说信息
+ * PATCH /api/novels/:id
+ * Body: { title?, genre?, theme?, status? }
+ */
+router.patch('/novels/:id', auth, requireAuth, novelController.updateNovel)
+
+/**
+ * 删除小说（级联删除所有卷和章节）
+ * DELETE /api/novels/:id
+ */
+router.delete('/novels/:id', auth, requireAuth, novelController.deleteNovel)
+
+/**
+ * 获取卷详情
+ * GET /api/volumes/:volumeId
+ */
+router.get('/volumes/:volumeId', auth, requireAuth, novelController.getVolume)
+
+/**
+ * 更新卷信息（未封存时可用）
+ * PATCH /api/volumes/:volumeId
+ * Body: { outline?, style_config?, breakdown?, tasks?, status? }
+ */
+router.patch('/volumes/:volumeId', auth, requireAuth, novelController.updateVolume)
+
+/**
+ * 启动工作流1：剧情大纲生成
+ * POST /api/volumes/:volumeId/workflow/1/start
+ * Body: { idea?, chat_history? }
+ */
+router.post('/volumes/:volumeId/workflow/1/start', auth, requireAuth, novelController.startWorkflow1)
+
+/**
+ * 获取工作流执行状态
+ * GET /api/workflow/:executionId/status
+ */
+router.get('/workflow/:executionId/status', auth, requireAuth, novelController.getWorkflowStatus)
+
+/**
+ * 与 AI 角色聊天
+ * POST /api/volumes/:volumeId/chat/:aiRole
+ * Body: { message, workflow_type }
+ * aiRole: screenwriter | director | task | chapter
+ */
+router.post('/volumes/:volumeId/chat/:aiRole', auth, requireAuth, novelController.chatWithAI)
+
+/**
+ * 获取聊天历史
+ * GET /api/volumes/:volumeId/chat/:aiRole?workflow_type=1
+ */
+router.get('/volumes/:volumeId/chat/:aiRole', auth, requireAuth, novelController.getChatHistory)
+
+/**
+ * 获取卷的所有章节
+ * GET /api/volumes/:volumeId/chapters
+ */
+router.get('/volumes/:volumeId/chapters', auth, requireAuth, novelController.getChapters)
 
 export default router

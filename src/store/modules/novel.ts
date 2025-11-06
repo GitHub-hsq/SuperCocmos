@@ -1,4 +1,5 @@
-import type { Chapter, Novel, Volume } from '@/types/novel'
+import * as novelApi from '@/api/novel'
+import type { Chapter, ChatMessage, Novel, Volume, WorkflowExecution } from '@/types/novel'
 import { defineStore } from 'pinia'
 
 interface NovelState {
@@ -15,6 +16,10 @@ interface NovelState {
   selectedViewType: 'novel' | 'volume' | 'chapter' // 右侧显示的内容类型
   selectedVolumeId: string | null
   selectedChapterId: string | null
+
+  // 工作流1状态
+  workflow1Execution: WorkflowExecution | null
+  workflow1Progress: number // 0-100
 }
 
 export const useNovelStore = defineStore('novel', {
@@ -31,6 +36,9 @@ export const useNovelStore = defineStore('novel', {
     selectedViewType: 'novel',
     selectedVolumeId: null,
     selectedChapterId: null,
+
+    workflow1Execution: null,
+    workflow1Progress: 0,
   }),
 
   getters: {
@@ -50,114 +58,102 @@ export const useNovelStore = defineStore('novel', {
   },
 
   actions: {
-    // ========== Mock 数据（原型阶段使用） ==========
+    // ========== 小说管理 ==========
 
     async fetchUserNovels() {
       this.isLoading = true
       try {
-        // TODO: 替换为真实 API 调用
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        this.novels = [
-          {
-            id: '1',
-            title: '失落的龙晶',
-            genre: '玄幻',
-            theme: '成长与牺牲',
-            introduction: '法师艾拉踏上寻找失落龙晶的旅程...',
-            status: 'writing',
-            volumeCount: 2,
-            chapterCount: 15,
-            totalWordCount: 45000,
-            createdAt: '2025-11-01',
-            updatedAt: '2025-11-04',
-          },
-          {
-            id: '2',
-            title: '星际旅行者',
-            genre: '科幻',
-            theme: '探索未知',
-            introduction: '2500年，人类开启星际探索时代...',
-            status: 'planning',
-            volumeCount: 1,
-            chapterCount: 5,
-            totalWordCount: 15000,
-            createdAt: '2025-11-02',
-            updatedAt: '2025-11-03',
-          },
-        ]
+        const response = await novelApi.getUserNovels()
+        if (response.success && response.data)
+          this.novels = response.data
       }
       finally {
         this.isLoading = false
       }
     },
 
+    async createNovel(data: {
+      title: string
+      genre?: string
+      theme?: string
+      idea?: string
+    }) {
+      const response = await novelApi.createNovel(data)
+      if (response.success && response.data) {
+        this.novels.push(response.data.novel)
+        return response.data
+      }
+      throw new Error(response.message || '创建失败')
+    },
+
+    async updateNovel(novelId: string, updates: Partial<Novel>) {
+      const response = await novelApi.updateNovel(novelId, updates)
+      if (response.success && response.data) {
+        const index = this.novels.findIndex(n => n.id === novelId)
+        if (index !== -1)
+          this.novels[index] = response.data
+
+        if (this.currentNovel?.id === novelId)
+          this.currentNovel = response.data
+
+        return response.data
+      }
+      throw new Error(response.message || '更新失败')
+    },
+
+    async deleteNovel(novelId: string) {
+      const response = await novelApi.deleteNovel(novelId)
+      if (response.success) {
+        this.novels = this.novels.filter(n => n.id !== novelId)
+        if (this.currentNovel?.id === novelId)
+          this.currentNovel = null
+      }
+      else {
+        throw new Error(response.message || '删除失败')
+      }
+    },
+
     async loadNovelDetail(novelId: string) {
       this.isLoading = true
       try {
-        // TODO: 替换为真实 API 调用
-        await new Promise(resolve => setTimeout(resolve, 300))
+        const response = await novelApi.getNovel(novelId)
+        if (response.success && response.data) {
+          this.currentNovel = response.data
+          this.volumes = response.data.volumes || []
 
-        // 设置当前小说
-        this.currentNovel = this.novels.find(n => n.id === novelId) || null
-
-        // Mock 卷数据
-        this.volumes = [
-          {
-            id: `v1-${novelId}`,
-            novelId,
-            volumeNumber: 1,
-            title: '卷一：起源',
-            introduction: '艾拉在法师塔中发现了古老的秘密...',
-            outline: '## 第1章\n...',
-            status: 'completed',
-            locked: false,
-            chapterCount: 10,
-            createdAt: '2025-11-01',
-          },
-          {
-            id: `v2-${novelId}`,
-            novelId,
-            volumeNumber: 2,
-            title: '卷二：征途',
-            status: 'writing',
-            locked: false,
-            chapterCount: 5,
-            createdAt: '2025-11-03',
-          },
-        ]
-
-        // Mock 章节数据
-        this.chapters = [
-          {
-            id: `c1`,
-            volumeId: `v1-${novelId}`,
-            chapterNumber: 1,
-            title: '第1章：发现日记',
-            content: '# 第1章：发现日记\n\n月光洒在古老的法师塔上...',
-            wordCount: 3200,
-            status: 'completed',
-            createdAt: '2025-11-01',
-          },
-          {
-            id: `c2`,
-            volumeId: `v1-${novelId}`,
-            chapterNumber: 2,
-            title: '第2章：逃离',
-            content: '# 第2章：逃离\n\n艾拉握紧日记，快速逃出法师塔...',
-            wordCount: 3100,
-            status: 'completed',
-            createdAt: '2025-11-01',
-          },
-        ]
-
-        // 切换到详情视图
-        this.showNovelList = false
-        this.selectedViewType = 'novel'
+          // 切换到详情视图
+          this.showNovelList = false
+          this.selectedViewType = 'novel'
+        }
       }
       finally {
         this.isLoading = false
       }
+    },
+
+    async loadVolume(volumeId: string) {
+      const response = await novelApi.getVolume(volumeId)
+      if (response.success && response.data) {
+        this.currentVolume = response.data
+        return response.data
+      }
+      throw new Error(response.message || '加载失败')
+    },
+
+    async updateVolume(volumeId: string, updates: Partial<Volume>) {
+      const response = await novelApi.updateVolume(volumeId, updates)
+      if (response.success && response.data) {
+        if (this.currentVolume?.id === volumeId)
+          this.currentVolume = response.data
+
+        // 更新volumes列表中的数据
+        const index = this.volumes.findIndex(v => v.id === volumeId)
+        if (index !== -1)
+          this.volumes[index] = response.data
+
+        return response.data
+      }
+      throw new Error(response.message || '更新失败')
     },
 
     // 选择小说（从列表点击）
@@ -211,6 +207,91 @@ export const useNovelStore = defineStore('novel', {
       this.selectedVolumeId = null
       this.selectedChapterId = null
       this.selectedViewType = 'novel'
+    },
+
+    // ========== 工作流1：剧情大纲生成 ==========
+
+    async startWorkflow1(volumeId: string, input?: {
+      idea?: string
+      chat_history?: ChatMessage[]
+    }) {
+      const response = await novelApi.startWorkflow1(volumeId, input)
+      if (response.success && response.data) {
+        this.workflow1Progress = 10 // 启动成功，设置初始进度
+        // 开始轮询状态
+        this.pollWorkflow1Status(response.data.execution_id)
+        return response.data
+      }
+      throw new Error(response.message || '启动失败')
+    },
+
+    async pollWorkflow1Status(executionId: string) {
+      this.workflow1Execution = null
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await novelApi.getWorkflowStatus(executionId)
+          if (response.success && response.data) {
+            this.workflow1Execution = response.data
+
+            // 根据状态更新进度
+            if (response.data.status === 'running') {
+              // 模拟进度增长
+              if (this.workflow1Progress < 90)
+                this.workflow1Progress += 10
+            }
+            else if (response.data.status === 'completed') {
+              this.workflow1Progress = 100
+              clearInterval(pollInterval)
+              // 重新加载volume数据
+              if (this.currentVolume)
+                await this.loadVolume(this.currentVolume.id)
+            }
+            else if (response.data.status === 'failed' || response.data.status === 'stopped') {
+              clearInterval(pollInterval)
+            }
+          }
+        }
+        catch (error) {
+          console.error('轮询工作流状态失败:', error)
+          clearInterval(pollInterval)
+        }
+      }, 3000) // 每3秒轮询一次
+    },
+
+    resetWorkflow1Progress() {
+      this.workflow1Progress = 0
+      this.workflow1Execution = null
+    },
+
+    // ========== 聊天交互 ==========
+
+    async chatWithAI(
+      volumeId: string,
+      aiRole: string,
+      message: string,
+      workflowType: number,
+    ) {
+      const response = await novelApi.chatWithAI(volumeId, aiRole, {
+        message,
+        workflow_type: workflowType,
+      })
+      if (response.success && response.data)
+        return response.data.reply
+
+      throw new Error(response.message || '聊天失败')
+    },
+
+    async getChatHistory(
+      volumeId: string,
+      aiRole: string,
+      workflowType: number,
+    ) {
+      const response = await novelApi.getChatHistory(volumeId, aiRole, workflowType)
+      if (response.success && response.data)
+        return response.data
+
+      throw new Error(response.message || '获取历史失败')
     },
   },
 })

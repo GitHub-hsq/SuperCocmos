@@ -393,6 +393,29 @@ router.post('/chat-process', unifiedAuth, requireAuth, limiter, requireModelAcce
         )
 
         logger.debug('✅ [保存] 消息已写入 Redis（pending），异步保存到数据库')
+
+        // 🔥 获取更新后的使用量并发送给前端
+        try {
+          const { getUserUsageStats } = await import('./db/usageService')
+          const usageStats = await getUserUsageStats(user.user_id)
+          if (usageStats) {
+            // 发送使用量更新（作为最后一条消息）
+            const usageUpdate = {
+              type: 'usage_update',
+              data: {
+                model_limits_enabled: usageStats.model_limits_enabled,
+                total_available: usageStats.total_available,
+                total_granted: usageStats.total_granted,
+                total_used: usageStats.total_used,
+              },
+            }
+            res.write(`\n${JSON.stringify(usageUpdate)}`)
+          }
+        }
+        catch (usageError) {
+          // 使用量获取失败不影响主流程
+          logger.debug('⚠️ [Usage] 获取使用量失败（不影响主流程）:', usageError)
+        }
       }
       catch (error) {
         console.error('❌ [保存] 保存消息失败:', error)

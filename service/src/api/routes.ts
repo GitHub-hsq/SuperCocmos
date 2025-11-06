@@ -19,6 +19,7 @@ import * as novelController from './novelController'
 import * as providerController from './providerController'
 import * as roleController from './roleController'
 import * as sseController from './sseController'
+import * as usageController from './usageController'
 
 const router = express.Router()
 
@@ -182,6 +183,13 @@ router.post('/models/:id/test', auth, requireAuth, providerController.testModel)
  * 获取用户完整配置
  */
 router.get('/config', auth, requireAuth, configController.getConfig)
+
+/**
+ * 获取 API 使用量
+ * POST /api/usage
+ * 需要 Auth0 认证
+ */
+router.post('/usage', auth, requireAuth, usageController.getUsage)
 
 /**
  * 获取用户设置

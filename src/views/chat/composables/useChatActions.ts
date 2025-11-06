@@ -85,6 +85,7 @@ export interface UseChatActionsDeps {
   updateChat: (uuid: string, index: number, data: any) => void
   updateChatSome: (uuid: string, index: number, data: any) => void
   getChatByUuidAndIndex: (uuid: string, index: number) => any
+  aboutRef: Ref<any> // About 组件引用，用于更新使用量
   scrollToBottom: () => void
   scrollToBottomIfAtBottom: () => void
 }
@@ -108,6 +109,7 @@ export function useChatActions(deps: UseChatActionsDeps) {
     updateChat,
     updateChatSome,
     getChatByUuidAndIndex,
+    aboutRef,
     scrollToBottom,
     scrollToBottomIfAtBottom,
   } = deps
@@ -352,6 +354,16 @@ export function useChatActions(deps: UseChatActionsDeps) {
                     if (data.conversationId !== currentConversationId.value) {
                       currentConversationId.value = data.conversationId
                     }
+                  }
+
+                  // 🔥 检查是否是使用量更新
+                  if (data.type === 'usage_update' && data.data) {
+                    // 更新 About 组件的使用量
+                    if (aboutRef.value && typeof aboutRef.value.updateUsage === 'function') {
+                      aboutRef.value.updateUsage(data.data.total_used)
+                    }
+                    // 跳过处理，继续下一个 chunk
+                    continue
                   }
 
                   // 🔥 检查是否有错误

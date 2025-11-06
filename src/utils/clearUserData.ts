@@ -28,6 +28,9 @@ export function clearAllUserData(): void {
     // 🔥 清除工作流配置
     ss.remove('workflowConfig')
 
+    // 🔥 清除 API 使用量缓存
+    ss.remove('api_usage_data')
+
     // 🔥 清除 Auth0 相关的存储
     // Auth0 SDK 使用特定的 key 格式存储 token
     // 格式通常是：@@auth0spajs@@::{clientId}::::{audience}::default::openid profile email offline_access

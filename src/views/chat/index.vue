@@ -56,6 +56,7 @@ const chatActions = useChatActions({
   updateChat: chatState.updateChat,
   updateChatSome: chatState.updateChatSome,
   getChatByUuidAndIndex: chatState.getChatByUuidAndIndex,
+  aboutRef: chatState.aboutRef,
   scrollToBottom: chatState.scrollToBottom,
   scrollToBottomIfAtBottom: chatState.scrollToBottomIfAtBottom,
 })

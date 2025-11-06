@@ -1,8 +1,9 @@
 <script setup lang='ts'>
 import { NButton, NSpin, useMessage } from 'naive-ui'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { fetchAPIUsage } from '@/api'
 import { SvgIcon } from '@/components/common'
+import { createLocalStorage } from '@/utils/storage'
 import pkg from '../../../../package.json'
 
 interface UsageData {
@@ -13,16 +14,44 @@ interface UsageData {
   [key: string]: any
 }
 
+const STORAGE_KEY = 'api_usage_data'
+
 const message = useMessage()
+const ss = createLocalStorage({ expire: 60 * 60 * 24 }) // 24小时过期
 
 const loadingUsage = ref(false)
 const usageData = ref<UsageData>()
 
-// 千分位格式化
+// 从 localStorage 加载缓存的使用量数据
+function loadCachedUsage() {
+  try {
+    const cached = ss.get(STORAGE_KEY)
+    if (cached) {
+      usageData.value = cached
+      return true
+    }
+  }
+  catch (error) {
+    console.warn('⚠️ [Usage] 加载缓存失败:', error)
+  }
+  return false
+}
+
+// 保存使用量数据到 localStorage
+function saveUsageToCache(data: UsageData) {
+  try {
+    ss.set(STORAGE_KEY, data)
+  }
+  catch (error) {
+    console.warn('⚠️ [Usage] 保存缓存失败:', error)
+  }
+}
+
+// 千分位格式化（添加单位）
 function formatNumber(num: number | undefined): string {
   if (num === undefined || num === null)
     return '-'
-  return num.toLocaleString('en-US')
+  return `${num.toLocaleString('en-US')} Tokens`
 }
 
 // 计算剩余量
@@ -35,16 +64,18 @@ const remaining = computed(() => {
 async function fetchUsage() {
   try {
     loadingUsage.value = true
+
+    // 🔐 apiClient 拦截器会自动添加认证 token，无需手动处理
     const response = await fetchAPIUsage<any>()
-    // console.log('余额 API 返回数据:', response)
 
     if (response.status === 'Success' && response.data) {
       // response.data 结构: { code: true, data: {...}, message: 'ok' }
       const apiData = response.data
-      if (apiData.data)
-        usageData.value = apiData.data
-      else
-        usageData.value = apiData
+      const finalData = apiData.data || apiData
+
+      usageData.value = finalData
+      // 保存到缓存
+      saveUsageToCache(finalData)
 
       message.success('使用量刷新成功')
     }
@@ -58,9 +89,32 @@ async function fetchUsage() {
   }
 }
 
+// 更新使用量（从外部调用，例如聊天响应后）
+function updateUsage(newTotalUsed: number) {
+  if (usageData.value) {
+    usageData.value.total_used = newTotalUsed
+    saveUsageToCache(usageData.value)
+  }
+}
+
+// 组件挂载时从缓存加载
+onMounted(() => {
+  if (loadCachedUsage()) {
+    // 缓存存在，后台刷新最新数据
+    fetchUsage().catch(() => {
+      // 静默失败，使用缓存数据
+    })
+  }
+  else {
+    // 缓存不存在，立即获取
+    fetchUsage()
+  }
+})
+
 // 暴露方法给父组件调用
 defineExpose({
   fetchUsage,
+  updateUsage,
 })
 </script>
 
@@ -73,21 +127,24 @@ defineExpose({
 
     <!-- API 使用量信息 -->
     <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <NButton
-          size="small"
-          :loading="loadingUsage"
-          @click="fetchUsage"
-        >
-          <template #icon>
-            <SvgIcon icon="ri:refresh-line" />
-          </template>
-          {{ loadingUsage ? '刷新中...' : '刷新' }}
-        </NButton>
-      </div>
-
       <NSpin :show="loadingUsage">
         <div v-if="usageData" class="p-4 space-y-3 rounded-md bg-neutral-100 dark:bg-neutral-700">
+          <!-- 标题和刷新按钮 -->
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-semibold text-neutral-700 dark:text-neutral-200">
+              API 使用量
+            </h3>
+            <NButton
+              size="small"
+              :loading="loadingUsage"
+              @click="fetchUsage"
+            >
+              <template #icon>
+                <SvgIcon icon="ri:refresh-line" />
+              </template>
+            </NButton>
+          </div>
+
           <!-- 模型限制状态 -->
           <div class="flex items-center justify-between">
             <span class="text-neutral-600 dark:text-neutral-300">模型限制：</span>

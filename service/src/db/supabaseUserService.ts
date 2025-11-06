@@ -625,6 +625,20 @@ export async function upsertUserFromAuth0(input: {
       console.warn('⚠️ [UserSync] 创建配置失败（可能已存在）:', error.message)
     }
 
+    // 🔥 新用户创建：初始化使用量配置（发放 1000万 tokens）
+    try {
+      const { upsertUserUsageConfig } = await import('../db/usageService')
+      await upsertUserUsageConfig(data.user_id, {
+        model_limits_enabled: false, // 默认不启用限制
+        total_available: 1000000, // 100万 tokens
+        total_granted: 1000000, // 100万 tokens
+      })
+      console.warn(`✅ [UserSync] 新用户使用量配置已创建（1000万 tokens）: ${data.user_id.substring(0, 8)}...`)
+    }
+    catch (error: any) {
+      console.warn('⚠️ [UserSync] 创建使用量配置失败（可能已存在）:', error.message)
+    }
+
     // 🔥 后台异步执行：角色同步
     if (input.roles && input.roles.length > 0) {
       syncUserRolesToDatabase(data.user_id, input.roles).catch((error) => {

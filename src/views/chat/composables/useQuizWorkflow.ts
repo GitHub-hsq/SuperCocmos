@@ -37,7 +37,8 @@ export function useQuizWorkflow(deps: {
 
       const result = await fetchQuizGenerate(uploadedFilePath.value, config)
 
-      if (result.data && result.data.questions) {
+      // 🔥 检查响应状态
+      if (result.status === 'Success' && result.data && result.data.questions) {
         generatedQuestions.value = result.data.questions
         // 保存分数分配信息
         if (result.data.scoreDistribution)
@@ -47,13 +48,34 @@ export function useQuizWorkflow(deps: {
         ms.success('题目生成成功！')
       }
       else {
-        ms.error('题目生成失败')
+        // 🔥 显示具体的错误信息
+        const errorMessage = result.message || '题目生成失败'
+        ms.error(errorMessage)
         workflowStage.value = 'config'
+        console.error('题目生成失败:', result)
       }
     }
     catch (error: any) {
-      ms.error(`题目生成失败：${error?.message || '未知错误'}`)
+      // 🔥 改进错误信息显示
+      let errorMessage = '题目生成失败'
+
+      if (error?.response?.data?.message) {
+        // 后端返回的错误信息
+        errorMessage = error.response.data.message
+      }
+      else if (error?.message) {
+        // 网络错误或其他错误
+        errorMessage = error.message
+      }
+
+      // 🔥 检查是否是配置问题
+      if (errorMessage.includes('API_KEY') || errorMessage.includes('未配置')) {
+        errorMessage += '\n\n请前往"设置 → 供应商配置"检查API Key配置，或在"工作流配置"中选择已配置的模型。'
+      }
+
+      ms.error(errorMessage, { duration: 5000 })
       workflowStage.value = 'config'
+      console.error('题目生成失败:', error)
     }
     finally {
       quizLoading.value = false

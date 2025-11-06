@@ -54,7 +54,8 @@
       "Bash(pnpm install:*)",
       "Bash(\"/mnt/c/Works/SuperCocmos/src/views/chat/index.template.tmp\")",
       "Bash(\"/mnt/c/Works/SuperCocmos/src/views/chat/index.new.vue\")",
-      "Bash(pnpm lint:fix:*)"
+      "Bash(pnpm lint:fix:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []

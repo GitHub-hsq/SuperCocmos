@@ -526,8 +526,33 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
   logger.debug('📁 [上传] 文件信息:', { originalName, filename: req.file.filename, size: req.file.size })
 
   try {
-    // ✅ 文件分类功能暂时禁用，未来将从用户配置的模型中选择
-    logger.debug('📁 [上传] 文件上传成功（分类功能待实现）')
+    // 🔥 启用文件分类功能：使用用户配置的分类器模型
+    logger.debug('📁 [上传] 开始分类文件...')
+
+    // 获取用户ID
+    const authReq = req as AuthRequest
+    const auth0UserId = authReq.userId
+    if (!auth0UserId) {
+      return res.status(401).send({ status: 'Fail', message: '认证失败', data: null })
+    }
+
+    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
+    const user = await findUserByAuth0Id(auth0UserId)
+    if (!user) {
+      return res.status(404).send({ status: 'Fail', message: '用户不存在', data: null })
+    }
+
+    // 🔥 从数据库加载用户的工作流配置（用于分类）
+    const { getWorkflowConfig } = await import('./db/configService')
+    const { convertFrontendConfigToBackend } = await import('./utils/configConverter')
+    const workflowConfigFromDB = await getWorkflowConfig(user.user_id)
+    const workflowConfigForBackend = await convertFrontendConfigToBackend(workflowConfigFromDB)
+
+    // 🔥 使用配置的分类器进行分类
+    const { classifyFile } = await import('./quiz/workflow')
+    const classifyResult = await classifyFile(filePath, workflowConfigForBackend)
+
+    logger.debug('✅ [上传] 文件分类完成:', classifyResult)
 
     return res.send({
       status: 'Success',
@@ -536,7 +561,8 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
         filePath,
         originalName,
         fileName: req.file.filename,
-        classification: 'note', // 默认分类
+        classification: classifyResult.classification || 'unknown',
+        error: classifyResult.error,
       },
     })
   }
@@ -549,6 +575,7 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
       error,
     })
 
+    // 🔥 如果分类失败，仍然返回成功，但标记为 unknown
     return res.send({
       status: 'Success',
       message: '文件上传成功！',
@@ -556,6 +583,7 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
         filePath,
         originalName,
         fileName: req.file.filename,
+        classification: 'unknown',
         error: error?.message || String(error),
       },
     })
@@ -621,8 +649,27 @@ router.post('/quiz/generate', unifiedAuth, requireAuth, limiter, async (req, res
     if (!filePath)
       return res.status(400).send({ status: 'Fail', message: 'filePath is required', data: null })
 
+    // 🔥 获取用户ID并加载工作流配置
+    const authReq = req as AuthRequest
+    const auth0UserId = authReq.userId
+    if (!auth0UserId) {
+      return res.status(401).send({ status: 'Fail', message: '认证失败', data: null })
+    }
+
+    const { findUserByAuth0Id } = await import('./db/supabaseUserService')
+    const user = await findUserByAuth0Id(auth0UserId)
+    if (!user) {
+      return res.status(404).send({ status: 'Fail', message: '用户不存在', data: null })
+    }
+
+    // 🔥 从数据库加载用户的工作流配置
+    const { getWorkflowConfig } = await import('./db/configService')
+    const { convertFrontendConfigToBackend } = await import('./utils/configConverter')
+    const workflowConfigFromDB = await getWorkflowConfig(user.user_id)
+    const workflowConfigForBackend = await convertFrontendConfigToBackend(workflowConfigFromDB)
+
     const { generateQuestionsFromNote } = await import('./quiz/workflow')
-    const result = await generateQuestionsFromNote(filePath, questionTypes)
+    const result = await generateQuestionsFromNote(filePath, questionTypes, workflowConfigForBackend)
 
     res.send({ status: 'Success', message: '题目生成成功', data: result })
   }

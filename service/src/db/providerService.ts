@@ -312,6 +312,42 @@ export async function getModelById(id: string): Promise<Model | null> {
 }
 
 /**
+ * 根据ID获取模型及其供应商信息（用于工作流配置）
+ * 🔥 新增：支持UUID查询，返回包含供应商凭证的完整信息
+ */
+export async function getModelWithProviderById(id: string): Promise<ModelWithProvider | null> {
+  try {
+    const { data, error } = await supabase
+      .from('models')
+      .select(`
+        *,
+        provider:providers(*)
+      `)
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116')
+        return null
+      throw error
+    }
+
+    if (!data || !data.provider)
+      return null
+
+    return {
+      ...data,
+      provider: Array.isArray(data.provider) ? data.provider[0] : data.provider,
+    }
+  }
+  catch (error) {
+    console.error('根据ID获取模型配置失败:', error)
+    return null
+  }
+}
+
+/**
  * 创建新模型（智能处理：如果存在软删除的记录，则恢复它）
  */
 export async function createModel(model: Omit<Model, 'id' | 'created_at' | 'updated_at'>): Promise<Model> {

@@ -38,6 +38,7 @@ export interface WorkflowNodeConfig {
   nodeType: WorkflowNodeType
   modelInfo: ModelInfo
   config?: ModelConfig
+  systemPrompt?: string // 🔥 新增：自定义系统提示词（可选）
   subjectSpecific?: Partial<Record<Subject, ModelInfo>>
 }
 

@@ -5,6 +5,12 @@ import { join } from 'node:path'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
 import { END, StateGraph } from '@langchain/langgraph'
 import { ChatOpenAI } from '@langchain/openai'
+import {
+  DEFAULT_CLASSIFIER_PROMPT,
+  DEFAULT_GENERATE_QUESTIONS_PROMPT,
+  DEFAULT_PARSE_QUESTIONS_PROMPT,
+  getDefaultGenerateQuestionsWithTypesPrompt,
+} from './defaultPrompts'
 import { loadFile } from './loader'
 
 // ---------- LLM ----------
@@ -83,32 +89,6 @@ function getNodeConfig(state: WorkflowState, nodeType: WorkflowNodeType): { mode
 }
 
 // ---------- 1. 分类器（增强：同时识别学科） ----------
-const classifierPrompt = ChatPromptTemplate.fromMessages([
-  [
-    'system',
-    `你是一个分类器，判断输入文本的类型和学科门类。
-
-第一步：判断文本类型
-- 如果主要是知识点、概念、说明等内容，类型为 'note'
-- 如果主要是题目（包含题干、选项、答案），类型为 'question'
-- 如果同时包含大量笔记和题目，类型为 'mixed'
-
-第二步：判断学科门类（如果能判断）
-- math: 数学
-- physics: 物理
-- chemistry: 化学
-- biology: 生物
-- chinese: 语文
-- english: 英语
-- unknown: 无法判断或多学科混合
-
-请按以下格式输出（只输出这两行）：
-type: <note|question|mixed>
-subject: <math|physics|chemistry|biology|chinese|english|unknown>`,
-  ],
-  ['human', '{text}'],
-])
-
 async function classify(state: WorkflowState): Promise<WorkflowState> {
   console.warn('🤖 [分类器] 开始调用 LLM 进行分类...')
   console.warn('📝 [分类器] 文本预览 (前100字):', state.text.slice(0, 100))
@@ -118,6 +98,13 @@ async function classify(state: WorkflowState): Promise<WorkflowState> {
     const llm = nodeConfig
       ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
       : makeLLM()
+
+    // 🔥 优先使用用户配置的提示词，否则使用默认提示词
+    const systemPrompt = nodeConfig?.systemPrompt || DEFAULT_CLASSIFIER_PROMPT
+    const classifierPrompt = ChatPromptTemplate.fromMessages([
+      ['system', systemPrompt],
+      ['human', '{text}'],
+    ])
 
     const chain = classifierPrompt.pipe(llm)
     const textSample = state.text.slice(0, 3000)
@@ -173,17 +160,14 @@ async function parseQuestions(state: WorkflowState): Promise<WorkflowState> {
     ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
     : makeLLM()
 
-  // 动态拼接系统提示
-  const systemPrompt = `你是题目解析助手。将原始题目文本解析为标准JSON格式。
-    每道题必须包含：
-    - type: "single_choice" | "multiple_choice" | "true_false"
-    - question: 题目内容
-    - options: 选项数组 ["A. ...", "B. ..."]
-    - answer: 正确答案（如 ["A"] 或 ["A","B"]）
-    - explanation: 答案解析
-    ${state.revision_note ? `\n用户修改建议：${state.revision_note}\n请根据建议调整输出。` : ''}
-    
-    直接输出JSON数组，不要任何额外说明。`
+  // 🔥 优先使用用户配置的提示词，否则使用默认提示词
+  let basePrompt = nodeConfig?.systemPrompt || DEFAULT_PARSE_QUESTIONS_PROMPT
+
+  // 动态拼接用户修改建议（如果有）
+  const systemPrompt = state.revision_note
+    ? `${basePrompt}\n\n### 用户修改建议\n\`\`\`\n${state.revision_note}\n\`\`\`\n\n请根据用户的修改建议调整解析结果：\n- 如果建议修正答案，请核实并修改\n- 如果建议调整选项，请相应修改\n- 如果建议删除某些题目，请过滤掉\n- 在 explanation 中说明修改内容`
+    : basePrompt
+
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', systemPrompt],
     ['human', '{text}'],
@@ -219,16 +203,14 @@ async function generateQuestions(state: WorkflowState): Promise<WorkflowState> {
     ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
     : makeLLM()
 
-  const systemPrompt = `你是出题助手，根据笔记内容生成题目。
-  每道题必须包含：
-  - type: "single_choice" | "multiple_choice" | "true_false"
-  - question: 题目内容
-  - options: 选项数组
-  - answer: 正确答案
-  - explanation: 答案解析
-  ${state.revision_note ? `\n用户修改建议：${state.revision_note}\n请根据建议调整输出。` : ''}
-  
-  直接输出JSON数组。`
+  // 🔥 优先使用用户配置的提示词，否则使用默认提示词
+  let basePrompt = nodeConfig?.systemPrompt || DEFAULT_GENERATE_QUESTIONS_PROMPT
+
+  // 动态拼接用户修改建议（如果有）
+  const systemPrompt = state.revision_note
+    ? `${basePrompt}\n\n## 用户修改建议处理\n\n### 用户修改建议\n\`\`\`\n${state.revision_note}\n\`\`\`\n\n请根据用户的修改建议调整题目生成：\n- 如果建议调整难度，请相应修改题目复杂度\n- 如果建议增加某个知识点，请增加相关题目\n- 如果建议修改题型比例，请调整题型分配\n- 如果建议修改具体题目，请针对性修改`
+    : basePrompt
+
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', systemPrompt],
     ['human', '{text}'],
@@ -446,7 +428,10 @@ export async function runWorkflow(
 }
 
 // ---------- 只执行分类 ----------
-export async function classifyFile(filePath: string): Promise<{
+export async function classifyFile(
+  filePath: string,
+  workflowConfig?: WorkflowNodeConfig[],
+): Promise<{
   classification: string
   error?: string
 }> {
@@ -461,6 +446,7 @@ export async function classifyFile(filePath: string): Promise<{
       questions: [],
       num_questions: 0,
       retry_count: 0,
+      workflowConfig,
     }
 
     console.warn('📂 [工作流] 步骤 1: 加载文件...')
@@ -499,6 +485,7 @@ export async function classifyFile(filePath: string): Promise<{
 export async function generateQuestionsFromNote(
   filePath: string,
   questionTypes: { single_choice: number, multiple_choice: number, true_false: number },
+  workflowConfig?: WorkflowNodeConfig[],
 ): Promise<WorkflowState & { scoreDistribution?: any }> {
   try {
     const state: WorkflowState = {
@@ -509,47 +496,25 @@ export async function generateQuestionsFromNote(
       questions: [],
       num_questions: 0,
       retry_count: 0,
+      workflowConfig,
     }
 
     // 加载文件
     await loadFile(state)
 
+    // 获取节点配置
+    const nodeConfig = getNodeConfig(state, 'generate_questions')
+
     // 构建提示词
     const totalQuestions
       = questionTypes.single_choice + questionTypes.multiple_choice + questionTypes.true_false
 
-    const llm = makeLLM()
-    const systemPrompt = `你是出题助手，根据笔记内容生成题目，并为每种题型分配分数。
+    const llm = nodeConfig
+      ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
+      : makeLLM()
 
-请严格按照以下要求生成：
-- 单选题：${questionTypes.single_choice}道
-- 多选题：${questionTypes.multiple_choice}道
-- 判断题：${questionTypes.true_false}道
-
-请根据题目难度合理分配分数，一般来说：
-- 单选题每题建议 3-5 分
-- 多选题每题建议 5-8 分（难度较高）
-- 判断题每题建议 2-3 分
-
-每道题必须包含：
-- type: "single_choice" | "multiple_choice" | "true_false"
-- question: 题目内容
-- options: 选项数组（判断题为 ["正确", "错误"]）
-- answer: 正确答案（数组形式，如 ["A"] 或 ["A","B"]）
-- explanation: 答案解析
-- score: 该题分数（整数）
-
-返回格式：
-{{
-  "questions": [...题目数组...],
-  "scoreDistribution": {{
-    "single_choice": {{ "perQuestion": 每题分数, "total": 单选题总分 }},
-    "multiple_choice": {{ "perQuestion": 每题分数, "total": 多选题总分 }},
-    "true_false": {{ "perQuestion": 每题分数, "total": 判断题总分 }}
-  }}
-}}
-
-直接输出JSON对象，不要任何额外说明。`
+    // 🔥 优先使用用户配置的提示词，否则使用默认提示词
+    const systemPrompt = nodeConfig?.systemPrompt || getDefaultGenerateQuestionsWithTypesPrompt(questionTypes)
 
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', systemPrompt],

@@ -126,9 +126,10 @@ export function useChatState() {
   const uploadFileList = ref<UploadFileInfo[]>([])
 
   // 上传请求头 - 使用 ref 以便异步更新
-  const uploadHeaders = ref<Record<string, string>>({
-    'Content-Type': 'multipart/form-data',
-  })
+  // 🔥 重要：不要手动设置 Content-Type: multipart/form-data
+  // 浏览器会自动设置正确的 Content-Type 并包含 boundary 参数
+  // 如果手动设置会导致 "Boundary not found" 错误
+  const uploadHeaders = ref<Record<string, string>>({})
 
   // 异步获取并更新上传请求头
   async function updateUploadHeaders() {
@@ -140,8 +141,9 @@ export function useChatState() {
           },
         })
         if (token) {
+          // 🔥 只设置 Authorization，不要设置 Content-Type
+          // 让浏览器自动处理 multipart/form-data 的 Content-Type
           uploadHeaders.value = {
-            'Content-Type': 'multipart/form-data',
             'Authorization': `Bearer ${token}`,
           }
         }

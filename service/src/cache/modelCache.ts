@@ -18,13 +18,13 @@ const CACHE_TTL = 86400 // 24小时（避免频繁过期导致缓存未命中）
  */
 export async function preloadModelsToRedis(): Promise<void> {
   try {
-    const startTime = Date.now()
+    const _startTime = Date.now()
 
     // 从数据库获取所有供应商和模型
     const providers = await getAllProvidersWithModels()
 
-    let modelCount = 0
-    let providerCount = 0
+    let _modelCount = 0
+    let _providerCount = 0
     const cacheKeySamples: string[] = [] // 记录缓存键样本，用于调试
 
     // 🔥 缓存整个供应商列表（与 Controller 的查询匹配）
@@ -43,7 +43,7 @@ export async function preloadModelsToRedis(): Promise<void> {
           api_key: provider.api_key,
         }),
       )
-      providerCount++
+      _providerCount++
 
       // 缓存每个模型
       for (const model of provider.models) {
@@ -74,7 +74,7 @@ export async function preloadModelsToRedis(): Promise<void> {
           cacheKeySamples.push(cacheKey)
         }
 
-        modelCount++
+        _modelCount++
       }
     }
 
@@ -152,7 +152,7 @@ export async function clearModelCache(): Promise<void> {
  */
 export async function preloadModelsWithRolesToRedis(): Promise<void> {
   try {
-    const startTime = Date.now()
+    const _startTime = Date.now()
 
     // 🔥 直接从数据库查询（避免循环依赖）
     const { supabase } = await import('../db/supabaseClient')

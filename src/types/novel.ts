@@ -49,3 +49,30 @@ export interface NovelTreeNode {
   data?: Novel | Volume | Chapter
   children?: NovelTreeNode[]
 }
+
+// API 响应类型
+export interface APIResponse<T = any> {
+  success: boolean
+  status?: 'Success' | 'Error'
+  message?: string
+  data?: T
+}
+
+// 聊天消息类型
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp?: string
+}
+
+// 工作流执行状态
+export interface WorkflowExecution {
+  id: string
+  volumeId: string
+  workflowType: number
+  status: 'pending' | 'running' | 'completed' | 'error'
+  result?: any
+  error?: string
+  createdAt: string
+  updatedAt: string
+}

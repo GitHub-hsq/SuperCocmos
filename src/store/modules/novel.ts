@@ -1,6 +1,6 @@
-import * as novelApi from '@/api/novel'
 import type { Chapter, ChatMessage, Novel, Volume, WorkflowExecution } from '@/types/novel'
 import { defineStore } from 'pinia'
+import * as novelApi from '@/api/novel'
 
 interface NovelState {
   novels: Novel[]
@@ -64,8 +64,8 @@ export const useNovelStore = defineStore('novel', {
       this.isLoading = true
       try {
         const response = await novelApi.getUserNovels()
-        if (response.success && response.data)
-          this.novels = response.data
+        if (response.data.success && response.data.data)
+          this.novels = response.data.data
       }
       finally {
         this.isLoading = false
@@ -79,37 +79,37 @@ export const useNovelStore = defineStore('novel', {
       idea?: string
     }) {
       const response = await novelApi.createNovel(data)
-      if (response.success && response.data) {
-        this.novels.push(response.data.novel)
-        return response.data
+      if (response.data.success && response.data.data) {
+        this.novels.push(response.data.data.novel)
+        return response.data.data
       }
-      throw new Error(response.message || '创建失败')
+      throw new Error(response.data.message || '创建失败')
     },
 
     async updateNovel(novelId: string, updates: Partial<Novel>) {
       const response = await novelApi.updateNovel(novelId, updates)
-      if (response.success && response.data) {
+      if (response.data.success && response.data.data) {
         const index = this.novels.findIndex(n => n.id === novelId)
         if (index !== -1)
-          this.novels[index] = response.data
+          this.novels[index] = response.data.data
 
         if (this.currentNovel?.id === novelId)
-          this.currentNovel = response.data
+          this.currentNovel = response.data.data
 
-        return response.data
+        return response.data.data
       }
-      throw new Error(response.message || '更新失败')
+      throw new Error(response.data.message || '更新失败')
     },
 
     async deleteNovel(novelId: string) {
       const response = await novelApi.deleteNovel(novelId)
-      if (response.success) {
+      if (response.data.success) {
         this.novels = this.novels.filter(n => n.id !== novelId)
         if (this.currentNovel?.id === novelId)
           this.currentNovel = null
       }
       else {
-        throw new Error(response.message || '删除失败')
+        throw new Error(response.data.message || '删除失败')
       }
     },
 
@@ -117,9 +117,9 @@ export const useNovelStore = defineStore('novel', {
       this.isLoading = true
       try {
         const response = await novelApi.getNovel(novelId)
-        if (response.success && response.data) {
-          this.currentNovel = response.data
-          this.volumes = response.data.volumes || []
+        if (response.data.success && response.data.data) {
+          this.currentNovel = response.data.data
+          this.volumes = response.data.data.volumes || []
 
           // 切换到详情视图
           this.showNovelList = false
@@ -133,27 +133,27 @@ export const useNovelStore = defineStore('novel', {
 
     async loadVolume(volumeId: string) {
       const response = await novelApi.getVolume(volumeId)
-      if (response.success && response.data) {
-        this.currentVolume = response.data
-        return response.data
+      if (response.data.success && response.data.data) {
+        this.currentVolume = response.data.data
+        return response.data.data
       }
-      throw new Error(response.message || '加载失败')
+      throw new Error(response.data.message || '加载失败')
     },
 
     async updateVolume(volumeId: string, updates: Partial<Volume>) {
       const response = await novelApi.updateVolume(volumeId, updates)
-      if (response.success && response.data) {
+      if (response.data.success && response.data.data) {
         if (this.currentVolume?.id === volumeId)
-          this.currentVolume = response.data
+          this.currentVolume = response.data.data
 
         // 更新volumes列表中的数据
         const index = this.volumes.findIndex(v => v.id === volumeId)
         if (index !== -1)
-          this.volumes[index] = response.data
+          this.volumes[index] = response.data.data
 
-        return response.data
+        return response.data.data
       }
-      throw new Error(response.message || '更新失败')
+      throw new Error(response.data.message || '更新失败')
     },
 
     // 选择小说（从列表点击）
@@ -216,13 +216,13 @@ export const useNovelStore = defineStore('novel', {
       chat_history?: ChatMessage[]
     }) {
       const response = await novelApi.startWorkflow1(volumeId, input)
-      if (response.success && response.data) {
+      if (response.data.success && response.data.data) {
         this.workflow1Progress = 10 // 启动成功，设置初始进度
         // 开始轮询状态
-        this.pollWorkflow1Status(response.data.execution_id)
-        return response.data
+        this.pollWorkflow1Status(response.data.data.execution_id)
+        return response.data.data
       }
-      throw new Error(response.message || '启动失败')
+      throw new Error(response.data.message || '启动失败')
     },
 
     async pollWorkflow1Status(executionId: string) {
@@ -231,23 +231,23 @@ export const useNovelStore = defineStore('novel', {
       const pollInterval = setInterval(async () => {
         try {
           const response = await novelApi.getWorkflowStatus(executionId)
-          if (response.success && response.data) {
-            this.workflow1Execution = response.data
+          if (response.data.success && response.data.data) {
+            this.workflow1Execution = response.data.data
 
             // 根据状态更新进度
-            if (response.data.status === 'running') {
+            if (response.data.data.status === 'running') {
               // 模拟进度增长
               if (this.workflow1Progress < 90)
                 this.workflow1Progress += 10
             }
-            else if (response.data.status === 'completed') {
+            else if (response.data.data.status === 'completed') {
               this.workflow1Progress = 100
               clearInterval(pollInterval)
               // 重新加载volume数据
               if (this.currentVolume)
                 await this.loadVolume(this.currentVolume.id)
             }
-            else if (response.data.status === 'failed' || response.data.status === 'stopped') {
+            else if (response.data.data.status === 'error') {
               clearInterval(pollInterval)
             }
           }
@@ -276,10 +276,10 @@ export const useNovelStore = defineStore('novel', {
         message,
         workflow_type: workflowType,
       })
-      if (response.success && response.data)
-        return response.data.reply
+      if (response.data.success && response.data.data)
+        return response.data.data.reply
 
-      throw new Error(response.message || '聊天失败')
+      throw new Error(response.data.message || '聊天失败')
     },
 
     async getChatHistory(
@@ -288,10 +288,10 @@ export const useNovelStore = defineStore('novel', {
       workflowType: number,
     ) {
       const response = await novelApi.getChatHistory(volumeId, aiRole, workflowType)
-      if (response.success && response.data)
-        return response.data
+      if (response.data.success && response.data.data)
+        return response.data.data
 
-      throw new Error(response.message || '获取历史失败')
+      throw new Error(response.data.message || '获取历史失败')
     },
   },
 })

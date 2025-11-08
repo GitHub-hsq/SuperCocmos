@@ -13,7 +13,6 @@ import {
   updateModel,
   updateProvider,
 } from '../db/providerService'
-import { addPerfCheckpoint } from '../middleware/performanceLogger'
 import { logger, measurePerformance } from '../utils/logger'
 
 // ============================================
@@ -24,7 +23,7 @@ import { logger, measurePerformance } from '../utils/logger'
  * 获取所有供应商及其模型（带缓存）
  */
 export async function getProviders(req: Request, res: Response) {
-  const totalStartTime = performance.now()
+  const _totalStartTime = performance.now()
 
   try {
     const cacheKey = PROVIDER_KEYS.list()

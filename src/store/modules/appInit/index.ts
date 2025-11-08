@@ -290,7 +290,6 @@ export const useAppInitStore = defineStore('app-init', {
 
         this.isInitialized = true
 
-        const totalDuration = performance.now() - performance.now()
         console.warn(`🎉 [AppInit] 应用初始化完成！准备进入主界面`)
 
         return { success: true }

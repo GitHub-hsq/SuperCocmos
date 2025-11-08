@@ -1,7 +1,7 @@
 import type { WritableComputedRef } from 'vue'
 import { useMessage } from 'naive-ui'
 import { ref } from 'vue'
-import { fetchQuizFeedback, fetchQuizGenerate } from '@/api'
+import { fetchQuizFeedback, fetchQuizGenerate, fetchQuizSubmit } from '@/api'
 
 interface QuizConfig {
   single_choice: number
@@ -45,19 +45,19 @@ export function useQuizWorkflow(deps: {
           scoreDistribution.value = result.data.scoreDistribution
 
         workflowStage.value = 'preview'
-        ms.success('题目生成成功！')
+        ms.success('试卷生成成功！')
       }
       else {
         // 🔥 显示具体的错误信息
-        const errorMessage = result.message || '题目生成失败'
+        const errorMessage = result.message || '试卷生成失败'
         ms.error(errorMessage)
         workflowStage.value = 'config'
-        console.error('题目生成失败:', result)
+        console.error('试卷生成失败:', result)
       }
     }
     catch (error: any) {
       // 🔥 改进错误信息显示
-      let errorMessage = '题目生成失败'
+      let errorMessage = '试卷生成失败'
 
       if (error?.response?.data?.message) {
         // 后端返回的错误信息
@@ -75,7 +75,7 @@ export function useQuizWorkflow(deps: {
 
       ms.error(errorMessage, { duration: 5000 })
       workflowStage.value = 'config'
-      console.error('题目生成失败:', error)
+      console.error('试卷生成失败:', error)
     }
     finally {
       quizLoading.value = false
@@ -126,11 +126,38 @@ export function useQuizWorkflow(deps: {
   }
 
   // 处理答题提交
-  function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) {
-    if (import.meta.env.DEV) {
-      console.warn('答题完成', { answers, timeSpent })
+  async function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) {
+    try {
+      quizLoading.value = true
+
+      if (import.meta.env.DEV) {
+        console.warn('答题完成', { answers, timeSpent })
+      }
+
+      // 提交答题结果到后端，保存为文件
+      const result = await fetchQuizSubmit(
+        uploadedFilePath.value,
+        generatedQuestions.value,
+        answers,
+        timeSpent,
+      )
+
+      if (result.status === 'Success') {
+        ms.success('答题完成！结果已保存到文件，可以查看详细分析。')
+        console.warn('📊 [答题结果]', result.data)
+      }
+      else {
+        ms.warning('答题完成，但结果保存失败')
+        console.error('答题结果保存失败:', result)
+      }
     }
-    ms.success('答题完成！')
+    catch (error: any) {
+      console.error('提交答题结果失败:', error)
+      ms.error(`提交失败：${error?.message || '未知错误'}`)
+    }
+    finally {
+      quizLoading.value = false
+    }
   }
 
   return {

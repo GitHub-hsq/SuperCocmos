@@ -79,4 +79,3 @@ export async function getUsage(req: Request, res: Response) {
     })
   }
 }
-

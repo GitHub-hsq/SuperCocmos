@@ -5,13 +5,18 @@
  */
 
 import type { Message } from '../db/messageService'
-import { nanoid } from 'nanoid'
+import { randomBytes } from 'node:crypto'
 import { appendMessageToCache, updateMessageStatusInCache } from '../cache/messageCache'
 import { incrementConversationStats } from '../db/conversationService'
 import { createMessage, estimateTokens } from '../db/messageService'
 
 const MAX_RETRY_ATTEMPTS = 3
 const RETRY_DELAY_MS = 1000
+
+// 生成消息ID的辅助函数
+function generateMessageId(): string {
+  return `msg_${randomBytes(12).toString('base64url')}`
+}
 
 /**
  * 🔄 延迟函数（用于重试）
@@ -60,7 +65,7 @@ export async function saveUserMessage(
   conversationId: string,
   content: string,
 ): Promise<{ messageId: string, success: boolean }> {
-  const messageId = `msg_${nanoid()}`
+  const messageId = generateMessageId()
   const tokens = estimateTokens(content)
 
   // 🔥 Step 1: 先写 Redis（pending 状态）
@@ -113,7 +118,7 @@ export async function saveAssistantMessage(
   tokens: number,
   modelInfo?: Record<string, any>,
 ): Promise<{ messageId: string, success: boolean }> {
-  const messageId = `msg_${nanoid()}`
+  const messageId = generateMessageId()
   const finalTokens = tokens > 0 ? tokens : estimateTokens(content)
 
   // 🔥 Step 1: 先写 Redis（pending 状态）
@@ -180,8 +185,8 @@ export async function saveMessagePair(
   const finalAssistantTokens = assistantTokens > 0 ? assistantTokens : estimateTokens(assistantContent)
 
   // 🔥 Step 1: 先写 Redis（pending 状态）
-  const userMessageId = `msg_${nanoid()}`
-  const assistantMessageId = `msg_${nanoid()}`
+  const userMessageId = generateMessageId()
+  const assistantMessageId = generateMessageId()
 
   const userMessage: Message = {
     id: userMessageId,

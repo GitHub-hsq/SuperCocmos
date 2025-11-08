@@ -3,7 +3,22 @@
  * 将前端的工作流配置格式转换为后端工作流所需的格式
  */
 
-import type { ModelInfo, ModelConfig, WorkflowNodeConfig, WorkflowNodeType } from '../quiz/types'
+import type { ModelConfig, ModelInfo, WorkflowNodeConfig, WorkflowNodeType } from '../quiz/types'
+
+/**
+ * 模型配置缓存
+ * 避免重复查询数据库
+ */
+const _modelConfigCache = new Map<string, ModelInfo>()
+const CACHE_MAX_SIZE = 100 // 最多缓存100个模型配置
+const CACHE_TTL = 5 * 60 * 1000 // 缓存5分钟
+
+interface CacheEntry {
+  data: ModelInfo
+  timestamp: number
+}
+
+const modelConfigCacheWithTTL = new Map<string, CacheEntry>()
 
 /**
  * 前端工作流配置格式（从数据库中获取）
@@ -26,7 +41,8 @@ interface FrontendWorkflowConfig {
   classify: FrontendWorkflowNodeConfig
   parse_questions: FrontendWorkflowNodeConfig
   generate_questions: FrontendWorkflowNodeConfig
-  revise: FrontendWorkflowNodeConfig
+  review_and_score: FrontendWorkflowNodeConfig
+  revise?: FrontendWorkflowNodeConfig // 向后兼容旧配置
 }
 
 /**
@@ -41,9 +57,25 @@ async function parseModelId(modelIdOrDisplayName: string | null): Promise<ModelI
   if (!modelIdOrDisplayName)
     return null
 
+  // 🔥 检查缓存
+  const cached = modelConfigCacheWithTTL.get(modelIdOrDisplayName)
+  if (cached) {
+    const now = Date.now()
+    if (now - cached.timestamp < CACHE_TTL) {
+      // console.warn('🎯 [配置缓存] 命中缓存:', modelIdOrDisplayName)
+      return cached.data
+    }
+    else {
+      // 缓存过期，删除
+      modelConfigCacheWithTTL.delete(modelIdOrDisplayName)
+    }
+  }
+
   // 检查是否为 UUID 格式（8-4-4-4-12）
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const isUUID = uuidRegex.test(modelIdOrDisplayName)
+
+  let modelInfo: ModelInfo | null = null
 
   if (isUUID) {
     // UUID 格式：从数据库查询模型信息（包含供应商凭证）
@@ -60,7 +92,7 @@ async function parseModelId(modelIdOrDisplayName: string | null): Promise<ModelI
           hasBaseUrl: !!model.provider.base_url,
         })
 
-        return {
+        modelInfo = {
           id: model.id,
           name: model.model_id,
           provider: model.provider.name.toLowerCase() as any,
@@ -90,7 +122,7 @@ async function parseModelId(modelIdOrDisplayName: string | null): Promise<ModelI
     const provider = parts[0]
     const modelId = parts.slice(1).join('_') // 处理模型ID中可能包含下划线的情况
 
-    return {
+    modelInfo = {
       id: modelIdOrDisplayName,
       name: modelId,
       provider: provider.toLowerCase() as any,
@@ -98,7 +130,24 @@ async function parseModelId(modelIdOrDisplayName: string | null): Promise<ModelI
     }
   }
 
-  return null
+  // 🔥 存入缓存
+  if (modelInfo) {
+    modelConfigCacheWithTTL.set(modelIdOrDisplayName, {
+      data: modelInfo,
+      timestamp: Date.now(),
+    })
+
+    // 🔥 限制缓存大小
+    if (modelConfigCacheWithTTL.size > CACHE_MAX_SIZE) {
+      // 删除最早的条目
+      const firstKey = modelConfigCacheWithTTL.keys().next().value
+      if (firstKey) {
+        modelConfigCacheWithTTL.delete(firstKey)
+      }
+    }
+  }
+
+  return modelInfo
 }
 
 /**
@@ -112,10 +161,14 @@ export async function convertFrontendConfigToBackend(
   const result: WorkflowNodeConfig[] = []
 
   // 遍历所有节点类型
-  const nodeTypes: WorkflowNodeType[] = ['classify', 'parse_questions', 'generate_questions', 'revise']
+  const nodeTypes: WorkflowNodeType[] = ['classify', 'parse_questions', 'generate_questions', 'review_and_score']
 
   for (const nodeType of nodeTypes) {
-    const frontendNode = frontendConfig[nodeType]
+    // 🔥 向后兼容：如果是 review_and_score 节点，优先使用 review_and_score，否则使用 revise
+    let frontendNode = frontendConfig[nodeType]
+    if (!frontendNode && nodeType === 'review_and_score') {
+      frontendNode = frontendConfig.revise
+    }
     if (!frontendNode)
       continue
 

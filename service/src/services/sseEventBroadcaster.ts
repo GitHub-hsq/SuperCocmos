@@ -87,6 +87,9 @@ export type SSEEventType
     | 'message_updated' // 消息更新
     | 'sync_required' // 需要完整同步
     | 'config_updated' // 配置更新
+    | 'workflow_progress' // 工作流进度更新
+    | 'workflow_completed' // 工作流完成
+    | 'workflow_error' // 工作流错误
 
 // SSE 事件数据结构
 export interface SSEEvent {
@@ -98,6 +101,14 @@ export interface SSEEvent {
     updates?: any
     metadata?: any
     timestamp: number
+    // 工作流相关
+    workflowId?: string
+    nodeType?: string
+    nodeStatus?: 'pending' | 'running' | 'completed' | 'error'
+    nodeMessage?: string
+    progress?: number
+    result?: any
+    error?: string
   }
 }
 
@@ -286,6 +297,70 @@ export function broadcastSyncRequired(userId: string, reason?: string): boolean 
     event: 'sync_required',
     data: {
       metadata: { reason },
+      timestamp: Date.now(),
+    },
+  })
+}
+
+/**
+ * 广播：工作流进度更新
+ */
+export function broadcastWorkflowProgress(
+  userId: string,
+  workflowId: string,
+  nodeType: string,
+  nodeStatus: 'pending' | 'running' | 'completed' | 'error',
+  nodeMessage?: string,
+  progress?: number,
+  result?: any,
+): boolean {
+  return broadcastToUser(userId, {
+    event: 'workflow_progress',
+    data: {
+      workflowId,
+      nodeType,
+      nodeStatus,
+      nodeMessage,
+      progress,
+      result,
+      timestamp: Date.now(),
+    },
+  })
+}
+
+/**
+ * 广播：工作流完成
+ */
+export function broadcastWorkflowCompleted(
+  userId: string,
+  workflowId: string,
+  result: any,
+): boolean {
+  return broadcastToUser(userId, {
+    event: 'workflow_completed',
+    data: {
+      workflowId,
+      result,
+      timestamp: Date.now(),
+    },
+  })
+}
+
+/**
+ * 广播：工作流错误
+ */
+export function broadcastWorkflowError(
+  userId: string,
+  workflowId: string,
+  error: string,
+  nodeType?: string,
+): boolean {
+  return broadcastToUser(userId, {
+    event: 'workflow_error',
+    data: {
+      workflowId,
+      nodeType,
+      error,
       timestamp: Date.now(),
     },
   })

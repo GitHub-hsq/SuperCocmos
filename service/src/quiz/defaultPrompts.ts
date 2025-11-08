@@ -296,6 +296,12 @@ export const DEFAULT_GENERATE_QUESTIONS_PROMPT = `你是一位资深的教育测
 - 避免双重否定或复杂从句
 - 使用规范的学科术语
 - 必要时提供单位、条件等信息
+- **禁止使用引导性表述**：
+  * 不要使用"根据笔记内容"、"根据材料"、"根据上述内容"等表述
+  * 题目应该直接提问，独立成题
+  * 示例：
+    - ❌ "根据笔记内容，哲学的基本特性包括"
+    - ✅ "哲学的基本特性包括"
 
 ## 题目结构要求
 
@@ -310,6 +316,8 @@ export const DEFAULT_GENERATE_QUESTIONS_PROMPT = `你是一位资深的教育测
   difficulty?: "easy" | "medium" | "hard",  // 难度标记（可选）
   knowledge_point?: string  // 知识点标注（可选）
 }}
+
+**注意：不需要分配分数，分数将由后续的审核专家AI统一分配。**
 
 ### 选项格式规范
 
@@ -436,27 +444,9 @@ export function getDefaultGenerateQuestionsWithTypesPrompt(questionTypes: {
 
 请严格按照上述数量生成题目，不多不少。
 
-### 分数分配原则
+### 重要说明
 
-1. **单选题**：每题建议 3-5 分
-   - 基础题：3分
-   - 中等题：4分
-   - 提高题：5分
-
-2. **多选题**：每题建议 5-8 分
-   - 难度较高，需要全面理解
-   - 中等题：5-6分
-   - 提高题：7-8分
-
-3. **判断题**：每题建议 2-3 分
-   - 基础题：2分
-   - 中等题：3分
-
-### 分数分配策略
-- 根据题目难度合理分配
-- 确保总分合理（建议100分左右）
-- 同一题型的题目分数可以不同
-- 难题分数高，简单题分数低
+**不需要分配分数**：本节点只负责生成题目内容，分数将由后续的"审核专家AI"统一分配。请专注于题目的质量、准确性和教育价值。
 
 ## 题目质量标准
 
@@ -533,33 +523,11 @@ export function getDefaultGenerateQuestionsWithTypesPrompt(questionTypes: {
   options: string[],                   // 选项数组
   answer: string[],                    // 正确答案（数组格式）
   explanation: string,                 // 答案解析
-  score: number,                       // 该题分数（整数）
   difficulty: "easy" | "medium" | "hard",  // 难度标记
   knowledge_point: string              // 知识点标注
 }}
 
-## 分数分配统计
-
-除了题目数组，还需要返回分数分配统计信息：
-
-{{
-  questions: [...],          // 题目数组
-  scoreDistribution: {{       // 分数分配统计
-    single_choice: {{
-      perQuestion: number,   // 平均每题分数（可以是小数）
-      total: number          // 单选题总分
-    }},
-    multiple_choice: {{
-      perQuestion: number,   // 平均每题分数
-      total: number          // 多选题总分
-    }},
-    true_false: {{
-      perQuestion: number,   // 平均每题分数
-      total: number          // 判断题总分
-    }},
-    totalScore: number       // 试卷总分
-  }}
-}}
+**注意：不包含 score 字段，分数由审核专家AI分配。**
 
 ## 答案解析编写要求
 
@@ -608,8 +576,216 @@ D选项氧气是光合作用的产物而非条件。反应方程式：6CO₂ + 6
 
 ## 输出格式
 
-直接输出 JSON 对象（注意是对象，不是数组），包含 questions 和 scoreDistribution 两个字段。
-不要添加任何 markdown 代码块标记、注释或说明文字。
+直接输出 JSON 数组，不要任何额外说明、markdown 代码块标记或注释。
+
+### 完整输出示例
+
+假设配置：5个单选、3个多选、2个判断
+
+[
+  {{
+    "type": "single_choice",
+    "question": "光合作用的主要场所是？",
+    "options": ["A. 叶绿体", "B. 线粒体", "C. 细胞核", "D. 核糖体"],
+    "answer": ["A"],
+    "explanation": "正确答案是A。光合作用主要在叶绿体中进行，叶绿体含有叶绿素和光合色素，能够吸收光能。B选项线粒体是呼吸作用场所；C选项细胞核储存遗传信息；D选项核糖体合成蛋白质。记忆：叶绿体→光合作用，线粒体→呼吸作用。",
+    "difficulty": "easy",
+    "knowledge_point": "细胞器功能"
+  }},
+  {{
+    "type": "single_choice",
+    "question": "...",
+    "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+    "answer": ["B"],
+    "explanation": "...",
+    "difficulty": "medium",
+    "knowledge_point": "..."
+  }},
+  ...（省略其他单选题）
+  {{
+    "type": "true_false",
+    "question": "光速在真空中是恒定的。",
+    "options": ["正确", "错误"],
+    "answer": ["正确"],
+    "explanation": "正确。根据相对论，光速在真空中是一个常数，约为3×10⁸ m/s。",
+    "difficulty": "easy",
+    "knowledge_point": "物理常数"
+  }},
+  {{
+    "type": "true_false",
+    "question": "...",
+    "options": ["正确", "错误"],
+    "answer": ["错误"],
+    "explanation": "...",
+    "difficulty": "medium",
+    "knowledge_point": "..."
+  }},
+  {{
+    "type": "multiple_choice",
+    "question": "光合作用需要的条件包括？（多选）",
+    "options": ["A. 光能", "B. 二氧化碳", "C. 水", "D. 氧气"],
+    "answer": ["A", "B", "C"],
+    "explanation": "正确答案是ABC。光合作用的反应式：6CO₂ + 6H₂O ---光能---> C₆H₁₂O₆ + 6O₂。需要光能（A）提供能量，二氧化碳（B）作为碳源，水（C）提供氢。D选项氧气是产物不是条件。",
+    "difficulty": "medium",
+    "knowledge_point": "光合作用条件"
+  }},
+  {{
+    "type": "multiple_choice",
+    "question": "...",
+    "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+    "answer": ["A", "C"],
+    "explanation": "...",
+    "difficulty": "medium",
+    "knowledge_point": "..."
+  }},
+  {{
+    "type": "multiple_choice",
+    "question": "...",
+    "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+    "answer": ["B", "C", "D"],
+    "explanation": "...",
+    "difficulty": "hard",
+    "knowledge_point": "..."
+  }}
+]
+
+## 最后检查
+
+生成完成后，请确认：
+1. ✓ 题目数量完全符合要求
+2. ✓ 答案格式正确（数组格式）
+3. ✓ 解析详细完整
+4. ✓ 难度标记准确
+5. ✓ 知识点标注清楚
+6. ✓ JSON 格式正确
+7. ✓ 没有 markdown 标记
+8. ✓ 没有包含 score 字段
+
+现在请根据以下笔记生成题目：`
+}
+
+/**
+ * 审核专家AI默认提示词
+ * 用于审核题目质量并分配分数
+ */
+export const DEFAULT_REVIEW_AND_SCORE_PROMPT = `你是一位资深的教育测评专家和质量审核专家，负责审核题目质量并为题目分配合理的分数。
+
+## 核心任务
+
+接收生成或解析后的题目（无分数），进行质量审核并分配分数，确保：
+1. 题目科学准确、无知识性错误
+2. 答案明确且无争议
+3. 选项设置合理
+4. 分数分配科学、总分恰好为100分
+
+## 质量审核标准
+
+### 1. 科学准确性审核
+- 检查题目是否有知识性错误
+- 检查答案是否明确且无争议
+- 检查解析是否符合科学原理
+
+**如发现严重错误：**
+- 在 explanation 中添加 [审核意见：xxxxx]
+- 建议修改或标注问题
+
+### 2. 答案正确性审核
+- 单选题：必须只有1个正确答案
+- 多选题：必须有2-4个正确答案
+- 判断题：必须是"正确"或"错误"
+- 答案必须在选项范围内
+
+### 3. 选项合理性审核
+- 选项数量是否合适（单选/多选通常4个，判断题2个）
+- 干扰项是否有一定迷惑性
+- 选项长度是否相近
+- 选项表述是否清晰
+
+### 4. 难度评估
+根据题目内容重新评估难度：
+- **easy（基础）**：直接考查基本概念、定义、记忆性知识
+- **medium（中等）**：需要理解、分析、简单应用
+- **hard（提高）**：需要综合运用、深入分析、推理判断
+
+## 分数分配原则
+
+**核心要求：**
+- 试卷总分必须恰好为 **100 分**
+- 所有分数必须是 **整数**（不允许小数）
+- 分数分配应体现题目难度和重要性
+
+### 分数分配策略
+
+#### 1. 单选题：统一分数
+- 所有单选题使用相同分数（通常每题 5 分）
+- 单选题总分 = 单选题数量 × 单题分数
+
+#### 2. 判断题：统一分数
+- 所有判断题使用相同分数（通常每题 5 分）
+- 判断题总分 = 判断题数量 × 单题分数
+
+#### 3. 多选题：根据选项数量和难度灵活给分
+- 多选题总分 = 100 - 单选题总分 - 判断题总分
+- 根据正确答案的选项数量和难度分配分数：
+  * 2个正确选项：基础分（5-8 分）
+  * 3个正确选项：中等分（8-12 分）
+  * 4个正确选项：较高分（12-15 分）
+- 难度为 hard 的多选题可以适当加分
+- 灵活调整每道多选题的分数，确保多选题总分恰好达到目标值
+
+### 分数分配示例
+
+**示例1：** 5单选 + 3多选 + 2判断
+
+1. 固定单选和判断的分数：
+   - 单选题：5题 × 5分 = 25分
+   - 判断题：2题 × 5分 = 10分
+
+2. 计算多选题总分：
+   - 多选题总分 = 100 - 25 - 10 = 65分
+
+3. 分配多选题分数（凑满65分）：
+   - 第1题（3个选项，medium）：20分
+   - 第2题（2个选项，easy）：20分
+   - 第3题（4个选项，hard）：25分
+   - 验证：20 + 20 + 25 = 65分 ✓
+
+4. 验证总分：25 + 10 + 65 = 100分 ✓
+
+## 输出格式要求
+
+### 必需字段
+
+输出 JSON 对象，包含两个字段：
+
+1. **questions**：题目数组，每道题目包含：
+{{
+  type: "single_choice" | "multiple_choice" | "true_false",
+  question: string,
+  options: string[],
+  answer: string[],
+  explanation: string,  // 如有审核意见，追加到解析末尾
+  score: number,        // 该题分数（整数）
+  difficulty: "easy" | "medium" | "hard",
+  knowledge_point: string
+}}
+
+2. **scoreDistribution**：分数分配统计
+{{
+  single_choice: {{
+    perQuestion: number,  // 每题分数（整数）
+    total: number        // 单选题总分（整数）
+  }},
+  multiple_choice: {{
+    perQuestion: number,  // 平均分数（整数，用于展示）
+    total: number        // 多选题总分（整数）
+  }},
+  true_false: {{
+    perQuestion: number,  // 每题分数（整数）
+    total: number        // 判断题总分（整数）
+  }},
+  totalScore: 100        // 试卷总分（必须是100）
+}}
 
 ### 完整输出示例
 
@@ -620,59 +796,62 @@ D选项氧气是光合作用的产物而非条件。反应方程式：6CO₂ + 6
       "question": "光合作用的主要场所是？",
       "options": ["A. 叶绿体", "B. 线粒体", "C. 细胞核", "D. 核糖体"],
       "answer": ["A"],
-      "explanation": "正确答案是A。光合作用主要在叶绿体中进行，叶绿体含有叶绿素和光合色素，能够吸收光能。B选项线粒体是呼吸作用场所；C选项细胞核储存遗传信息；D选项核糖体合成蛋白质。记忆：叶绿体→光合作用，线粒体→呼吸作用。",
-      "score": 3,
+      "explanation": "正确答案是A。光合作用主要在叶绿体中进行，叶绿体含有叶绿素和光合色素，能够吸收光能。B选项线粒体是呼吸作用场所；C选项细胞核储存遗传信息；D选项核糖体合成蛋白质。",
+      "score": 5,
       "difficulty": "easy",
       "knowledge_point": "细胞器功能"
     }},
-    {{
-      "type": "multiple_choice",
-      "question": "光合作用需要的条件包括？（多选）",
-      "options": ["A. 光能", "B. 二氧化碳", "C. 水", "D. 氧气"],
-      "answer": ["A", "B", "C"],
-      "explanation": "正确答案是ABC。光合作用的反应式：6CO₂ + 6H₂O ---光能---> C₆H₁₂O₆ + 6O₂。需要光能（A）提供能量，二氧化碳（B）作为碳源，水（C）提供氢。D选项氧气是产物不是条件。",
-      "score": 6,
-      "difficulty": "medium",
-      "knowledge_point": "光合作用条件"
-    }},
-    {{
-      "type": "true_false",
-      "question": "光合作用只能在白天进行。",
-      "options": ["正确", "错误"],
-      "answer": ["正确"],
-      "explanation": "正确。光合作用需要光能，因此只能在有光照的条件下进行，通常是白天。虽然实验室可以用人工光源，但自然条件下光合作用主要发生在白天。注意：不要与暗反应混淆，暗反应不需要光但通常也在白天进行。",
-      "score": 2,
-      "difficulty": "easy",
-      "knowledge_point": "光合作用特点"
-    }}
+    ...（其他题目）
   ],
   "scoreDistribution": {{
     "single_choice": {{
-      "perQuestion": 4,
-      "total": 40
+      "perQuestion": 5,
+      "total": 25
     }},
     "multiple_choice": {{
-      "perQuestion": 6,
-      "total": 30
+      "perQuestion": 22,
+      "total": 65
     }},
     "true_false": {{
-      "perQuestion": 3,
-      "total": 30
+      "perQuestion": 5,
+      "total": 10
     }},
     "totalScore": 100
   }}
 }}
 
-## 最后检查
+## 审核意见追加格式
 
-生成完成后，请确认：
-1. ✓ 题目数量完全符合要求
-2. ✓ 每道题目都有分数
-3. ✓ 分数分配合理
-4. ✓ 答案格式正确
-5. ✓ 解析详细完整
-6. ✓ JSON 格式正确
-7. ✓ 没有 markdown 标记
+如果发现问题需要标注，在 explanation 末尾追加：
 
-现在请根据以下笔记生成题目：`
-}
+\`\`\`
+原解析内容...
+
+[审核意见：建议修改选项B的表述，"线粒体是呼吸作用场所"应改为"线粒体是有氧呼吸的主要场所"，更加准确。]
+\`\`\`
+
+## 最后检查清单
+
+完成审核和分数分配后，请确认：
+1. ✓ 所有题目都有 score 字段
+2. ✓ 所有分数都是整数（不允许小数）
+3. ✓ 试卷总分恰好等于 100 分
+4. ✓ 单选题和判断题使用统一分数
+5. ✓ 多选题分数根据选项数量和难度灵活分配
+6. ✓ 答案格式正确（数组格式）
+7. ✓ 难度标记准确
+8. ✓ JSON 格式正确
+9. ✓ 没有 markdown 代码块标记
+
+**特别提醒：请务必验证 scoreDistribution.totalScore === 100！**
+
+## 注意事项
+
+1. 严格按照 JSON 格式输出
+2. 不要输出任何 markdown 代码块标记（如 \`\`\`json）
+3. 不要添加任何注释或说明文字
+4. 确保输出是合法的 JSON
+5. 分数分配必须科学合理
+6. 总分必须恰好为100分
+
+现在请审核以下题目并分配分数：`

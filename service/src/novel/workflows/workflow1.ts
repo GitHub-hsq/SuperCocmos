@@ -3,17 +3,17 @@
  * 流程：idea -> 编剧AI -> 审核AI -> 修改循环(最多3次) -> 用户审核 -> 保存
  */
 
+import type { ChatMessage, Workflow1State } from '../types'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
 import { END, START, StateGraph } from '@langchain/langgraph'
 import { novelService } from '../../db/novelService'
 import { makeReviewerLLM, makeScreenwriterLLM } from '../llmConfig'
+import { reviewerSystemPrompt, reviewOutlinePrompt } from '../prompts/reviewer'
 import {
   generateOutlinePrompt,
   reviseOutlinePrompt,
   screenwriterSystemPrompt,
 } from '../prompts/screenwriter'
-import { reviewOutlinePrompt, reviewerSystemPrompt } from '../prompts/reviewer'
-import type { ChatMessage, Workflow1State } from '../types'
 
 const MAX_ITERATIONS = 3 // 最多审核3次
 

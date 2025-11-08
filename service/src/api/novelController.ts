@@ -224,7 +224,7 @@ export async function chatWithAI(req: Request, res: Response) {
     const { message, workflow_type } = req.body
 
     // 获取聊天历史
-    const history = await novelService.getChatHistory(volumeId, workflow_type, aiRole)
+    const _history = await novelService.getChatHistory(volumeId, workflow_type, aiRole)
 
     // TODO: 实现AI聊天（可以先返回模拟数据）
     const reply = '这是AI的回复（待实现）'

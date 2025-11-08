@@ -35,16 +35,30 @@ interface SSEResponse extends Response {
 export async function handleSSEConnection(req: Request, res: Response) {
   const sseReq = req as SSERequest
   const sseRes = res as SSEResponse
-  // 获取用户 ID（从认证中间件设置）
-  const userId = sseReq.user?.user_id
+  // 获取 Auth0 ID（从认证中间件设置）
+  const auth0Id = sseReq.user?.user_id
 
-  if (!userId) {
+  if (!auth0Id) {
     return sseRes.status(401).json({
       status: 'Fail',
       message: '未认证',
       data: null,
     })
   }
+
+  // 🔥 从数据库查询真实的 user_id（UUID格式）
+  const { findUserByAuth0Id } = await import('../db/supabaseUserService')
+  const user = await findUserByAuth0Id(auth0Id)
+
+  if (!user) {
+    return sseRes.status(404).json({
+      status: 'Fail',
+      message: '用户不存在',
+      data: null,
+    })
+  }
+
+  const userId = user.user_id // 使用数据库中的 UUID 格式 user_id
 
   // 设置 SSE 响应头
   sseRes.setHeader('Content-Type', 'text/event-stream')
@@ -64,15 +78,16 @@ export async function handleSSEConnection(req: Request, res: Response) {
   // 发送连接确认事件
   const connectedEvent = `event: connected\ndata: ${JSON.stringify({
     userId,
+    auth0Id,
     timestamp: Date.now(),
     message: 'SSE 连接已建立',
   })}\n\n`
 
   sseRes.write(connectedEvent)
 
-  // console.warn(`[SSE] ✅ 用户 ${userId} 连接成功`)
+  // console.warn(`[SSE] ✅ 用户 ${userId} (Auth0: ${auth0Id}) 连接成功`)
 
-  // 注册连接
+  // 🔥 使用数据库 UUID 格式 user_id 注册连接
   registerUserSSEConnection(userId, sseRes)
 
   // 心跳保持连接（每 30 秒发送一次心跳）

@@ -73,7 +73,7 @@ async function checkAuth0Connection() {
     await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
     // 🔥 简化日志：不再输出 Auth0 Health 检查信息
   }
-  catch (err: any) {
+  catch {
     // 🔥 简化日志：静默处理连接失败
   }
 }
@@ -88,7 +88,7 @@ async function preloadJWKSKeys() {
     await fetchHttpsJSON(AUTH0_DOMAIN, '/.well-known/jwks.json')
     // 🔥 简化日志：不再输出 JWKS 预加载信息
   }
-  catch (err: any) {
+  catch {
     // 🔥 简化日志：静默处理预加载失败
   }
 }

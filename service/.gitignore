@@ -30,3 +30,6 @@ coverage
 .env
 
 build
+
+# Output files (quiz generation, etc.)
+output/

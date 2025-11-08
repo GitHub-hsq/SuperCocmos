@@ -3,7 +3,6 @@
  * 提供小说、卷、章节等的CRUD操作
  */
 
-import { supabase } from './supabaseClient'
 import type {
   Chapter,
   ChatMessage,
@@ -11,6 +10,7 @@ import type {
   Volume,
   WorkflowExecution,
 } from '../novel/types'
+import { supabase } from './supabaseClient'
 
 export class NovelService {
   // ==================== 小说 CRUD ====================

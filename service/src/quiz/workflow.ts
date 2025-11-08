@@ -9,6 +9,7 @@ import {
   DEFAULT_CLASSIFIER_PROMPT,
   DEFAULT_GENERATE_QUESTIONS_PROMPT,
   DEFAULT_PARSE_QUESTIONS_PROMPT,
+  DEFAULT_REVIEW_AND_SCORE_PROMPT,
   getDefaultGenerateQuestionsWithTypesPrompt,
 } from './defaultPrompts'
 import { loadFile } from './loader'
@@ -161,7 +162,7 @@ async function parseQuestions(state: WorkflowState): Promise<WorkflowState> {
     : makeLLM()
 
   // 🔥 优先使用用户配置的提示词，否则使用默认提示词
-  let basePrompt = nodeConfig?.systemPrompt || DEFAULT_PARSE_QUESTIONS_PROMPT
+  const basePrompt = nodeConfig?.systemPrompt || DEFAULT_PARSE_QUESTIONS_PROMPT
 
   // 动态拼接用户修改建议（如果有）
   const systemPrompt = state.revision_note
@@ -204,7 +205,7 @@ async function generateQuestions(state: WorkflowState): Promise<WorkflowState> {
     : makeLLM()
 
   // 🔥 优先使用用户配置的提示词，否则使用默认提示词
-  let basePrompt = nodeConfig?.systemPrompt || DEFAULT_GENERATE_QUESTIONS_PROMPT
+  const basePrompt = nodeConfig?.systemPrompt || DEFAULT_GENERATE_QUESTIONS_PROMPT
 
   // 动态拼接用户修改建议（如果有）
   const systemPrompt = state.revision_note
@@ -238,7 +239,69 @@ async function generateQuestions(state: WorkflowState): Promise<WorkflowState> {
   return state
 }
 
-// ---------- 4. 人工审核（等待前端反馈） ----------
+// ---------- 4. 审核专家AI（审核质量并分配分数） ----------
+async function reviewAndScore(state: WorkflowState): Promise<WorkflowState> {
+  console.warn('🔍 [审核专家] 开始审核题目质量并分配分数...')
+
+  try {
+    const nodeConfig = getNodeConfig(state, 'review_and_score')
+    const llm = nodeConfig
+      ? makeLLM(nodeConfig.modelInfo, nodeConfig.config)
+      : makeLLM()
+
+    // 🔥 优先使用用户配置的提示词，否则使用默认提示词
+    const systemPrompt = nodeConfig?.systemPrompt || DEFAULT_REVIEW_AND_SCORE_PROMPT
+
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', systemPrompt],
+      ['human', '请审核以下题目并分配分数:\n\n{questions}'],
+    ])
+
+    const chain = prompt.pipe(llm)
+
+    // 将题目转换为 JSON 字符串传递给 LLM
+    const questionsJson = JSON.stringify(state.questions, null, 2)
+
+    const result = await chain.invoke({
+      questions: questionsJson,
+    })
+
+    // 解析结果
+    let content = (result.content as string).trim()
+    content = content.replace(/^```json\s*/i, '').replace(/\n?```\s*$/, '')
+    const parsed = JSON.parse(content)
+
+    // 更新状态
+    if (parsed.questions && Array.isArray(parsed.questions)) {
+      state.questions = parsed.questions
+      console.warn('✅ [审核专家] 审核完成，已分配分数')
+
+      // 验证总分
+      if (parsed.scoreDistribution) {
+        const totalScore = parsed.scoreDistribution.totalScore
+        console.warn(`📊 [审核专家] 分数统计: 总分=${totalScore}`)
+
+        if (totalScore !== 100) {
+          console.warn(`⚠️ [审核专家] 警告：总分不是100分（实际为${totalScore}分）`)
+        }
+      }
+    }
+    else {
+      throw new Error('审核结果格式错误：缺少 questions 数组')
+    }
+
+    state.retry_count = (state.retry_count || 0) + 1
+  }
+  catch (e: any) {
+    console.error('❌ [审核专家] 审核失败:', e.message)
+    state.error = `题目审核失败: ${e.message}`
+    state.questions = []
+  }
+
+  return state
+}
+
+// ---------- 5. 人工审核（等待前端反馈） ----------
 const feedbackStore = new Map<string, HumanFeedbackInput>()
 
 export function submitFeedback(workflowId: string, feedback: HumanFeedbackInput) {
@@ -357,6 +420,7 @@ export function buildWorkflow() {
   workflow.addNode('classify', classify)
   workflow.addNode('parse_questions', parseQuestions)
   workflow.addNode('generate_questions', generateQuestions)
+  workflow.addNode('review_and_score', reviewAndScore)
   workflow.addNode('wait_feedback', waitForHumanFeedback)
   workflow.addNode('save_file', saveToFile)
   workflow.addNode('handle_error', handleError)
@@ -378,11 +442,14 @@ export function buildWorkflow() {
     },
   )
 
-  // 解析题目 -> 等待反馈
-  workflow.addEdge('parse_questions', 'wait_feedback')
+  // 解析题目 -> 审核并分配分数
+  workflow.addEdge('parse_questions', 'review_and_score')
 
-  // 生成题目 -> 等待反馈
-  workflow.addEdge('generate_questions', 'wait_feedback')
+  // 生成题目 -> 审核并分配分数
+  workflow.addEdge('generate_questions', 'review_and_score')
+
+  // 审核完成 -> 等待反馈
+  workflow.addEdge('review_and_score', 'wait_feedback')
 
   // 反馈后的条件路由
   workflow.addConditionalEdges(
@@ -486,6 +553,7 @@ export async function generateQuestionsFromNote(
   filePath: string,
   questionTypes: { single_choice: number, multiple_choice: number, true_false: number },
   workflowConfig?: WorkflowNodeConfig[],
+  progressManager?: ReturnType<typeof import('./workflowProgressManager').createWorkflowProgressManager>,
 ): Promise<WorkflowState & { scoreDistribution?: any }> {
   try {
     const state: WorkflowState = {
@@ -500,6 +568,7 @@ export async function generateQuestionsFromNote(
     }
 
     // 加载文件
+    progressManager?.updateNodeStatus('generate_questions', 'running', '正在加载文件...')
     await loadFile(state)
 
     // 获取节点配置
@@ -522,25 +591,128 @@ export async function generateQuestionsFromNote(
     ])
 
     const chain = prompt.pipe(llm)
+    progressManager?.updateNodeStatus('generate_questions', 'running', `正在生成 ${totalQuestions} 道题目...`)
     const result = await chain.invoke({ text: state.text })
 
     let content = (result.content as string).trim()
     content = content.replace(/^```json\s*/i, '').replace(/\n?```\s*$/, '')
     const parsed = JSON.parse(content)
 
-    // 兼容旧格式（直接返回数组）和新格式（返回对象）
-    if (Array.isArray(parsed)) {
-      state.questions = parsed
-      state.num_questions = totalQuestions
-      return state
+    // 设置生成的题目到 state（题目此时没有分数）
+    state.questions = Array.isArray(parsed) ? parsed : (parsed.questions || [])
+    state.num_questions = totalQuestions
+
+    console.warn('📝 [题目生成] 生成完成，共', state.questions.length, '题，开始审核...')
+    progressManager?.updateNodeStatus(
+      'generate_questions',
+      'completed',
+      `题目生成完成，共 ${state.questions.length} 题`,
+      { questions: state.questions }, // 🔥 传递题目数据给前端
+    )
+
+    // 🔥 调用审核专家AI分配分数
+    progressManager?.updateNodeStatus('review_and_score', 'running', '正在审核并分配分数...')
+    await reviewAndScore(state)
+
+    if (state.error) {
+      throw new Error(state.error)
     }
-    else {
-      state.questions = parsed.questions || []
-      state.num_questions = totalQuestions
-      return {
-        ...state,
-        scoreDistribution: parsed.scoreDistribution,
+
+    console.warn('✅ [题目生成] 审核完成，已分配分数')
+
+    // 🔥 计算分数统计（提前计算，用于传递给前端）
+    const tempScoreDistribution = {
+      single_choice: { perQuestion: 0, total: 0 },
+      multiple_choice: { perQuestion: 0, total: 0 },
+      true_false: { perQuestion: 0, total: 0 },
+      totalScore: 0,
+    }
+
+    state.questions.forEach((q) => {
+      const score = q.score || 0
+      if (q.type === 'single_choice') {
+        tempScoreDistribution.single_choice.total += score
+        if (tempScoreDistribution.single_choice.perQuestion === 0)
+          tempScoreDistribution.single_choice.perQuestion = score
       }
+      else if (q.type === 'multiple_choice') {
+        tempScoreDistribution.multiple_choice.total += score
+      }
+      else if (q.type === 'true_false') {
+        tempScoreDistribution.true_false.total += score
+        if (tempScoreDistribution.true_false.perQuestion === 0)
+          tempScoreDistribution.true_false.perQuestion = score
+      }
+      tempScoreDistribution.totalScore += score
+    })
+
+    progressManager?.updateNodeStatus(
+      'review_and_score',
+      'completed',
+      '审核打分完成',
+      { questions: state.questions, scoreDistribution: tempScoreDistribution }, // 🔥 传递题目和分数数据
+    )
+
+    // 🔥 保存最终的试卷到文件（包含分数）
+    const { mkdir } = await import('node:fs/promises')
+    const outputDir = join(process.cwd(), 'output', 'quiz')
+    await mkdir(outputDir, { recursive: true })
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const outputFile = join(outputDir, `quiz_${timestamp}.json`)
+
+    // 计算分数统计
+    const scoreDistribution = {
+      single_choice: { perQuestion: 0, total: 0 },
+      multiple_choice: { perQuestion: 0, total: 0 },
+      true_false: { perQuestion: 0, total: 0 },
+      totalScore: 0,
+    }
+
+    state.questions.forEach((q) => {
+      const score = q.score || 0
+      if (q.type === 'single_choice') {
+        scoreDistribution.single_choice.total += score
+        if (scoreDistribution.single_choice.perQuestion === 0)
+          scoreDistribution.single_choice.perQuestion = score
+      }
+      else if (q.type === 'multiple_choice') {
+        scoreDistribution.multiple_choice.total += score
+      }
+      else if (q.type === 'true_false') {
+        scoreDistribution.true_false.total += score
+        if (scoreDistribution.true_false.perQuestion === 0)
+          scoreDistribution.true_false.perQuestion = score
+      }
+      scoreDistribution.totalScore += score
+    })
+
+    // 计算多选题平均分
+    const multipleChoiceCount = state.questions.filter(q => q.type === 'multiple_choice').length
+    if (multipleChoiceCount > 0) {
+      scoreDistribution.multiple_choice.perQuestion
+        = Math.round(scoreDistribution.multiple_choice.total / multipleChoiceCount)
+    }
+
+    const outputData = {
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        sourceFile: filePath,
+        questionTypes,
+        totalQuestions,
+      },
+      result: {
+        questions: state.questions,
+        scoreDistribution,
+      },
+    }
+
+    await writeFile(outputFile, JSON.stringify(outputData, null, 2), 'utf-8')
+    console.warn('📝 [题目生成] 已保存到文件:', outputFile)
+
+    return {
+      ...state,
+      scoreDistribution,
     }
   }
   catch (error: any) {

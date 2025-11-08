@@ -31,7 +31,7 @@ export interface ModelInfo {
 }
 
 // 工作流节点类型
-export type WorkflowNodeType = 'classify' | 'parse_questions' | 'generate_questions' | 'revise'
+export type WorkflowNodeType = 'classify' | 'parse_questions' | 'generate_questions' | 'review_and_score' | 'revise'
 
 // 工作流节点配置
 export interface WorkflowNodeConfig {
@@ -74,8 +74,11 @@ export interface QuizItem {
   type: 'single_choice' | 'multiple_choice' | 'true_false' | 'unknown'
   question: string
   options: string[]
-  answer: string | null
+  answer: string[] | null // 修改为数组格式，与实际使用一致
   explanation?: string
+  score?: number // 题目分数（由审核专家AI分配）
+  difficulty?: 'easy' | 'medium' | 'hard' // 难度标记
+  knowledge_point?: string // 知识点标注
 }
 
 export interface WorkflowState {

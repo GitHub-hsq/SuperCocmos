@@ -19,7 +19,7 @@ import type { NextFunction, Request, Response } from 'express'
 
 import multer from 'multer'
 
-import { nanoid } from 'nanoid'
+import { randomBytes } from 'node:crypto'
 import auth0Routes from './api/routes' // Auth0 + Supabase 路由
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt' // 聊天相关逻辑
 
@@ -497,8 +497,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // 获取文件扩展名
     const ext = file.originalname.substring(file.originalname.lastIndexOf('.'))
-    // 使用 UUID + 时间戳 + 扩展名，避免中文乱码问题
-    const uniqueName = `${Date.now()}_${nanoid()}${ext}`
+    // 使用随机字符串 + 时间戳 + 扩展名，避免中文乱码问题
+    const randomStr = randomBytes(12).toString('base64url') // 生成URL安全的随机字符串
+    const uniqueName = `${Date.now()}_${randomStr}${ext}`
     cb(null, uniqueName)
   },
 })
@@ -526,9 +527,6 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
   logger.debug('📁 [上传] 文件信息:', { originalName, filename: req.file.filename, size: req.file.size })
 
   try {
-    // 🔥 启用文件分类功能：使用用户配置的分类器模型
-    logger.debug('📁 [上传] 开始分类文件...')
-
     // 获取用户ID
     const authReq = req as AuthRequest
     const auth0UserId = authReq.userId
@@ -542,27 +540,31 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
       return res.status(404).send({ status: 'Fail', message: '用户不存在', data: null })
     }
 
-    // 🔥 从数据库加载用户的工作流配置（用于分类）
+    // 🔥 立即返回上传成功，不等待分类
+    logger.debug('✅ [上传] 文件上传成功，启动异步分类工作流')
+
+    // 从数据库加载用户的工作流配置
     const { getWorkflowConfig } = await import('./db/configService')
     const { convertFrontendConfigToBackend } = await import('./utils/configConverter')
     const workflowConfigFromDB = await getWorkflowConfig(user.user_id)
     const workflowConfigForBackend = await convertFrontendConfigToBackend(workflowConfigFromDB)
 
-    // 🔥 使用配置的分类器进行分类
-    const { classifyFile } = await import('./quiz/workflow')
-    const classifyResult = await classifyFile(filePath, workflowConfigForBackend)
-
-    logger.debug('✅ [上传] 文件分类完成:', classifyResult)
+    // 🔥 异步执行分类工作流（不等待结果）
+    const { executeClassifyWorkflowAsync } = await import('./quiz/asyncWorkflow')
+    const workflowId = await executeClassifyWorkflowAsync(
+      user.user_id, // 使用 user_id，不是 auth0Id
+      filePath,
+      workflowConfigForBackend,
+    )
 
     return res.send({
       status: 'Success',
-      message: '文件上传成功！',
+      message: '文件上传成功！正在后台分类...',
       data: {
         filePath,
         originalName,
         fileName: req.file.filename,
-        classification: classifyResult.classification || 'unknown',
-        error: classifyResult.error,
+        workflowId, // 返回workflowId，前端可以用来建立SSE监听
       },
     })
   }
@@ -575,15 +577,13 @@ router.post('/upload', unifiedAuth, requireAuth, upload.single('file'), async (r
       error,
     })
 
-    // 🔥 如果分类失败，仍然返回成功，但标记为 unknown
-    return res.send({
-      status: 'Success',
-      message: '文件上传成功！',
+    return res.status(500).send({
+      status: 'Fail',
+      message: error?.message || '文件上传失败',
       data: {
         filePath,
         originalName,
         fileName: req.file.filename,
-        classification: 'unknown',
         error: error?.message || String(error),
       },
     })
@@ -668,10 +668,20 @@ router.post('/quiz/generate', unifiedAuth, requireAuth, limiter, async (req, res
     const workflowConfigFromDB = await getWorkflowConfig(user.user_id)
     const workflowConfigForBackend = await convertFrontendConfigToBackend(workflowConfigFromDB)
 
-    const { generateQuestionsFromNote } = await import('./quiz/workflow')
-    const result = await generateQuestionsFromNote(filePath, questionTypes, workflowConfigForBackend)
+    // 🔥 使用异步工作流，立即返回 workflowId
+    const { executeGenerateQuestionsAsync } = await import('./quiz/asyncWorkflow')
+    const workflowId = await executeGenerateQuestionsAsync(
+      user.user_id,
+      filePath,
+      questionTypes,
+      workflowConfigForBackend,
+    )
 
-    res.send({ status: 'Success', message: '题目生成成功', data: result })
+    return res.send({
+      status: 'Success',
+      message: '题目生成任务已启动，请通过 SSE 监听进度',
+      data: { workflowId },
+    })
   }
   catch (error) {
     res.status(500).send({ status: 'Fail', message: error.message || String(error), data: null })
@@ -699,6 +709,139 @@ router.post('/quiz/feedback', unifiedAuth, requireAuth, limiter, async (req, res
     res.status(500).send({ status: 'Fail', message: error.message || String(error), data: null })
   }
 })
+
+// Quiz submit: save user answers and calculate score
+router.post('/quiz/submit', unifiedAuth, requireAuth, limiter, async (req, res) => {
+  try {
+    const { filePath, questions, answers, timeSpent } = req.body as {
+      filePath: string
+      questions: any[]
+      answers: Record<number, string[]>
+      timeSpent: number
+    }
+
+    if (!filePath || !questions || !answers) {
+      return res.status(400).send({
+        status: 'Fail',
+        message: 'filePath, questions, and answers are required',
+        data: null,
+      })
+    }
+
+    // 计算答题结果
+    const result = {
+      metadata: {
+        submittedAt: new Date().toISOString(),
+        sourceFile: filePath,
+        totalQuestions: questions.length,
+        timeSpent,
+      },
+      questions: questions.map((q, index) => {
+        const userAnswer = answers[index] || []
+        const correctAnswer = q.answer || []
+
+        // 判断答案是否正确（创建副本后排序，避免修改原数组）
+        const userAnswerSorted = [...userAnswer].sort()
+        const correctAnswerSorted = [...correctAnswer].sort()
+        const isCorrect = arraysEqual(userAnswerSorted, correctAnswerSorted)
+
+        console.warn(`[题目${index}] 用户答案:`, userAnswer, '正确答案:', correctAnswer, '判定:', isCorrect)
+
+        // 计算得分
+        let earnedScore = 0
+        if (q.type === 'multiple_choice') {
+          // 多选题：全对得满分，少选或错选不得分
+          if (isCorrect) {
+            earnedScore = q.score
+          }
+        }
+        else {
+          // 单选题和判断题：对就得分
+          if (isCorrect) {
+            earnedScore = q.score
+          }
+        }
+
+        return {
+          questionIndex: index,
+          type: q.type,
+          question: q.question,
+          options: q.options,
+          correctAnswer,
+          userAnswer,
+          isCorrect,
+          maxScore: q.score,
+          earnedScore,
+          explanation: q.explanation,
+        }
+      }),
+    }
+
+    // 计算总分
+    const totalMaxScore = questions.reduce((sum, q) => sum + (q.score || 0), 0)
+    const totalEarnedScore = result.questions.reduce((sum, q) => sum + q.earnedScore, 0)
+    const accuracy = totalMaxScore > 0 ? (totalEarnedScore / totalMaxScore) * 100 : 0
+
+    result.metadata.totalMaxScore = totalMaxScore
+    result.metadata.totalEarnedScore = totalEarnedScore
+    result.metadata.accuracy = Math.round(accuracy * 100) / 100 // 保留两位小数
+
+    // 按题型统计
+    const statistics = {
+      single_choice: { correct: 0, total: 0, earnedScore: 0, maxScore: 0 },
+      multiple_choice: { correct: 0, total: 0, earnedScore: 0, maxScore: 0 },
+      true_false: { correct: 0, total: 0, earnedScore: 0, maxScore: 0 },
+    }
+
+    result.questions.forEach((q) => {
+      const type = q.type
+      if (statistics[type]) {
+        statistics[type].total++
+        statistics[type].maxScore += q.maxScore
+        statistics[type].earnedScore += q.earnedScore
+        if (q.isCorrect) {
+          statistics[type].correct++
+        }
+      }
+    })
+
+    result.metadata.statistics = statistics
+
+    // 保存结果到文件
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    const { join } = await import('node:path')
+    const outputDir = join(process.cwd(), 'output', 'quiz', 'results')
+    await mkdir(outputDir, { recursive: true })
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const outputFile = join(outputDir, `result_${timestamp}.json`)
+
+    await writeFile(outputFile, JSON.stringify(result, null, 2), 'utf-8')
+    console.warn('📊 [答题结果] 已保存到文件:', outputFile)
+
+    res.send({
+      status: 'Success',
+      message: '答题结果已保存',
+      data: {
+        totalMaxScore,
+        totalEarnedScore,
+        accuracy,
+        statistics,
+        outputFile,
+      },
+    })
+  }
+  catch (error) {
+    res.status(500).send({ status: 'Fail', message: error.message || String(error), data: null })
+  }
+})
+
+// 辅助函数：比较两个数组是否相等
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length)
+    return false
+  return a.every((val, index) => val === b[index])
+}
 
 // Quiz save: after user confirmation
 router.post('/quiz/save', unifiedAuth, requireAuth, limiter, async (req, res) => {

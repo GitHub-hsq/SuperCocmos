@@ -12,36 +12,36 @@ export function createNovel(data: {
   genre?: string
   theme?: string
   idea?: string
-}): Promise<APIResponse<{ novel: Novel, first_volume: Volume }>> {
-  return post<APIResponse>({
+}) {
+  return post<APIResponse<{ novel: Novel, first_volume: Volume }>>({
     url: '/novels',
     data,
   })
 }
 
-export function getUserNovels(): Promise<APIResponse<Novel[]>> {
-  return post<APIResponse>({
+export function getUserNovels() {
+  return post<APIResponse<Novel[]>>({
     url: '/novels',
     method: 'GET',
   })
 }
 
-export function getNovel(novelId: string): Promise<APIResponse<Novel & { volumes: Volume[] }>> {
-  return post<APIResponse>({
+export function getNovel(novelId: string) {
+  return post<APIResponse<Novel & { volumes: Volume[] }>>({
     url: `/novels/${novelId}`,
     method: 'GET',
   })
 }
 
-export function updateNovel(novelId: string, updates: Partial<Novel>): Promise<APIResponse<Novel>> {
-  return post<APIResponse>({
+export function updateNovel(novelId: string, updates: Partial<Novel>) {
+  return post<APIResponse<Novel>>({
     url: `/novels/${novelId}`,
     method: 'PATCH',
     data: updates,
   })
 }
 
-export function deleteNovel(novelId: string): Promise<APIResponse> {
+export function deleteNovel(novelId: string) {
   return post<APIResponse>({
     url: `/novels/${novelId}`,
     method: 'DELETE',
@@ -50,15 +50,15 @@ export function deleteNovel(novelId: string): Promise<APIResponse> {
 
 // ==================== 卷管理 ====================
 
-export function getVolume(volumeId: string): Promise<APIResponse<Volume>> {
-  return post<APIResponse>({
+export function getVolume(volumeId: string) {
+  return post<APIResponse<Volume>>({
     url: `/volumes/${volumeId}`,
     method: 'GET',
   })
 }
 
-export function updateVolume(volumeId: string, updates: Partial<Volume>): Promise<APIResponse<Volume>> {
-  return post<APIResponse>({
+export function updateVolume(volumeId: string, updates: Partial<Volume>) {
+  return post<APIResponse<Volume>>({
     url: `/volumes/${volumeId}`,
     method: 'PATCH',
     data: updates,
@@ -70,15 +70,15 @@ export function updateVolume(volumeId: string, updates: Partial<Volume>): Promis
 export function startWorkflow1(volumeId: string, input?: {
   idea?: string
   chat_history?: ChatMessage[]
-}): Promise<APIResponse<{ execution_id: string, status: string }>> {
-  return post<APIResponse>({
+}) {
+  return post<APIResponse<{ execution_id: string, status: string }>>({
     url: `/volumes/${volumeId}/workflow/1/start`,
     data: input || {},
   })
 }
 
-export function getWorkflowStatus(executionId: string): Promise<APIResponse<WorkflowExecution>> {
-  return post<APIResponse>({
+export function getWorkflowStatus(executionId: string) {
+  return post<APIResponse<WorkflowExecution>>({
     url: `/workflow/${executionId}/status`,
     method: 'GET',
   })
@@ -90,8 +90,8 @@ export function chatWithAI(
   volumeId: string,
   aiRole: string,
   data: { message: string, workflow_type: number },
-): Promise<APIResponse<{ reply: string }>> {
-  return post<APIResponse>({
+) {
+  return post<APIResponse<{ reply: string }>>({
     url: `/volumes/${volumeId}/chat/${aiRole}`,
     data,
   })
@@ -101,8 +101,8 @@ export function getChatHistory(
   volumeId: string,
   aiRole: string,
   workflowType: number,
-): Promise<APIResponse<ChatMessage[]>> {
-  return post<APIResponse>({
+) {
+  return post<APIResponse<ChatMessage[]>>({
     url: `/volumes/${volumeId}/chat/${aiRole}?workflow_type=${workflowType}`,
     method: 'GET',
   })

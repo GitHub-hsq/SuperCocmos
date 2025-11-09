@@ -20,6 +20,7 @@ import NovelDetailView from '@/views/novel/components/NovelDetailView.vue'
 import NovelListView from '@/views/novel/components/NovelListView.vue'
 
 import ChatView from './components/ChatView.vue'
+import QuizConversionView from './components/QuizConversionView.vue'
 import { useChatActions } from './composables/useChatActions'
 // ===== Composables =====
 import { useChatState } from './composables/useChatState'
@@ -331,6 +332,9 @@ watch(activeSettingTab, (newValue) => {
       <!-- 详情视图 -->
       <NovelDetailView v-else />
     </template>
+
+    <!-- 笔记转题目 - 题目工作模式 -->
+    <QuizConversionView v-else-if="workMode === 'quiz'" />
   </div>
 </template>
 

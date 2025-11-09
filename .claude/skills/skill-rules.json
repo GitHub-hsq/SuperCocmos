@@ -30,6 +30,87 @@
                     "创建.*?技能"
                 ]
             }
+        },
+        "express-ts-guidelines": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "Express + TypeScript + Supabase + Langchain 后端开发规范",
+            "promptTriggers": {
+                "keywords": [
+                    "controller",
+                    "express",
+                    "api",
+                    "supabase",
+                    "langchain",
+                    "workflow",
+                    "数据库",
+                    "后端",
+                    "接口",
+                    "工作流",
+                    "认证",
+                    "中间件"
+                ],
+                "intentPatterns": [
+                    "(create|add|implement).*?(api|endpoint|route|controller)",
+                    "(supabase|database).*?(query|operation|service)",
+                    "(langchain|workflow|langgraph).*?(create|implement|build)",
+                    "(auth|authentication|authorization).*?(implement|add)",
+                    "创建.*?(接口|API|端点|控制器)",
+                    "数据库.*?(查询|操作)",
+                    "(工作流|AI).*?(创建|实现)"
+                ],
+                "pathPatterns": [
+                    "service/src/api/**/*.ts",
+                    "service/src/db/**/*.ts",
+                    "service/src/middleware/**/*.ts",
+                    "service/src/quiz/**/*.ts",
+                    "service/src/novel/**/*.ts"
+                ],
+                "contentPatterns": [
+                    "express\\.Router\\(",
+                    "app\\.(get|post|put|delete|patch)",
+                    "export (async )?function handle",
+                    "supabase\\.from\\(",
+                    "new StateGraph",
+                    "ChatOpenAI",
+                    "requireAuth"
+                ]
+            }
+        },
+        "route-tester": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "medium",
+            "description": "Auth0 JWT 认证 API 路由测试指南",
+            "promptTriggers": {
+                "keywords": [
+                    "test api",
+                    "test route",
+                    "test endpoint",
+                    "curl",
+                    "postman",
+                    "jwt token",
+                    "access token",
+                    "auth0 token",
+                    "bearer token",
+                    "测试接口",
+                    "测试API",
+                    "测试路由",
+                    "获取token",
+                    "认证测试"
+                ],
+                "intentPatterns": [
+                    "(test|debug|check).*?(api|route|endpoint)",
+                    "(how to|how do).*?(test|call).*?(api|endpoint)",
+                    "(get|obtain|retrieve).*?(token|access token|jwt)",
+                    "(curl|postman|http).*?(request|test)",
+                    "401|403.*?(error|unauthorized|forbidden)",
+                    "测试.*?(接口|API|路由)",
+                    "如何.*?(测试|调用).*?(接口|API)",
+                    "获取.*?(token|令牌|访问令牌)"
+                ]
+            }
         }
     },
     "notes": {

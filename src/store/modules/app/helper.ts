@@ -13,7 +13,7 @@ const languageMap: { [key: string]: Language } = {
   'zh-CN': 'zh-CN',
 }
 
-export type WorkMode = 'chat' | 'novel'
+export type WorkMode = 'chat' | 'novel' | 'quiz'
 
 export interface AppState {
   siderCollapsed: boolean

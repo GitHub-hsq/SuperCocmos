@@ -128,6 +128,18 @@ export function fetchQuizFeedback<T = any>(
   })
 }
 
+export function fetchQuizSubmit<T = any>(
+  filePath: string,
+  questions: any[],
+  answers: Record<number, string[]>,
+  timeSpent: number,
+) {
+  return post<T>({
+    url: '/quiz/submit',
+    data: { filePath, questions, answers, timeSpent },
+  })
+}
+
 // 获取可用的模型列表
 export function fetchAvailableModels<T = any>() {
   return post<T>({

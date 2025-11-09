@@ -144,7 +144,7 @@ export function useChatState() {
           // 🔥 只设置 Authorization，不要设置 Content-Type
           // 让浏览器自动处理 multipart/form-data 的 Content-Type
           uploadHeaders.value = {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           }
         }
       }

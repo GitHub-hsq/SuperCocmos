@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { NButton, NCard, NCheckbox, NCheckboxGroup, NInput, NRadio, NRadioGroup, NSpace, NTag } from 'naive-ui'
-import { computed, ref } from 'vue'
-import { SvgIcon } from '@/components/common'
+import { NCard, NCheckbox, NCheckboxGroup, NRadio, NRadioGroup, NSpace, NTag } from 'naive-ui'
+import { computed } from 'vue'
 
 interface Question {
   type: 'single_choice' | 'multiple_choice' | 'true_false'
@@ -23,16 +22,7 @@ interface QuizPreviewProps {
   scoreDistribution?: ScoreDistribution
 }
 
-interface QuizPreviewEmits {
-  (e: 'accept'): void
-  (e: 'reject'): void
-  (e: 'revise', note: string): void
-}
-
 const props = defineProps<QuizPreviewProps>()
-const emit = defineEmits<QuizPreviewEmits>()
-
-const revisionNote = ref('')
 
 // 获取选项标签 (A, B, C, D...)
 function getOptionLabel(index: number): string {
@@ -97,7 +87,10 @@ const groupedQuestions = computed(() => {
       }
 
       const sectionName = chineseNumbers[sectionNumber]
-      const description = `${sectionName}、${typeTextMap[type]}：本题共 ${questionsOfType.length} 小题，每小题 ${perQuestion} 分，共 ${total} 分。`
+      // 多选题不显示"每小题x分"，因为每题分数可能不同
+      const description = type === 'multiple_choice'
+        ? `${sectionName}、${typeTextMap[type]}：本题共 ${questionsOfType.length} 小题，共 ${total} 分。`
+        : `${sectionName}、${typeTextMap[type]}：本题共 ${questionsOfType.length} 小题，每小题 ${perQuestion} 分，共 ${total} 分。`
 
       groups.push({
         type,
@@ -115,21 +108,6 @@ const groupedQuestions = computed(() => {
 
 // 获取当前年份
 const currentYear = new Date().getFullYear()
-
-function handleAccept() {
-  emit('accept')
-}
-
-function handleReject() {
-  emit('reject')
-}
-
-function handleRevise() {
-  if (revisionNote.value.trim()) {
-    emit('revise', revisionNote.value)
-    revisionNote.value = ''
-  }
-}
 </script>
 
 <template>
@@ -241,45 +219,6 @@ function handleRevise() {
           </div>
         </NSpace>
       </div>
-    </NCard>
-
-    <!-- 操作按钮 -->
-    <NCard class="mb-4">
-      <NSpace vertical :size="12">
-        <NSpace :size="12">
-          <NButton type="success" @click="handleAccept">
-            <template #icon>
-              <SvgIcon icon="ri:check-line" />
-            </template>
-            接受
-          </NButton>
-          <NButton type="error" @click="handleReject">
-            <template #icon>
-              <SvgIcon icon="ri:close-line" />
-            </template>
-            拒绝
-          </NButton>
-        </NSpace>
-
-        <div class="flex gap-2">
-          <NInput
-            v-model:value="revisionNote"
-            type="textarea"
-            placeholder="输入修改意见..."
-            :autosize="{ minRows: 2, maxRows: 4 }"
-            class="flex-1"
-          />
-          <NButton
-            type="primary"
-            :disabled="!revisionNote.trim()"
-            @click="handleRevise"
-          >
-            <template #icon>
-              <SvgIcon icon="ri:send-plane-fill" />
-            </template>
-          </NButton>
-        </div>
-      </NSpace>
     </NCard>
   </div>
 </template>

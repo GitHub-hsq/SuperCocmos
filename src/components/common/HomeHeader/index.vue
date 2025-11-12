@@ -7,7 +7,6 @@ import { useRouter } from 'vue-router'
 import Logo from '@/assets/icons/Logo.vue'
 import ChatIcon from '@/components/icons/ChatIcon.vue'
 import ChevronIcon from '@/components/icons/ChevronIcon.vue'
-import CodeIcon from '@/components/icons/CodeIcon.vue'
 import DocumentIcon from '@/components/icons/DocumentIcon.vue'
 import RocketIcon from '@/components/icons/RocketIcon.vue'
 import ShieldIcon from '@/components/icons/ShieldIcon.vue'
@@ -30,21 +29,21 @@ const dropdownMenus = computed(() => ({
   products: [
     {
       icon: ChatIcon,
-      title: t('home.nav.dropdowns.products.aiChat.title'),
-      description: t('home.nav.dropdowns.products.aiChat.description'),
-      href: '/chat',
-    },
-    {
-      icon: CodeIcon,
-      title: t('home.nav.dropdowns.products.codeAnalysis.title'),
-      description: t('home.nav.dropdowns.products.codeAnalysis.description'),
-      href: '#',
+      title: t('home.features.feature1.title'),
+      description: t('home.features.feature1.description'),
+      href: '#ai-chat',
     },
     {
       icon: DocumentIcon,
-      title: t('home.nav.dropdowns.products.knowledgeBase.title'),
-      description: t('home.nav.dropdowns.products.knowledgeBase.description'),
-      href: '#',
+      title: t('home.features.feature2.title'),
+      description: t('home.features.feature2.description'),
+      href: '#quiz',
+    },
+    {
+      icon: SparklesIcon,
+      title: t('home.features.feature3.title'),
+      description: t('home.features.feature3.description'),
+      href: '#novel',
     },
   ],
   solutions: [
@@ -90,7 +89,6 @@ const dropdownMenus = computed(() => ({
 }))
 
 const navItems = computed(() => [
-  { label: t('home.nav.features'), href: '#features' },
   { label: t('home.nav.pricing'), href: '#pricing' },
   { label: t('home.nav.faq'), href: '#faq' },
 ])
@@ -459,20 +457,19 @@ onUnmounted(() => {
   position: fixed;
   top: 64px;
   width: 427px;
-  background: var(--card-bg);
+  background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   padding: 8px;
-  z-index: 1000;
+  z-index: 9999;
   overflow: hidden;
 }
 
 .dark .dropdown-menu {
-  background: rgba(20, 20, 20, 0.95);
+  background: #1a1a1a;
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(20px);
 }
 
 /* Dropdown fade animation */

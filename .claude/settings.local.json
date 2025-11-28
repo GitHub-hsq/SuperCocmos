@@ -81,7 +81,11 @@
       "Bash(ssh-add:*)",
       "Bash(ssh-keyscan:*)",
       "Bash(~/.ssh/known_hosts)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git reset:*)",
+      "Bash(git stash drop:*)"
     ],
     "deny": [],
     "ask": []

@@ -12,6 +12,20 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 // 检测是否为 Windows 环境
 const isWindows = process.platform === 'win32'
 
+// 🔥 Windows 控制台编码修复
+if (isWindows && process.stdout.isTTY) {
+  try {
+    // 设置控制台输出编码为 UTF-8
+    process.stdout.setDefaultEncoding('utf8')
+    if (process.stderr.isTTY) {
+      process.stderr.setDefaultEncoding('utf8')
+    }
+  }
+  catch {
+    // 忽略设置失败
+  }
+}
+
 // 创建 Pino logger
 export const logger = pino({
   level: LOG_LEVEL,

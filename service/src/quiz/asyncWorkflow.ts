@@ -71,6 +71,9 @@ export async function executeClassifyWorkflowAsync(
  * @param userId 用户ID (user_id，不是auth0Id)
  * @param filePath 文件路径
  * @param questionTypes 题型配置
+ * @param questionTypes.single_choice 单选题数量
+ * @param questionTypes.multiple_choice 多选题数量
+ * @param questionTypes.true_false 判断题数量
  * @param workflowConfig 工作流配置
  * @returns workflowId
  */

@@ -14,9 +14,11 @@ const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0()
 // Quiz workflow tab state
 const quizActiveTab = ref('classify')
 
-// 检查是否是切换账号操作
+// 检查是否是切换账号操作或登录回调
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search)
+
+  // 1. 处理切换账号
   if (urlParams.has('switchAccount')) {
     // 清理 URL 参数
     window.history.replaceState({}, '', '/')
@@ -24,6 +26,33 @@ onMounted(() => {
     setTimeout(() => {
       goToSignIn()
     }, 500)
+    return
+  }
+
+  // 2. 处理登录回调：如果 URL 包含 code/state 且用户已认证，自动跳转到 /chat
+  const isFromAuth0 = urlParams.has('code') || urlParams.has('state')
+  if (isFromAuth0) {
+    console.warn('🔍 [Home] 检测到 Auth0 回调参数，等待认证完成...')
+
+    // 等待 Auth0 初始化完成
+    const checkAuth = setInterval(() => {
+      if (!isLoading.value) {
+        clearInterval(checkAuth)
+
+        if (isAuthenticated.value) {
+          console.warn('✅ [Home] 用户已认证，自动跳转到 /chat')
+          router.push('/chat')
+        }
+        else {
+          console.warn('⚠️ [Home] Auth0 回调但用户未认证，保持在首页')
+        }
+      }
+    }, 100)
+
+    // 超时保护（5秒）
+    setTimeout(() => {
+      clearInterval(checkAuth)
+    }, 5000)
   }
 })
 

@@ -146,10 +146,18 @@ onMounted(async () => {
       if (requiresAuth && !isPublic) {
         // 给路由守卫一些时间来完成 loginWithRedirect
         // 如果 2 秒后还在当前页面，说明可能有问题，关闭 Loading
+        const currentPath = currentRoute.path
+        const currentUrl = window.location.pathname
         setTimeout(() => {
           // 检查是否还在当前页面（loginWithRedirect 应该已经跳转了）
-          if (window.location.href === currentRoute.fullPath || router.currentRoute.value.path === currentRoute.path) {
-            console.warn('⚠️ [App.vue] 登录重定向可能失败，关闭 Loading')
+          // 比较路径而不是完整 URL，避免 href 和 fullPath 格式不匹配
+          if (window.location.pathname === currentUrl && router.currentRoute.value.path === currentPath) {
+            console.warn('⚠️ [App.vue] 登录重定向可能失败，关闭 Loading', {
+              currentPath,
+              currentUrl,
+              nowPath: router.currentRoute.value.path,
+              nowUrl: window.location.pathname,
+            })
             isAppLoading.value = false
           }
         }, 2000)

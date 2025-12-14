@@ -42,6 +42,16 @@ function http<T = any>(
       window.location.reload()
     }
 
+    // 🔥 添加日志：记录意外的响应状态
+    if (import.meta.env.DEV) {
+      console.warn('⚠️ [HTTP] 响应状态异常，准备 reject:', {
+        url,
+        status: res.data?.status,
+        dataType: typeof res.data,
+        data: res.data,
+      })
+    }
+
     return Promise.reject(res.data)
   }
 

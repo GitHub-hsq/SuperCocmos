@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { NButton, NIcon, NInput, NText, NUpload, NUploadDragger } from 'naive-ui'
+import { NButton, NIcon, NInput, NText, NUpload, NUploadDragger, useMessage } from 'naive-ui'
 import { nextTick, ref, watch } from 'vue'
+import { callGeminiTTS } from '@/api/geminiTTS'
 import planningIcon from '@/assets/icons/planning.svg'
 import testIcon from '@/assets/icons/test.svg'
 import writingIcon from '@/assets/icons/writing.svg'
@@ -188,6 +189,67 @@ function handleQuizRevise(note: string) {
 function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) {
   emit('quizSubmit', answers, timeSpent)
 }
+
+// 🎤 Gemini TTS 测试功能
+const ttsLoading = ref(false)
+const ttsAudioUrl = ref<string | null>(null) // 当前播放的音频 URL
+const ttsText = ref<string>('') // 当前播放的文本
+const showTTSPlayer = ref(false) // 是否显示播放器
+const ms = useMessage()
+
+async function handleTTSTest() {
+  const defaultText = `Say calmly:What the fuck are you talking about?`
+
+  if (ttsLoading.value) {
+    ms.warning('正在处理中，请稍候...')
+    return
+  }
+
+  try {
+    ttsLoading.value = true
+    ms.loading('正在调用 Gemini TTS API，请稍候...', { duration: 0 })
+
+    console.warn('🎤 [TTS Test] 开始测试，文本:', defaultText)
+
+    // 调用 Gemini TTS API
+    const result = await callGeminiTTS({ text: defaultText })
+
+    ms.destroyAll()
+    ms.success('TTS 转换成功！')
+
+    // 🔥 创建持久化的音频 URL（而不是一次性播放）
+    // 先清理旧的 URL
+    if (ttsAudioUrl.value) {
+      URL.revokeObjectURL(ttsAudioUrl.value)
+    }
+
+    // 导入 createAudioUrl 函数
+    const { createAudioUrl } = await import('@/api/geminiTTS')
+    ttsAudioUrl.value = createAudioUrl(result.audioData, result.contentType)
+    ttsText.value = defaultText
+    showTTSPlayer.value = true
+
+    console.warn('✅ [TTS Test] 音频 URL 已创建，显示播放器')
+  }
+  catch (error: any) {
+    ms.destroyAll()
+    ms.error(`TTS 测试失败: ${error.message}`)
+    console.error('❌ [TTS Test] 失败:', error)
+  }
+  finally {
+    ttsLoading.value = false
+  }
+}
+
+// 关闭 TTS 播放器
+function closeTTSPlayer() {
+  if (ttsAudioUrl.value) {
+    URL.revokeObjectURL(ttsAudioUrl.value)
+    ttsAudioUrl.value = null
+  }
+  ttsText.value = ''
+  showTTSPlayer.value = false
+}
 </script>
 
 <template>
@@ -352,8 +414,10 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
                   <button
                     v-else-if="!prompt || prompt.trim() === ''"
                     class="chat-icon-btn voice-btn pointer-events-auto"
+                    :disabled="ttsLoading"
+                    @click="handleTTSTest"
                   >
-                    <SvgIcon icon="ri:mic-line" />
+                    <SvgIcon :icon="ttsLoading ? 'eos-icons:loading' : 'ri:mic-line'" />
                   </button>
                   <button
                     v-else
@@ -404,8 +468,10 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
                   <button
                     v-else-if="!prompt || prompt.trim() === ''"
                     class="chat-icon-btn voice-btn flex-shrink-0"
+                    :disabled="ttsLoading"
+                    @click="handleTTSTest"
                   >
-                    <SvgIcon icon="ri:mic-line" />
+                    <SvgIcon :icon="ttsLoading ? 'eos-icons:loading' : 'ri:mic-line'" />
                   </button>
                   <button
                     v-else
@@ -554,6 +620,43 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
           </div>
         </div>
       </aside>
+
+      <!-- 🎤 TTS 音频播放器 -->
+      <transition name="slide-up">
+        <div
+          v-if="showTTSPlayer && ttsAudioUrl"
+          class="tts-player-container"
+        >
+          <div class="tts-player-card">
+            <!-- 关闭按钮 -->
+            <button
+              class="tts-close-btn"
+              @click="closeTTSPlayer"
+            >
+              <SvgIcon icon="ri:close-line" class="text-lg" />
+            </button>
+
+            <!-- 标题 -->
+            <div class="tts-title">
+              <SvgIcon icon="ri:volume-up-line" class="text-xl" />
+              <span>语音播放</span>
+            </div>
+
+            <!-- 音频播放器 -->
+            <audio
+              :src="ttsAudioUrl"
+              controls
+              autoplay
+              class="tts-audio-player"
+            />
+
+            <!-- 文本内容 -->
+            <div class="tts-text">
+              {{ ttsText }}
+            </div>
+          </div>
+        </div>
+      </transition>
     </main>
   </div>
 </template>
@@ -808,6 +911,117 @@ function handleQuizSubmit(answers: Record<number, string[]>, timeSpent: number) 
 
 .mobile-scrollbar-hide::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
+}
+
+/* 🎤 TTS 播放器样式 */
+.tts-player-container {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: 90%;
+  width: 500px;
+}
+
+.tts-player-card {
+  position: relative;
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dark .tts-player-card {
+  background: #2a2a2c;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.tts-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tts-close-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
+}
+
+.dark .tts-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.dark .tts-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tts-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.dark .tts-title {
+  color: #fff;
+}
+
+.tts-audio-player {
+  width: 100%;
+  height: 40px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  outline: none;
+}
+
+.tts-text {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  color: #555;
+  font-size: 14px;
+  line-height: 1.6;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.dark .tts-text {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ddd;
+}
+
+/* 播放器动画 */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
 }
 </style>
 
